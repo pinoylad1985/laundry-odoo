@@ -2,8 +2,10 @@
 
 import { patch } from "@web/core/utils/patch";
 import { useState } from "@odoo/owl";
+import { useService } from "@web/core/utils/hooks";
 import { TicketScreen } from "@point_of_sale/app/screens/ticket_screen/ticket_screen";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
+import { RefundGatePopup } from "@laundry_pos/refund_gate/refund_gate_popup";
 
 /**
  * LIST hub action — adds a customer search bar above the order "Search Orders"
@@ -15,6 +17,8 @@ import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/util
 patch(TicketScreen.prototype, {
     setup() {
         super.setup(...arguments);
+        this.dialog = useService("dialog");
+        this.orm = useService("orm");
         this.laundryState = useState({
             customerQuery: "",
             selectedCustomer: null,
@@ -47,17 +51,63 @@ patch(TicketScreen.prototype, {
      */
     async onDoRefund() {
         const order = this.getSelectedOrder();
-        if (order) {
-            for (const line of order.getOrderlines()) {
-                const detail = this.getToRefundDetail(line);
-                if (detail.destionation_order_id) {
-                    continue; // already linked to a refund — leave it
-                }
-                const full = line.qty - line.refundedQty;
-                detail.qty = full > 0 ? full : 0;
-            }
+        if (!order) {
+            return super.onDoRefund(...arguments);
         }
-        return super.onDoRefund(...arguments);
+        // Refund control gate: a paid order can only be refunded against a valid rebooked
+        // replacement order (same customer + later date) OR with a manager's approval.
+        const approval = await this._laundryRefundGate(order);
+        if (!approval) {
+            return; // cancelled / not approved — abort the refund
+        }
+        // Capture the original's tender(s) so the refund is locked to the exact same
+        // payment method(s) and amount(s), negated (see payment_screen_patch).
+        let lockedPayments = [];
+        try {
+            lockedPayments = await this.orm.call("pos.order", "get_laundry_refund_payments", [order.id]);
+        } catch {
+            lockedPayments = [];
+        }
+        for (const line of order.getOrderlines()) {
+            const detail = this.getToRefundDetail(line);
+            if (detail.destionation_order_id) {
+                continue; // already linked to a refund — leave it
+            }
+            const full = line.qty - line.refundedQty;
+            detail.qty = full > 0 ? full : 0;
+        }
+        const result = await super.onDoRefund(...arguments);
+        this._laundryStampRefund(approval);
+        const refundOrder = this.pos.getOrder();
+        if (refundOrder) {
+            refundOrder._laundryLockedPayments = lockedPayments;
+        }
+        return result;
+    },
+
+    // Show the refund gate; resolves with the approval payload, or null if cancelled.
+    _laundryRefundGate(order) {
+        return new Promise((resolve) => {
+            this.dialog.add(
+                RefundGatePopup,
+                { originalOrderId: order.id, onApproved: (payload) => resolve(payload) },
+                { onClose: () => resolve(null) }
+            );
+        });
+    },
+
+    // Record the approval on the newly-created refund order (the active order now).
+    _laundryStampRefund(approval) {
+        const refundOrder = this.pos.getOrder();
+        if (!refundOrder || !approval) {
+            return;
+        }
+        if (approval.mode === "rebook") {
+            refundOrder.laundry_refund_rebook_ref = approval.rebookRef;
+        } else if (approval.mode === "override") {
+            refundOrder.laundry_refund_manager = approval.manager;
+            refundOrder.laundry_refund_reason = approval.reason;
+        }
     },
 
     onLaundryCustomerInput(ev) {

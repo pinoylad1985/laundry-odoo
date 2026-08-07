@@ -1,13 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
-    <!-- "Laundry Rider" checkbox next to the POS PIN on the employee form. -->
+    <!-- Laundry role checkboxes next to the POS PIN on the employee form. -->
     <record id="view_employee_form_laundry_rider" model="ir.ui.view">
-        <field name="name">hr.employee.form.laundry.rider</field>
+        <field name="name">hr.employee.form.laundry.roles</field>
         <field name="model">hr.employee</field>
         <field name="inherit_id" ref="hr.view_employee_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='pin']" position="after">
+                <field name="is_laundry_attendant"/>
+                <field name="is_laundry_cashier"/>
                 <field name="is_laundry_rider"/>
+                <field name="is_laundry_manager"/>
+                <field name="is_laundry_admin"/>
             </xpath>
         </field>
     </record>

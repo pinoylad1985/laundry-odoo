@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.RefundGatePopup">
+        <Dialog title="'Refund approval'" size="'md'">
+            <div class="laundry-refund-gate">
+                <!-- Mode tabs -->
+                <div class="btn-group w-100 mb-3">
+                    <button class="btn"
+                            t-att-class="state.mode === 'rebook' ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="() => this.setMode('rebook')">Rebooked order</button>
+                    <button class="btn"
+                            t-att-class="state.mode === 'override' ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="() => this.setMode('override')">No rebooking (manager)</button>
+                </div>
+
+                <!-- (a) Rebooked-order path -->
+                <div t-if="state.mode === 'rebook'">
+                    <label class="fw-semibold mb-1 d-block">Rebooked order number</label>
+                    <input type="text" inputmode="numeric" autocomplete="off"
+                           class="form-control form-control-lg"
+                           placeholder="e.g. 81120"
+                           t-att-value="state.tracking"
+                           t-on-input="(ev) => this.state.tracking = ev.target.value"
+                           t-on-keydown="onKeydown"/>
+                    <small class="text-muted d-block mt-1">
+                        Must be the SAME customer and created AFTER this order.
+                    </small>
+                </div>
+
+                <!-- (b) Manager-override path -->
+                <div t-if="state.mode === 'override'">
+                    <label class="fw-semibold mb-1 d-block">Reason</label>
+                    <input type="text" class="form-control form-control-lg mb-2"
+                           placeholder="Why is this refund allowed without a rebooking?"
+                           t-att-value="state.reason"
+                           t-on-input="(ev) => this.state.reason = ev.target.value"/>
+                    <label class="fw-semibold mb-1 d-block">Manager PIN</label>
+                    <input type="password" inputmode="numeric" autocomplete="off"
+                           class="form-control form-control-lg"
+                           placeholder="Manager PIN"
+                           t-att-value="state.pin"
+                           t-on-input="(ev) => this.state.pin = ev.target.value"
+                           t-on-keydown="onKeydown"/>
+                </div>
+
+                <div t-if="state.error" class="text-danger mt-2"><t t-esc="state.error"/></div>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-att-disabled="state.busy" t-on-click="confirm">
+                    Approve refund
+                </button>
+                <button class="btn btn-secondary" t-on-click="() => this.props.close()">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

@@ -120,6 +120,13 @@ class PosOrder(models.Model):
     # Rider who signed off on a Pickup & Delivery / Locker order at payment (POS PIN gate).
     laundry_rider = fields.Char(string='Rider')
 
+    # --- Refund control (set on the REFUND order when a paid order is refunded) ---
+    # Either the rebooked replacement order is referenced (normal path) OR a manager
+    # approved the refund without a rebooking (override path) — see the refund gate.
+    laundry_refund_rebook_ref = fields.Char(string='Refund Rebook Ref')  # rebooked order name (+tracking)
+    laundry_refund_manager = fields.Char(string='Refund Approved By')     # manager (override path only)
+    laundry_refund_reason = fields.Char(string='Refund Reason')           # reason (override path only)
+
     @api.depends('laundry_delivery_datetime', 'laundry_claim_datetime')
     def _compute_laundry_due_datetime(self):
         # Legacy fallback to the ex-Studio field for old records. Guarded by a
@@ -261,6 +268,69 @@ class PosOrder(models.Model):
             return {"id": emp.id, "name": emp.name} if ok else False
         emp = Emp.search([("pin", "=", pin)], limit=1)
         return {"id": emp.id, "name": emp.name} if emp else False
+
+    @api.model
+    def check_laundry_manager(self, pin):
+        """Authenticate a MANAGER by PIN — for approving a refund without a rebooked
+        order. Returns {'id', 'name'} if the PIN belongs to an employee flagged
+        is_laundry_manager, else False."""
+        pin = (pin or "").strip()
+        emp = self.env["hr.employee"].sudo().search(
+            [("is_laundry_manager", "=", True), ("pin", "=", pin)], limit=1
+        )
+        return {"id": emp.id, "name": emp.name} if emp else False
+
+    @api.model
+    def check_laundry_rebook(self, original_id, tracking_number):
+        """Validate a rebooked replacement order before a refund is allowed.
+
+        The rebooked order must have the given ``tracking_number``, the SAME customer
+        as the order being refunded, and a LATER ``date_order``. ``tracking_number``
+        alone is NOT unique in Odoo, so the same-customer + later-date filters are what
+        actually pin it down. Returns:
+          {'status': 'ok', 'name', 'tracking_number'}  — exactly one match (approve)
+          {'status': 'none'}                            — no match (block)
+          {'status': 'ambiguous', 'count'}             — >1 match, can't confirm (block)
+          {'status': 'no_customer'}                     — original has no customer (block)
+        """
+        original = self.browse(int(original_id))
+        if not original.exists():
+            return {"status": "none"}
+        if not original.partner_id:
+            return {"status": "no_customer"}
+        tn = (tracking_number or "").strip()
+        if not tn:
+            return {"status": "none"}
+        matches = self.search([
+            ("tracking_number", "=", tn),
+            ("partner_id", "=", original.partner_id.id),
+            ("date_order", ">", original.date_order),
+            ("amount_total", ">", 0),   # a real sale, not a refund/void
+            ("id", "!=", original.id),
+        ])
+        if len(matches) == 1:
+            return {
+                "status": "ok",
+                "name": matches.name,
+                "tracking_number": matches.tracking_number,
+            }
+        if not matches:
+            return {"status": "none"}
+        return {"status": "ambiguous", "count": len(matches)}
+
+    @api.model
+    def get_laundry_refund_payments(self, original_id):
+        """Return the payment lines of the order being refunded so the refund can be
+        locked to the EXACT same tender(s). Partial refunds are disabled, so the refund
+        mirrors the original 1:1 — each of these is applied negated on the refund.
+        Returns [{'payment_method_id': id, 'amount': float}, ...]."""
+        original = self.browse(int(original_id))
+        if not original.exists():
+            return []
+        return [
+            {"payment_method_id": p.payment_method_id.id, "amount": p.amount}
+            for p in original.payment_ids
+        ]
 
     @api.constrains("laundry_folding_time")
     def _check_laundry_folding_not_future(self):

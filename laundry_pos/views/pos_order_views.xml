@@ -19,6 +19,9 @@
                 <field name="laundry_status" optional="show"/>
                 <field name="laundry_staff_id" optional="show" widget="laundry_staff_pin"/>
                 <field name="laundry_folding_time" optional="show" widget="laundry_folding_pin"/>
+                <field name="laundry_refund_rebook_ref" optional="hide"/>
+                <field name="laundry_refund_manager" optional="hide"/>
+                <field name="laundry_refund_reason" optional="hide"/>
             </xpath>
             <!-- Pastel row fill by due-urgency is applied in JS (backend/due_rows.js patches
                  ListRenderer.getRowClass off the visible laundry_due_icon) + styled in

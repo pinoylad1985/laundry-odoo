@@ -147,6 +147,22 @@ Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml
 - **Refund = whole order.** Clicking Refund (TicketScreen) refunds **every line at full remaining qty** — no
   per-line selection or qty entry. `_setToRefundDetail` snaps to full qty (⚠ full override — re-check on upgrade);
   `onDoRefund` auto-selects all lines. Note reads "Only full refund is allowed. Click Refund to proceed."
+- **Refund control gate (v1.4.0):** clicking Refund opens `RefundGatePopup` (`static/src/refund_gate/`), gated in
+  `ticket_screen_patch.onDoRefund` (blocks the refund unless approved). The cashier must reference the **rebooked
+  replacement order by its order number** — validated by `pos.order.check_laundry_rebook` (same `tracking_number`
+  + same customer + later `date_order`; blocks on 0 or ambiguous matches, since `tracking_number` is **NOT unique**)
+  — OR a **manager** (`hr.employee.is_laundry_manager`) approves with PIN + a typed reason (`check_laundry_manager`).
+  Recorded on the refund order: `laundry_refund_rebook_ref` / `laundry_refund_manager` / `laundry_refund_reason`
+  (optional columns on the POS Orders list).
+- **Refund payment lock (v1.4.2):** a refund is tendered EXACTLY like the original — same payment method(s) +
+  amount(s), negated (partial refund is off, so it mirrors 1:1). `ticket_screen_patch.onDoRefund` stashes the
+  original's tenders (`pos.order.get_laundry_refund_payments`) as `_laundryLockedPayments` on the refund order;
+  `overrides/payment_screen_patch.js` (on PaymentScreen mount) clears any lines then re-adds the mirrored ones,
+  and blocks manual add/delete/amount edits (scoped to locked refund orders only — normal payments untouched).
+  ⚠ **Odoo 19 payment API** (verified @19.0 core `payment_screen.js` / `pos_payment.js` — re-verify on upgrade):
+  the mirror drives ORDER-level `order.addPaymentline(method)→{status,data}` / `order.removePaymentline(line)` /
+  `order.getSelectedPaymentline()` / `line.setAmount(v)` (camelCase — NOT the old `set_amount`); the lock
+  overrides the SCREEN-level `addNewPaymentLine` (async) / `deletePaymentLine(uuid)` / `updateSelectedPaymentline`.
 - **A refund order locks the hub:** navbar getter `laundryIsRefund` (`is_refund` / has refund lines) disables
   BOTH New Order and Settle Order.
 
