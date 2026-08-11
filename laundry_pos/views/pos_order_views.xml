@@ -19,8 +19,8 @@
                 <field name="laundry_status" optional="show"/>
                 <field name="laundry_staff_id" optional="show" widget="laundry_staff_pin"/>
                 <field name="laundry_folding_time" optional="show" widget="laundry_folding_pin"/>
-                <field name="laundry_pickup_rider" optional="hide"/>
-                <field name="laundry_delivery_rider" optional="hide"/>
+                <field name="laundry_pickup_rider" optional="show"/>
+                <field name="laundry_delivery_rider" optional="show"/>
                 <field name="laundry_refund_rebook_ref" optional="hide"/>
                 <field name="laundry_refund_manager" optional="hide"/>
                 <field name="laundry_refund_reason" optional="hide"/>
