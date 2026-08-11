@@ -104,6 +104,11 @@ patch(TicketScreen.prototype, {
         }
         if (approval.mode === "rebook") {
             refundOrder.laundry_refund_rebook_ref = approval.rebookRef;
+            refundOrder.laundry_refund_reason = approval.reason;
+        } else if (approval.mode === "rebook_other") {
+            refundOrder.laundry_refund_rebook_ref = approval.rebookRef;
+            refundOrder.laundry_refund_manager = approval.manager;
+            refundOrder.laundry_refund_reason = approval.reason;
         } else if (approval.mode === "override") {
             refundOrder.laundry_refund_manager = approval.manager;
             refundOrder.laundry_refund_reason = approval.reason;
