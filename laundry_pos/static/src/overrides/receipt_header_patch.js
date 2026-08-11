@@ -98,8 +98,12 @@ patch(ReceiptHeader.prototype, {
         return "";
     },
 
-    // Rider who signed off on a Pickup & Delivery / Locker order (set at payment).
+    // Pickup rider who signed off on a Pickup & Delivery / Locker order (set at payment).
     get laundryRider() {
-        return this.props.order?.laundry_rider || "";
+        return this.props.order?.laundry_pickup_rider || "";
+    },
+    // Delivery rider — captured by the delivery sign-off (process to follow).
+    get laundryDeliveryRider() {
+        return this.props.order?.laundry_delivery_rider || "";
     },
 });

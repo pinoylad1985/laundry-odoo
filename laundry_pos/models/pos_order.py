@@ -117,8 +117,10 @@ class PosOrder(models.Model):
         string='Due Level',
         compute='_compute_laundry_due_icon',
     )
-    # Rider who signed off on a Pickup & Delivery / Locker order at payment (POS PIN gate).
-    laundry_rider = fields.Char(string='Rider')
+    # Pickup rider — signs off on a Pickup & Delivery / Locker order at payment (POS PIN gate).
+    laundry_pickup_rider = fields.Char(string='Pickup Rider')
+    # Delivery rider — captured by the delivery sign-off (process to follow); blank until then.
+    laundry_delivery_rider = fields.Char(string='Delivery Rider')
 
     # --- Refund control (set on the REFUND order when a paid order is refunded) ---
     # Either the rebooked replacement order is referenced (normal path) OR a manager
