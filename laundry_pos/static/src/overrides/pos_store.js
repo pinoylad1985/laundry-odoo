@@ -186,7 +186,7 @@ patch(PosStore.prototype, {
             dialog?.add(RiderSignoffPopup, {
                 onSignedOff: (riderName) => {
                     order._riderSignedOff = true;
-                    order.laundry_rider = riderName;
+                    order.laundry_pickup_rider = riderName;
                     this.pay(...payArgs); // re-enter; now signed off -> proceeds to payment
                 },
             });

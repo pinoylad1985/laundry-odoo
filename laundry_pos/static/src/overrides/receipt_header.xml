@@ -49,6 +49,7 @@
                     <div t-if="laundryDelivery"><b><t t-esc="laundryDeliveryLabel"/>:</b> <t t-esc="laundryDelivery"/></div>
                     <div><b>TAT:</b> <t t-esc="laundryTAT"/></div>
                     <div t-if="laundryRider"><b>Pickup Rider:</b> <t t-esc="laundryRider"/></div>
+                    <div t-if="laundryDeliveryRider"><b>Delivery Rider:</b> <t t-esc="laundryDeliveryRider"/></div>
                 </div>
                 <div>&#160;</div>
             </t>

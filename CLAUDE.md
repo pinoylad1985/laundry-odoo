@@ -147,13 +147,17 @@ Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml
 - **Refund = whole order.** Clicking Refund (TicketScreen) refunds **every line at full remaining qty** — no
   per-line selection or qty entry. `_setToRefundDetail` snaps to full qty (⚠ full override — re-check on upgrade);
   `onDoRefund` auto-selects all lines. Note reads "Only full refund is allowed. Click Refund to proceed."
-- **Refund control gate (v1.4.0):** clicking Refund opens `RefundGatePopup` (`static/src/refund_gate/`), gated in
-  `ticket_screen_patch.onDoRefund` (blocks the refund unless approved). The cashier must reference the **rebooked
-  replacement order by its order number** — validated by `pos.order.check_laundry_rebook` (same `tracking_number`
-  + same customer + later `date_order`; blocks on 0 or ambiguous matches, since `tracking_number` is **NOT unique**)
-  — OR a **manager** (`hr.employee.is_laundry_manager`) approves with PIN + a typed reason (`check_laundry_manager`).
-  Recorded on the refund order: `laundry_refund_rebook_ref` / `laundry_refund_manager` / `laundry_refund_reason`
-  (optional columns on the POS Orders list).
+- **Refund control gate (v1.4.0, 3 paths @ v1.4.4):** clicking Refund opens `RefundGatePopup`
+  (`static/src/refund_gate/`), gated in `ticket_screen_patch.onDoRefund` (blocks the refund unless approved). A
+  **typed reason is required on ALL three paths**; pick one tab:
+  1. **Rebooked order (same customer)** (`mode:'rebook'`) — reason + rebooked order #, validated by
+     `check_laundry_rebook(orig, tn, same_customer=True)` (same `tracking_number` + same customer + later
+     `date_order`; blocks on 0/ambiguous matches, since `tracking_number` is **NOT unique**).
+  2. **Rebooked order (different customer)** (`mode:'rebook_other'`) — reason + rebooked order # (validated
+     with `same_customer=False`: later `date_order`, ANY customer) **+ a manager PIN** (`check_laundry_manager`).
+  3. **No rebooking** (`mode:'override'`) — reason + a **manager** PIN only (`hr.employee.is_laundry_manager`).
+  Recorded on the refund order: `laundry_refund_rebook_ref` (paths 1–2) / `laundry_refund_manager` (paths 2–3) /
+  `laundry_refund_reason` (all) — optional columns on the POS Orders list.
 - **Refund payment lock (v1.4.2):** a refund is tendered EXACTLY like the original — same payment method(s) +
   amount(s), negated (partial refund is off, so it mirrors 1:1). `ticket_screen_patch.onDoRefund` stashes the
   original's tenders (`pos.order.get_laundry_refund_payments`) as `_laundryLockedPayments` on the refund order;

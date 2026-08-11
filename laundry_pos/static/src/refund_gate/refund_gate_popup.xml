@@ -7,13 +7,24 @@
                 <div class="btn-group w-100 mb-3">
                     <button class="btn"
                             t-att-class="state.mode === 'rebook' ? 'btn-primary' : 'btn-outline-secondary'"
-                            t-on-click="() => this.setMode('rebook')">Rebooked order</button>
+                            t-on-click="() => this.setMode('rebook')">Rebooked order (same customer)</button>
+                    <button class="btn"
+                            t-att-class="state.mode === 'rebook_other' ? 'btn-primary' : 'btn-outline-secondary'"
+                            t-on-click="() => this.setMode('rebook_other')">Rebooked order (different customer)</button>
                     <button class="btn"
                             t-att-class="state.mode === 'override' ? 'btn-primary' : 'btn-outline-secondary'"
-                            t-on-click="() => this.setMode('override')">No rebooking (manager)</button>
+                            t-on-click="() => this.setMode('override')">No rebooking</button>
                 </div>
 
-                <!-- (a) Rebooked-order path -->
+                <!-- Reason — required on every path. -->
+                <label class="fw-semibold mb-1 d-block">Reason</label>
+                <input type="text" class="form-control form-control-lg mb-3"
+                       placeholder="Why is this refund allowed?"
+                       t-att-value="state.reason"
+                       t-on-input="(ev) => this.state.reason = ev.target.value"
+                       t-on-keydown="onKeydown"/>
+
+                <!-- (a) Rebooked order (same customer) -->
                 <div t-if="state.mode === 'rebook'">
                     <label class="fw-semibold mb-1 d-block">Rebooked order number</label>
                     <input type="text" inputmode="numeric" autocomplete="off"
@@ -27,13 +38,29 @@
                     </small>
                 </div>
 
-                <!-- (b) Manager-override path -->
+                <!-- (b) Rebooked order (different customer) — order # + manager PIN -->
+                <div t-if="state.mode === 'rebook_other'">
+                    <label class="fw-semibold mb-1 d-block">Rebooked order number</label>
+                    <input type="text" inputmode="numeric" autocomplete="off"
+                           class="form-control form-control-lg mb-1"
+                           placeholder="e.g. 81120"
+                           t-att-value="state.tracking"
+                           t-on-input="(ev) => this.state.tracking = ev.target.value"
+                           t-on-keydown="onKeydown"/>
+                    <small class="text-muted d-block mb-2">
+                        Any customer — must be created AFTER this order.
+                    </small>
+                    <label class="fw-semibold mb-1 d-block">Manager PIN</label>
+                    <input type="password" inputmode="numeric" autocomplete="off"
+                           class="form-control form-control-lg"
+                           placeholder="Manager PIN"
+                           t-att-value="state.pin"
+                           t-on-input="(ev) => this.state.pin = ev.target.value"
+                           t-on-keydown="onKeydown"/>
+                </div>
+
+                <!-- (c) No rebooking — manager PIN -->
                 <div t-if="state.mode === 'override'">
-                    <label class="fw-semibold mb-1 d-block">Reason</label>
-                    <input type="text" class="form-control form-control-lg mb-2"
-                           placeholder="Why is this refund allowed without a rebooking?"
-                           t-att-value="state.reason"
-                           t-on-input="(ev) => this.state.reason = ev.target.value"/>
                     <label class="fw-semibold mb-1 d-block">Manager PIN</label>
                     <input type="password" inputmode="numeric" autocomplete="off"
                            class="form-control form-control-lg"

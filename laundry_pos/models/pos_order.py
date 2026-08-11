@@ -117,8 +117,10 @@ class PosOrder(models.Model):
         string='Due Level',
         compute='_compute_laundry_due_icon',
     )
-    # Rider who signed off on a Pickup & Delivery / Locker order at payment (POS PIN gate).
-    laundry_rider = fields.Char(string='Rider')
+    # Pickup rider — signs off on a Pickup & Delivery / Locker order at payment (POS PIN gate).
+    laundry_pickup_rider = fields.Char(string='Pickup Rider')
+    # Delivery rider — captured by the delivery sign-off (process to follow); blank until then.
+    laundry_delivery_rider = fields.Char(string='Delivery Rider')
 
     # --- Refund control (set on the REFUND order when a paid order is refunded) ---
     # Either the rebooked replacement order is referenced (normal path) OR a manager
@@ -281,33 +283,42 @@ class PosOrder(models.Model):
         return {"id": emp.id, "name": emp.name} if emp else False
 
     @api.model
-    def check_laundry_rebook(self, original_id, tracking_number):
+    def check_laundry_rebook(self, original_id, tracking_number, same_customer=True):
         """Validate a rebooked replacement order before a refund is allowed.
 
-        The rebooked order must have the given ``tracking_number``, the SAME customer
-        as the order being refunded, and a LATER ``date_order``. ``tracking_number``
-        alone is NOT unique in Odoo, so the same-customer + later-date filters are what
-        actually pin it down. Returns:
+        The rebooked order must have the given ``tracking_number``, a LATER
+        ``date_order`` than the order being refunded, and a positive total (a real
+        sale, not a refund/void). ``tracking_number`` alone is NOT unique in Odoo, so
+        the later-date filter — and, on the same-customer path, the customer match —
+        are what actually pin it down.
+
+        ``same_customer=True`` (Rebooked order · same customer) also requires the
+        rebooking to belong to the SAME customer as the order being refunded.
+        ``same_customer=False`` (Rebooked order · different customer) drops that
+        filter — the rebooking may be under a different customer (the UI additionally
+        requires a manager PIN on that path). Returns:
           {'status': 'ok', 'name', 'tracking_number'}  — exactly one match (approve)
           {'status': 'none'}                            — no match (block)
           {'status': 'ambiguous', 'count'}             — >1 match, can't confirm (block)
-          {'status': 'no_customer'}                     — original has no customer (block)
+          {'status': 'no_customer'}                     — same-customer path, original has no customer (block)
         """
         original = self.browse(int(original_id))
         if not original.exists():
             return {"status": "none"}
-        if not original.partner_id:
+        if same_customer and not original.partner_id:
             return {"status": "no_customer"}
         tn = (tracking_number or "").strip()
         if not tn:
             return {"status": "none"}
-        matches = self.search([
+        domain = [
             ("tracking_number", "=", tn),
-            ("partner_id", "=", original.partner_id.id),
             ("date_order", ">", original.date_order),
             ("amount_total", ">", 0),   # a real sale, not a refund/void
             ("id", "!=", original.id),
-        ])
+        ]
+        if same_customer:
+            domain.append(("partner_id", "=", original.partner_id.id))
+        matches = self.search(domain)
         if len(matches) == 1:
             return {
                 "status": "ok",
