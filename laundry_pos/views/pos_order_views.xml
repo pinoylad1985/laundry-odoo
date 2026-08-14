@@ -12,6 +12,7 @@
         <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="inside">
+                <field name="laundry_customer_block" optional="show" widget="laundry_customer_block"/>
                 <field name="laundry_service_type" optional="show"/>
                 <field name="laundry_secondary_type" optional="show"/>
                 <field name="laundry_due_datetime" optional="show"/>

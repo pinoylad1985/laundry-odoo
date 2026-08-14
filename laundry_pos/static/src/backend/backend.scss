@@ -53,3 +53,27 @@
         }
     }
 }
+
+// Combined "Customer" column: name + phone + address stacked in one cell, wrapped.
+// The list's data cells default to white-space:nowrap + ellipsis (which truncates long
+// addresses); override that on the cell that holds our widget so the text wraps instead.
+.o_list_table td:has(.o_field_laundry_customer_block) {
+    white-space: normal;
+    min-width: 12rem;
+    max-width: 24rem;
+    vertical-align: top;
+}
+.o_field_laundry_customer_block {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    line-height: 1.25;
+
+    .laundry-cb-name {
+        font-weight: 600;
+    }
+    .laundry-cb-sub {
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+}
