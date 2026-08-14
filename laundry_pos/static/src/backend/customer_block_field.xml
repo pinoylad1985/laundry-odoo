@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.CustomerBlockField">
+        <div class="o_field_laundry_customer_block">
+            <div class="laundry-cb-name" t-esc="name"/>
+            <div t-if="phone" class="laundry-cb-sub" t-esc="phone"/>
+            <div t-if="address" class="laundry-cb-sub" t-esc="address"/>
+        </div>
+    </t>
+</templates>

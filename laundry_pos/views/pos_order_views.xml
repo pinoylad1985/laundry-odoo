@@ -11,7 +11,20 @@
         <field name="model">pos.order</field>
         <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
         <field name="arch" type="xml">
+            <!-- Make the core "Customer" column (partner_id) optional so it can be toggled
+                 off from the ⚙ column menu (Odoo doesn't make it optional by default, so it
+                 never appears there). Stays visible by default + available in Studio; the
+                 stacked "Customer Details" column below is the richer alternative. -->
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="optional">show</attribute>
+            </xpath>
+            <!-- Tag the list so we can wrap the column headers (scss) without affecting
+                 other backend lists. -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="class" add="laundry-orders-list" separator=" "/>
+            </xpath>
             <xpath expr="//list" position="inside">
+                <field name="laundry_customer_block" optional="show" widget="laundry_customer_block"/>
                 <field name="laundry_service_type" optional="show"/>
                 <field name="laundry_secondary_type" optional="show"/>
                 <field name="laundry_due_datetime" optional="show"/>
