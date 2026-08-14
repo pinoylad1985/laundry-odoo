@@ -11,8 +11,18 @@
         <field name="model">pos.order</field>
         <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
         <field name="arch" type="xml">
+            <!-- Enrich the core "Customer" column (partner_id) in place: render the name +
+                 phone + address stacked and wrapped in the one cell (custom widget), instead
+                 of a second column. Keeps a single, always-present Customer column. -->
+            <xpath expr="//field[@name='partner_id']" position="attributes">
+                <attribute name="widget">laundry_customer_block</attribute>
+            </xpath>
+            <!-- Tag the list so we can wrap the column headers (scss) without affecting
+                 other backend lists. -->
+            <xpath expr="//list" position="attributes">
+                <attribute name="class" add="laundry-orders-list" separator=" "/>
+            </xpath>
             <xpath expr="//list" position="inside">
-                <field name="laundry_customer_block" optional="show" widget="laundry_customer_block"/>
                 <field name="laundry_service_type" optional="show"/>
                 <field name="laundry_secondary_type" optional="show"/>
                 <field name="laundry_due_datetime" optional="show"/>

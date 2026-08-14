@@ -76,15 +76,6 @@ class PosOrder(models.Model):
         compute='_compute_laundry_customer_address',
         store=True,
     )
-    # Display-only combined column for the POS Orders list: customer name + phone +
-    # address stacked in one wrapped cell (rendered by the `laundry_customer_block` OWL
-    # widget). NOT stored — so adding it never triggers a mass recompute / write_date
-    # bump across all orders; the widget reads the real partner_id / laundry_customer_phone
-    # / laundry_customer_address fields directly. The Char value is just an export/fallback.
-    laundry_customer_block = fields.Char(
-        string='Customer',
-        compute='_compute_laundry_customer_block',
-    )
 
     # --- Back-office workflow fields (migrating off the Studio x_studio_* equivalents;
     # selection values mirror the Studio fields so legacy data copies across 1:1). ---
@@ -224,16 +215,6 @@ class PosOrder(models.Model):
             order.laundry_customer_address = (
                 " ".join(filter(None, [p.street, p.street2])).strip() or False
             )
-
-    @api.depends('partner_id.display_name', 'laundry_customer_phone', 'laundry_customer_address')
-    def _compute_laundry_customer_block(self):
-        for order in self:
-            parts = filter(None, [
-                order.partner_id.display_name,
-                order.laundry_customer_phone,
-                order.laundry_customer_address,
-            ])
-            order.laundry_customer_block = " · ".join(parts) or False
 
     def action_laundry_set_staff(self):
         """Open the PIN-gated wizard to set Staff / Folding Time on this order."""

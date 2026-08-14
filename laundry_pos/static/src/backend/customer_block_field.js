@@ -4,9 +4,10 @@ import { Component } from "@odoo/owl";
 import { registry } from "@web/core/registry";
 import { standardFieldProps } from "@web/views/fields/standard_field_props";
 
-// Display-only POS Orders list widget: stacks the customer name (bold), then phone, then
-// address in one wrapped cell. Reads the real partner_id + laundry_customer_* fields
-// (declared as fieldDependencies so they load even when their own columns are hidden).
+// Display-only POS Orders list widget applied to the core `partner_id` ("Customer")
+// column: stacks the customer name (bold), then phone, then address in one wrapped cell.
+// Pulls phone/address from the laundry_customer_* fields (declared as fieldDependencies
+// so they load even though those columns are hidden); the name comes from partner_id.
 export class CustomerBlockField extends Component {
     static template = "laundry_pos.CustomerBlockField";
     static props = { ...standardFieldProps };
@@ -25,9 +26,8 @@ export class CustomerBlockField extends Component {
 
 registry.category("fields").add("laundry_customer_block", {
     component: CustomerBlockField,
-    supportedTypes: ["char"],
+    supportedTypes: ["many2one"],
     fieldDependencies: [
-        { name: "partner_id", type: "many2one" },
         { name: "laundry_customer_phone", type: "char" },
         { name: "laundry_customer_address", type: "char" },
     ],

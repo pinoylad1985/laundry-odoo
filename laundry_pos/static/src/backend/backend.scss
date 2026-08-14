@@ -77,3 +77,24 @@
         color: #6c757d;
     }
 }
+
+// Wrap the POS Orders list column HEADERS (default is nowrap + ellipsis, which clips
+// labels like "Refund Rebook Ref" → "Refund Re..."). Scoped to this list via the
+// `laundry-orders-list` class added to the view, so other backend lists are untouched.
+// The inner label often carries Bootstrap `.text-truncate` (nowrap/ellipsis with
+// !important), so the inner override must also use !important to win.
+.laundry-orders-list thead th {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    vertical-align: top;
+
+    .text-truncate,
+    span {
+        white-space: normal !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+    }
+}
