@@ -7,11 +7,11 @@ class LaundryStaffPinWizard(models.TransientModel):
     PIN authorizes the change (setting Staff = the new cashier's PIN; updating Folding Time
     = that order's assigned cashier's PIN — here they're the same person: staff_id)."""
     _name = "laundry.staff.pin.wizard"
-    _description = "Set laundry Staff / Folding Time (cashier PIN required)"
+    _description = "Set laundry Staff / Processed Date (cashier PIN required)"
 
     order_id = fields.Many2one("pos.order", required=True, ondelete="cascade")
     staff_id = fields.Many2one("hr.employee", string="Staff", required=True)
-    folding_time = fields.Datetime(string="Folding Time")
+    folding_time = fields.Datetime(string="Processed Date")
     pin = fields.Char(string="Cashier PIN", required=True)
 
     def action_confirm(self):

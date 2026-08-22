@@ -70,7 +70,7 @@
         <field name="name">laundry.staff.pin.wizard.form</field>
         <field name="model">laundry.staff.pin.wizard</field>
         <field name="arch" type="xml">
-            <form string="Set Staff / Folding Time">
+            <form string="Set Staff / Processed Date">
                 <group>
                     <field name="order_id" invisible="1"/>
                     <field name="staff_id" options="{'no_create': True, 'no_open': True}"/>

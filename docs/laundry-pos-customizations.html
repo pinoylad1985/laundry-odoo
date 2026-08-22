@@ -112,7 +112,7 @@
     <tr><td><code>laundry_claim_datetime</code></td><td>Datetime</td><td>set from modal submit</td></tr>
     <tr><td><code>laundry_pickup_datetime</code></td><td>Datetime</td><td>set from modal submit</td></tr>
     <tr><td><code>laundry_delivery_datetime</code></td><td>Datetime</td><td>set from modal submit</td></tr>
-    <tr><td><code>laundry_due_datetime</code></td><td>Datetime, computed+stored</td><td>"Cashier Due" = delivery datetime, else claim datetime</td></tr>
+    <tr><td><code>laundry_due_datetime</code></td><td>Datetime, computed+stored</td><td>"Due Date" (UI label) = delivery datetime, else claim datetime</td></tr>
     <tr><td><code>laundry_customer_phone</code></td><td>Char, computed+stored</td><td>from <code>partner_id.phone</code></td></tr>
     <tr><td><code>laundry_customer_address</code></td><td>Char, computed+stored</td><td><code>street</code> + <code>street2</code></td></tr>
     <tr><td><code>laundry_secondary_type</code></td><td>Selection, computed+stored</td><td>Order / Payment / Adjustment / Refund — coarse reporting class (a POS Orders list column). Refund (<code>is_refund</code> or refunded via <code>lines.refund_orderline_ids</code>) &gt; Payment (settle lines or legacy <code>x_studio_category</code>='Payment') &gt; Adjustment (legacy 'Adjustment') &gt; Order (has a service type) &gt; blank. Depends on <code>lines.refund_orderline_ids</code>, NOT the non-stored <code>refund_orders_count</code>.</td></tr>

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.LaundryFoldingPicker">
-        <Dialog title="'Folding Time'" size="'md'">
+        <Dialog title="'Processed Date'" size="'md'">
             <div class="laundry-folding-picker">
                 <!-- Week navigation -->
                 <div class="d-flex align-items-center justify-content-between mb-2">

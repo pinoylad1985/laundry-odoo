@@ -57,7 +57,7 @@ class PosOrder(models.Model):
 
     # --- Server-derived (no POS involvement) ---
     laundry_due_datetime = fields.Datetime(
-        string='Cashier Due',
+        string='Due Date',  # UI label only; internal field stays laundry_due_datetime
         compute='_compute_laundry_due_datetime',
         store=True,
     )
@@ -105,7 +105,7 @@ class PosOrder(models.Model):
     # The assigned cashier. Picker shows ACTIVE employees (archive resignees to hide
     # them while keeping history). Editing it on the form requires the cashier's POS PIN.
     laundry_staff_id = fields.Many2one('hr.employee', string='Staff')
-    laundry_folding_time = fields.Datetime(string='Folding Time')
+    laundry_folding_time = fields.Datetime(string='Processed Date')  # UI label only; internal field stays laundry_folding_time
     laundry_status = fields.Selection(
         selection=[
             ('Not Started', 'Not Started'),
@@ -242,7 +242,7 @@ class PosOrder(models.Model):
         self.ensure_one()
         return {
             "type": "ir.actions.act_window",
-            "name": "Set Staff / Folding Time",
+            "name": "Set Staff / Processed Date",
             "res_model": "laundry.staff.pin.wizard",
             "view_mode": "form",
             "target": "new",
@@ -369,7 +369,7 @@ class PosOrder(models.Model):
         now = fields.Datetime.now()
         for order in self:
             if order.laundry_folding_time and order.laundry_folding_time > now:
-                raise ValidationError("Folding Time cannot be in the future.")
+                raise ValidationError("Processed Date cannot be in the future.")
 
     # NOTE: No _load_pos_data_fields override needed here.
     # pos.order's default returns [] which means Odoo reads ALL fields via read([]).

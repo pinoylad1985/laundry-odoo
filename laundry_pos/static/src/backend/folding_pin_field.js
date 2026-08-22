@@ -35,11 +35,11 @@ export class FoldingPinField extends Component {
     _askPin(dt) {
         const staff = this.props.record.data.laundry_staff_id;
         if (!staff) {
-            this.notification.add("Set the Staff before the Folding Time.", { type: "warning" });
+            this.notification.add("Set the Staff before the Processed Date.", { type: "warning" });
             return;
         }
         this.dialog.add(LaundryPinDialog, {
-            title: "Folding Time",
+            title: "Processed Date",
             listMethod: "get_laundry_staff",
             checkMethod: "check_laundry_staff",
             requireId: staff.id,
