@@ -7,7 +7,7 @@ import { standardFieldProps } from "@web/views/fields/standard_field_props";
 import { LaundryPinDialog } from "@laundry_pos/backend/laundry_pin_dialog";
 import { LaundryFoldingPicker } from "@laundry_pos/backend/laundry_folding_picker";
 
-// Datetime widget for laundry_folding_time: click -> roller date/time picker -> Apply ->
+// Datetime widget for laundry_processed_datetime: click -> roller date/time picker -> Apply ->
 // employee PIN ("Folding Time") -> sets the field. No future (enforced in the picker + a
 // server constraint).
 export class FoldingPinField extends Component {
