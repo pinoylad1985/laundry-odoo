@@ -31,7 +31,7 @@
                 <field name="laundry_due_icon" optional="show"/>
                 <field name="laundry_status" optional="show"/>
                 <field name="laundry_staff_id" optional="show" widget="laundry_staff_pin"/>
-                <field name="laundry_processed_datetime" optional="show" widget="laundry_folding_pin"/>
+                <field name="laundry_processed_datetime" optional="show" widget="laundry_processed_date_pin"/>
                 <field name="laundry_pickup_rider" optional="show"/>
                 <field name="laundry_delivery_rider" optional="show"/>
                 <field name="laundry_refund_rebook_ref" optional="show"/>
@@ -60,7 +60,7 @@
                 <field name="laundry_service_type" readonly="1"/>
                 <field name="laundry_due_datetime" readonly="1"/>
                 <field name="laundry_staff_id" widget="laundry_staff_pin"/>
-                <field name="laundry_processed_datetime" widget="laundry_folding_pin"/>
+                <field name="laundry_processed_datetime" widget="laundry_processed_date_pin"/>
             </xpath>
         </field>
     </record>

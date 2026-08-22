@@ -49,7 +49,7 @@ export class FoldingPinField extends Component {
     }
 }
 
-registry.category("fields").add("laundry_folding_pin", {
+registry.category("fields").add("laundry_processed_date_pin", {
     component: FoldingPinField,
     supportedTypes: ["datetime"],
 });
