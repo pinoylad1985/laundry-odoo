@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.FoldingPinField">
-        <div class="o_field_laundry_folding_pin" style="cursor: pointer; min-height: 1.5em;"
+        <div class="o_field_laundry_processed_date_pin" style="cursor: pointer; min-height: 1.5em;"
              t-on-click="() => this.open()">
             <span t-if="value" class="text-primary fw-bold"><t t-esc="display"/></span>
         </div>

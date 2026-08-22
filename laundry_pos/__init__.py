@@ -28,7 +28,7 @@ def _laundry_post_init(env):
     cols = {r[0] for r in cr.fetchall()}
     mapping = {
         "x_studio_staff": "laundry_staff",
-        "x_studio_folding_time": "laundry_folding_time",
+        "x_studio_folding_time": "laundry_processed_datetime",
         "x_studio_status": "laundry_status",
     }
     sets, where = [], []

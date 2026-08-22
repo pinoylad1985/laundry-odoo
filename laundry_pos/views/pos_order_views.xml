@@ -31,7 +31,7 @@
                 <field name="laundry_due_icon" optional="show"/>
                 <field name="laundry_status" optional="show"/>
                 <field name="laundry_staff_id" optional="show" widget="laundry_staff_pin"/>
-                <field name="laundry_folding_time" optional="show" widget="laundry_folding_pin"/>
+                <field name="laundry_processed_datetime" optional="show" widget="laundry_processed_date_pin"/>
                 <field name="laundry_pickup_rider" optional="show"/>
                 <field name="laundry_delivery_rider" optional="show"/>
                 <field name="laundry_refund_rebook_ref" optional="show"/>
@@ -60,21 +60,21 @@
                 <field name="laundry_service_type" readonly="1"/>
                 <field name="laundry_due_datetime" readonly="1"/>
                 <field name="laundry_staff_id" widget="laundry_staff_pin"/>
-                <field name="laundry_folding_time" widget="laundry_folding_pin"/>
+                <field name="laundry_processed_datetime" widget="laundry_processed_date_pin"/>
             </xpath>
         </field>
     </record>
 
-    <!-- PIN-gated wizard to set Staff / Folding Time (the assigned cashier's PIN). -->
+    <!-- PIN-gated wizard to set Staff / Processed Date (the assigned cashier's PIN). -->
     <record id="view_laundry_staff_pin_wizard_form" model="ir.ui.view">
         <field name="name">laundry.staff.pin.wizard.form</field>
         <field name="model">laundry.staff.pin.wizard</field>
         <field name="arch" type="xml">
-            <form string="Set Staff / Folding Time">
+            <form string="Set Staff / Processed Date">
                 <group>
                     <field name="order_id" invisible="1"/>
                     <field name="staff_id" options="{'no_create': True, 'no_open': True}"/>
-                    <field name="folding_time"/>
+                    <field name="processed_datetime"/>
                     <field name="pin" password="True" placeholder="Cashier PIN"/>
                 </group>
                 <footer>

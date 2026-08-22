@@ -123,7 +123,7 @@ export class LaundryFoldingPicker extends Component {
     }
     apply() {
         if (this.result > DateTime.now()) {
-            this.state.error = "Folding time cannot be in the future.";
+            this.state.error = "Processed date cannot be in the future.";
             return;
         }
         this.props.onApply(this.result);
