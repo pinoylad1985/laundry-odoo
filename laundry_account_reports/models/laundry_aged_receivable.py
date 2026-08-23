@@ -23,7 +23,7 @@ PERIOD_NAMES = {
 }
 
 # Columns filled by _custom_line_postprocessor instead of by the SQL engine.
-DOCUMENT_LABELS = ('doc_date', 'doc_ref', 'service_type')
+DOCUMENT_LABELS = ('doc_date', 'doc_ref', 'service_type', 'cashier', 'delivery_rider')
 PARTNER_LABELS = ('partner_address', 'partner_phone')
 
 # Partner fields the Address column is built from, and therefore the ones the
@@ -449,11 +449,17 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
         return lines
 
     def _laundry_fill_partner_columns(self, report, options, lines):
-        """Fill Address and Phone on the customer rows.
+        """Fill Address and Phone on the customer rows, and on the order rows when exporting.
 
         Same no-expression trick as the document columns, one level up: the
         customer rows are res.partner, the rows nested under them are
-        account.move.line, so the two fills never touch the same cell.
+        account.move.line.
+
+        On screen the customer row sits directly above its orders, so repeating
+        the address on each of them would only add noise. A spreadsheet has no
+        such context - rows get sorted, filtered and pivoted away from the
+        customer they came under - so on export every order row carries its own
+        copy.
         """
         indexes = {
             column['expression_label']: index
@@ -463,12 +469,23 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
         if not indexes:
             return
 
-        partner_ids = set()
+        # 'file' is the xlsx export and 'print' the PDF; on screen it is None.
+        repeat_on_orders = bool(options.get('export_mode'))
+
+        partner_of_line = {}
         for line in lines:
             model, model_id = report._get_model_info_from_id(line['id'])
             if model == 'res.partner' and model_id:
-                partner_ids.add(model_id)
-        if not partner_ids:
+                partner_of_line[line['id']] = model_id
+            elif repeat_on_orders and model == 'account.move.line':
+                # Read the customer off the line id rather than off the move
+                # line, so a row can never show an address other than the one
+                # the report filed it under.
+                partner_id = report._get_res_ids_from_line_id(line['id'], ['res.partner']).get('res.partner')
+                if partner_id:
+                    partner_of_line[line['id']] = partner_id
+
+        if not partner_of_line:
             return
 
         details = {
@@ -478,15 +495,11 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
                 # alone, so the report shows the same number the POS does.
                 'partner_phone': partner.phone or '',
             }
-            for partner in self.env['res.partner'].browse(sorted(partner_ids))
+            for partner in self.env['res.partner'].browse(sorted(set(partner_of_line.values())))
         }
 
         for line in lines:
-            model, model_id = report._get_model_info_from_id(line['id'])
-            if model != 'res.partner':
-                continue
-
-            partner_details = details.get(model_id)
+            partner_details = details.get(partner_of_line.get(line['id']))
             if not partner_details:
                 continue
 
@@ -597,12 +610,20 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
                     # to the unique order reference when it is empty.
                     'doc_ref': order.tracking_number or order.name,
                     'service_type': service_labels.get(order.laundry_service_type, ''),
+                    # "Staff" on the POS order - the employee the order is booked
+                    # to, not the Odoo login at the register, which is shared.
+                    'cashier': order.laundry_staff_id.name or '',
+                    # Filled by the delivery sign-off, so blank until an order
+                    # has been through it.
+                    'delivery_rider': order.laundry_delivery_rider or '',
                 }
             else:
                 values[move_line.id] = {
                     'doc_date': move.invoice_date or move_line.date,
                     'doc_ref': move.name,
                     'service_type': '',
+                    'cashier': '',
+                    'delivery_rider': '',
                 }
 
         return values

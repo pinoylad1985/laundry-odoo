@@ -14,12 +14,14 @@
            headers here and the period0..period10 expressions below must stay in step
            with that list (same order, same count).
 
-        2. Five descriptive columns. Address and Phone sit on the customer rows; Date,
-           Order / Invoice and Service Type identify the document behind each open
-           line: the POS order for a "pay later" order, or the invoice for anything
-           invoiced (POS orders converted to an invoice, and Sales orders). All four
-           deliberately have NO expression: Odoo emits one cell per column regardless,
-           and _custom_line_postprocessor fills them in.
+        2. Seven descriptive columns. Address and Phone sit on the customer rows -
+           and repeat on every order row when the report is exported, so a spreadsheet
+           row stands on its own. Date, Order / Invoice, Service Type, Cashier and
+           Delivery Rider identify the document behind each open line: the POS order
+           for a "pay later" order, or the invoice for anything invoiced (POS orders
+           converted to an invoice, and Sales orders). All seven deliberately have NO
+           expression: Odoo emits one cell per column regardless, and
+           _custom_line_postprocessor fills them in.
 
         Rows are still one open receivable line each, grouped under the customer, and
         the amounts come from the same core SQL the standard report uses.
@@ -65,6 +67,18 @@
             <record id="laundry_aged_receivable_report_service_type" model="account.report.column">
                 <field name="name">Service Type</field>
                 <field name="expression_label">service_type</field>
+                <field name="figure_type">string</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_cashier" model="account.report.column">
+                <field name="name">Cashier</field>
+                <field name="expression_label">cashier</field>
+                <field name="figure_type">string</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_delivery_rider" model="account.report.column">
+                <field name="name">Delivery Rider</field>
+                <field name="expression_label">delivery_rider</field>
                 <field name="figure_type">string</field>
                 <field name="sortable" eval="True"/>
             </record>
