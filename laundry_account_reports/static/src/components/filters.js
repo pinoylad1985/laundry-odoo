@@ -5,11 +5,11 @@ import { AccountReportFilters } from "@account_reports/components/account_report
 /**
  * Filter bar of the Aged Receivable (Detailed) report.
  *
- * Adds a Service Type filter (tick the types you want, and/or type a word the
- * type must - or must not - contain) and an Address filter (same contains /
- * does not contain text box). Everything it does is write to the report options;
- * the matching itself happens server side, in laundry_aged_receivable.py, so the
- * customer subtotals and the aging buckets stay consistent with the rows shown.
+ * Adds a Service Type filter (tick as many types as you like) and an Address
+ * filter (a contains / does not contain text box). Everything it does is write
+ * to the report options; the matching itself happens server side, in
+ * laundry_aged_receivable.py, so the customer subtotals and the aging buckets
+ * stay consistent with the rows shown.
  *
  * Option keys must stay in step with SERVICE_TYPE_OPTION & co. in
  * models/laundry_aged_receivable.py.
@@ -27,35 +27,23 @@ export class LaundryAgedReceivableFilters extends AccountReportFilters {
     /** Short recap shown on the closed dropdown, so an active filter is visible without opening it. */
     get serviceTypeSummary() {
         const ticked = this.serviceTypes.filter((serviceType) => serviceType.selected);
-        const parts = [];
 
-        if (ticked.length === 1) {
-            parts.push(ticked[0].name);
-        } else if (ticked.length > 1) {
-            parts.push(_t("%s selected", ticked.length));
+        if (!ticked.length) {
+            return "";
         }
 
-        const summary = this.textSummary("laundry_service_type_text", "laundry_service_type_mode");
-        if (summary) {
-            parts.push(summary);
-        }
-
-        return parts.join(", ");
+        return ticked.length === 1 ? ticked[0].name : _t("%s selected", ticked.length);
     }
 
     get addressSummary() {
-        return this.textSummary("laundry_address_text", "laundry_address_mode");
-    }
-
-    textSummary(textKey, modeKey) {
         const options = this.controller.cachedFilterOptions;
-        const text = (options[textKey] || "").trim();
+        const text = (options.laundry_address_text || "").trim();
 
         if (!text) {
             return "";
         }
 
-        return options[modeKey] === "not_contains" ? _t('not "%s"', text) : `"${text}"`;
+        return options.laundry_address_mode === "not_contains" ? _t('not "%s"', text) : `"${text}"`;
     }
 
     // -----------------------------------------------------------------------------------------------------------------
@@ -92,16 +80,18 @@ export class LaundryAgedReceivableFilters extends AccountReportFilters {
     }
 
     /**
-     * Clearing touches several keys at once. filterClicked would reload after
-     * each one, so write them straight to the (reactive) cached options and
-     * reload once - which is exactly what filterClicked does internally.
+     * Unticking one by one would reload once per type, so write straight to the
+     * (reactive) cached options and reload once - which is exactly what
+     * filterClicked does internally.
      */
     async clearServiceTypeFilter() {
+        if (!this.serviceTypes.some((serviceType) => serviceType.selected)) {
+            return;
+        }
+
         for (const serviceType of this.serviceTypes) {
             serviceType.selected = false;
         }
-
-        this.controller.cachedFilterOptions.laundry_service_type_text = "";
 
         await this.applyFilters("laundry_service_types");
     }

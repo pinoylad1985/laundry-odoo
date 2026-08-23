@@ -24,7 +24,7 @@
         </xpath>
     </t>
 
-    <!-- Service Type: a tick list of the laundry service types, plus a contains / does not contain box. -->
+    <!-- Service Type: a tick list of the laundry service types; tick as many as you like. -->
     <t t-name="laundry_account_reports.LaundryFilterServiceType">
         <Dropdown menuClass="'account_report_filter laundry_filter'">
             <button class="btn btn-secondary">
@@ -40,23 +40,6 @@
                         t-out="serviceType.name"
                     />
                 </t>
-
-                <div class="dropdown-divider"/>
-
-                <div class="dropdown-item laundry_text_filter">
-                    <t t-call="laundry_account_reports.LaundryFilterTextMode">
-                        <t t-set="modeKey" t-value="'laundry_service_type_mode'"/>
-                        <t t-set="textKey" t-value="'laundry_service_type_text'"/>
-                    </t>
-
-                    <input
-                        type="text"
-                        class="o_input"
-                        placeholder="Service type..."
-                        t-att-value="controller.cachedFilterOptions.laundry_service_type_text"
-                        t-on-change="(ev) => this.setTextFilter('laundry_service_type_text', ev)"
-                    />
-                </div>
 
                 <div class="dropdown-divider"/>
 
@@ -99,8 +82,8 @@
         </Dropdown>
     </t>
 
-    <!-- Shared contains / does not contain switch. Plain buttons rather than a
-         native select, which would open its own popup over the dropdown. -->
+    <!-- Contains / does not contain switch. Plain buttons rather than a native
+         select, which would open its own popup over the dropdown. -->
     <t t-name="laundry_account_reports.LaundryFilterTextMode">
         <div class="btn-group btn-group-sm laundry_text_mode" role="group">
             <button

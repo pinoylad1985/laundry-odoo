@@ -33,10 +33,8 @@ ADDRESS_FIELDS = ('street', 'street2', 'city')
 # Keys of the two custom filters. The LaundryAgedReceivableFilters component in
 # static/src/components/filters.js writes to exactly these keys.
 SERVICE_TYPE_OPTION = 'laundry_service_types'       # list of {id, name, selected}
-SERVICE_TEXT_OPTION = 'laundry_service_type_text'   # free text
-SERVICE_MODE_OPTION = 'laundry_service_type_mode'   # 'contains' | 'not_contains'
-ADDRESS_TEXT_OPTION = 'laundry_address_text'
-ADDRESS_MODE_OPTION = 'laundry_address_mode'
+ADDRESS_TEXT_OPTION = 'laundry_address_text'        # free text
+ADDRESS_MODE_OPTION = 'laundry_address_mode'        # 'contains' | 'not_contains'
 
 
 class LaundryAgedReceivableReportHandler(models.AbstractModel):
@@ -118,65 +116,37 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
             for key, label in self._laundry_service_type_selection()
         ]
 
-        for text_key, mode_key in (
-            (SERVICE_TEXT_OPTION, SERVICE_MODE_OPTION),
-            (ADDRESS_TEXT_OPTION, ADDRESS_MODE_OPTION),
-        ):
-            options[text_key] = str(previous_options.get(text_key) or '').strip()
-            options[mode_key] = (
-                'not_contains' if previous_options.get(mode_key) == 'not_contains' else 'contains'
-            )
+        options[ADDRESS_TEXT_OPTION] = str(previous_options.get(ADDRESS_TEXT_OPTION) or '').strip()
+        options[ADDRESS_MODE_OPTION] = (
+            'not_contains' if previous_options.get(ADDRESS_MODE_OPTION) == 'not_contains' else 'contains'
+        )
 
     def _laundry_get_filter_domain(self, options):
         """Both filters as one domain; concatenating two domains is an AND."""
         return self._laundry_service_type_domain(options) + self._laundry_address_domain(options)
 
     def _laundry_service_type_domain(self, options):
-        """Restrict to the ticked service types, then to the typed text.
+        """Restrict to the ticked service types.
 
-        The text is matched against the *label* the report shows ("Drop-off"),
-        not against the stored technical key ('dropoff'): it is resolved to a set
-        of keys here rather than run as an ILIKE on the column.
+        Nothing ticked means no filtering at all. Ticking a type is positively
+        asking for that type, so rows with no service type - an invoice that
+        never went through the POS - drop out as soon as anything is ticked.
         """
-        choices = options.get(SERVICE_TYPE_OPTION) or []
-        if not choices:
-            return []
-
-        every_key = {choice['id'] for choice in choices}
-        allowed = set(every_key)
-        # Rows with no service type at all - an invoice that never went through
-        # the POS. They stay in until something positively asks for a type.
-        allow_blank = True
-
-        ticked = {choice['id'] for choice in choices if choice.get('selected')}
-        if ticked:
-            allowed &= ticked
-            allow_blank = False
-
-        text = (options.get(SERVICE_TEXT_OPTION) or '').strip().lower()
-        if text:
-            matching = {choice['id'] for choice in choices if text in (choice['name'] or '').lower()}
-            if options.get(SERVICE_MODE_OPTION) == 'not_contains':
-                allowed -= matching
-            else:
-                allowed &= matching
-                allow_blank = False
-
-        if allowed == every_key and allow_blank:
+        ticked = sorted(
+            choice['id']
+            for choice in options.get(SERVICE_TYPE_OPTION) or []
+            if choice.get('selected')
+        )
+        if not ticked:
             return []
 
         # A POS order reaches this report two ways: as a "pay later" line stamped
         # with pos_order_id, or as the invoice the order was turned into.
-        on_order = [
+        return [
             '|',
-            ('pos_order_id.laundry_service_type', 'in', sorted(allowed)),
-            ('move_id.pos_order_ids.laundry_service_type', 'in', sorted(allowed)),
+            ('pos_order_id.laundry_service_type', 'in', ticked),
+            ('move_id.pos_order_ids.laundry_service_type', 'in', ticked),
         ]
-        if not allow_blank:
-            return on_order
-
-        no_order = ['&', ('pos_order_id', '=', False), ('move_id.pos_order_ids', '=', False)]
-        return ['|'] + on_order + no_order
 
     def _laundry_address_domain(self, options):
         """Search the same address parts the Address column is built from."""
