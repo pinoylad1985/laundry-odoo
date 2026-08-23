@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates>
+    <!--
+        Two extra dropdowns on the filter bar of Aged Receivable (Detailed).
+
+        Anchored before the rounding-unit filter rather than before
+        #filter_extra_options (the way the standard aged-balance filters are):
+        that one sits inside a t-if, so inserting there would hide our filters on
+        any report without extra options.
+    -->
+    <t t-name="laundry_account_reports.LaundryAgedReceivableFilters" t-inherit="account_reports.AccountReportFiltersCustomizable">
+        <xpath expr="//div[@id='filter_rounding_unit']" position="before">
+            <t t-if="'laundry_service_types' in controller.cachedFilterOptions">
+                <div id="filter_laundry_service_type">
+                    <t t-call="laundry_account_reports.LaundryFilterServiceType"/>
+                </div>
+            </t>
+
+            <t t-if="'laundry_address_text' in controller.cachedFilterOptions">
+                <div id="filter_laundry_address">
+                    <t t-call="laundry_account_reports.LaundryFilterAddress"/>
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+    <!-- Service Type: a tick list of the laundry service types, plus a contains / does not contain box. -->
+    <t t-name="laundry_account_reports.LaundryFilterServiceType">
+        <Dropdown menuClass="'account_report_filter laundry_filter'">
+            <button class="btn btn-secondary">
+                <i class="fa fa-tint me-1"/>Service Type<t t-if="serviceTypeSummary">: <t t-out="serviceTypeSummary"/></t>
+            </button>
+
+            <t t-set-slot="content">
+                <t t-foreach="serviceTypes" t-as="serviceType" t-key="serviceType.id">
+                    <DropdownItem
+                        class="{ 'selected': serviceType.selected }"
+                        onSelected="() => this.toggleServiceType(serviceType_index)"
+                        closingMode="'none'"
+                        t-out="serviceType.name"
+                    />
+                </t>
+
+                <div class="dropdown-divider"/>
+
+                <div class="dropdown-item laundry_text_filter">
+                    <t t-call="laundry_account_reports.LaundryFilterTextMode">
+                        <t t-set="modeKey" t-value="'laundry_service_type_mode'"/>
+                        <t t-set="textKey" t-value="'laundry_service_type_text'"/>
+                    </t>
+
+                    <input
+                        type="text"
+                        class="o_input"
+                        placeholder="Service type..."
+                        t-att-value="controller.cachedFilterOptions.laundry_service_type_text"
+                        t-on-change="(ev) => this.setTextFilter('laundry_service_type_text', ev)"
+                    />
+                </div>
+
+                <div class="dropdown-divider"/>
+
+                <DropdownItem onSelected="() => this.clearServiceTypeFilter()" closingMode="'none'">
+                    <i class="fa fa-times me-1"/>Clear
+                </DropdownItem>
+            </t>
+        </Dropdown>
+    </t>
+
+    <!-- Address: contains / does not contain over the same parts the Address column shows. -->
+    <t t-name="laundry_account_reports.LaundryFilterAddress">
+        <Dropdown menuClass="'account_report_filter laundry_filter'">
+            <button class="btn btn-secondary">
+                <i class="fa fa-map-marker me-1"/>Address<t t-if="addressSummary">: <t t-out="addressSummary"/></t>
+            </button>
+
+            <t t-set-slot="content">
+                <div class="dropdown-item laundry_text_filter">
+                    <t t-call="laundry_account_reports.LaundryFilterTextMode">
+                        <t t-set="modeKey" t-value="'laundry_address_mode'"/>
+                        <t t-set="textKey" t-value="'laundry_address_text'"/>
+                    </t>
+
+                    <input
+                        type="text"
+                        class="o_input"
+                        placeholder="Street, street 2 or city..."
+                        t-att-value="controller.cachedFilterOptions.laundry_address_text"
+                        t-on-change="(ev) => this.setTextFilter('laundry_address_text', ev)"
+                    />
+                </div>
+
+                <div class="dropdown-divider"/>
+
+                <DropdownItem onSelected="() => this.clearAddressFilter()" closingMode="'none'">
+                    <i class="fa fa-times me-1"/>Clear
+                </DropdownItem>
+            </t>
+        </Dropdown>
+    </t>
+
+    <!-- Shared contains / does not contain switch. Plain buttons rather than a
+         native select, which would open its own popup over the dropdown. -->
+    <t t-name="laundry_account_reports.LaundryFilterTextMode">
+        <div class="btn-group btn-group-sm laundry_text_mode" role="group">
+            <button
+                type="button"
+                t-attf-class="btn {{ controller.cachedFilterOptions[modeKey] === 'not_contains' ? 'btn-secondary' : 'btn-primary' }}"
+                t-on-click="() => this.setModeFilter(modeKey, textKey, 'contains')"
+            >
+                Contains
+            </button>
+            <button
+                type="button"
+                t-attf-class="btn {{ controller.cachedFilterOptions[modeKey] === 'not_contains' ? 'btn-primary' : 'btn-secondary' }}"
+                t-on-click="() => this.setModeFilter(modeKey, textKey, 'not_contains')"
+            >
+                Does not contain
+            </button>
+        </div>
+    </t>
+</templates>

@@ -26,6 +26,18 @@ PERIOD_NAMES = {
 DOCUMENT_LABELS = ('doc_date', 'doc_ref', 'service_type')
 PARTNER_LABELS = ('partner_address', 'partner_phone')
 
+# Partner fields the Address column is built from, and therefore the ones the
+# Address filter searches. Keep the two in step by going through this tuple.
+ADDRESS_FIELDS = ('street', 'street2', 'city')
+
+# Keys of the two custom filters. The LaundryAgedReceivableFilters component in
+# static/src/components/filters.js writes to exactly these keys.
+SERVICE_TYPE_OPTION = 'laundry_service_types'       # list of {id, name, selected}
+SERVICE_TEXT_OPTION = 'laundry_service_type_text'   # free text
+SERVICE_MODE_OPTION = 'laundry_service_type_mode'   # 'contains' | 'not_contains'
+ADDRESS_TEXT_OPTION = 'laundry_address_text'
+ADDRESS_MODE_OPTION = 'laundry_address_mode'
+
 
 class LaundryAgedReceivableReportHandler(models.AbstractModel):
     _name = 'laundry.aged.receivable.report.handler'
@@ -43,12 +55,17 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
             if column['expression_label'] in PERIOD_NAMES:
                 column['name'] = PERIOD_NAMES[column['expression_label']]
 
-        # The standard filter component offers an aging interval, which is
-        # meaningless here: the buckets are fixed and not uniform. Fall back to
-        # the plain filter bar, keeping only the line-name template (it carries
-        # the Partner and Statement buttons).
+        # The standard aged-balance filter bar offers an aging interval, which is
+        # meaningless here: the buckets are fixed and not uniform. Swap it for our
+        # own (Service Type / Address), and swap the table header for one whose
+        # columns can be dragged wider or narrower. The line-name template stays
+        # the standard one - it carries the Partner and Statement buttons.
         options['custom_display_config'] = {
-            'css_custom_class': 'aged_partner_balance',
+            'css_custom_class': 'aged_partner_balance laundry_aged_receivable',
+            'components': {
+                'AccountReportFilters': 'LaundryAgedReceivableFilters',
+                'AccountReportHeader': 'LaundryAgedReceivableHeader',
+            },
             'templates': {
                 'AccountReportLineName': 'account_reports.AgedPartnerBalanceLineName',
             },
@@ -63,6 +80,127 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
         report._init_options_order_column(options, previous_options)
         if not options['order_column']:
             options['order_column'] = {'expression_label': 'doc_date', 'direction': 'ASC'}
+
+        self._laundry_init_filter_options(options, previous_options or {})
+
+        # forced_domain is folded into every query built from these options - the
+        # engine below, the unfold-all batch, the drill-down list and the audit
+        # action alike - so the rows, the customer subtotals and the bucket
+        # totals are all filtered the same way and keep adding up.
+        extra_domain = self._laundry_get_filter_domain(options)
+        if extra_domain:
+            options['forced_domain'] = (options.get('forced_domain') or []) + extra_domain
+
+    # ------------------------------------------------------------------
+    # Service Type / Address filters
+    # ------------------------------------------------------------------
+
+    def _laundry_service_type_selection(self):
+        """laundry_service_type as an ordered list of (technical key, label)."""
+        pos_order = self.env['pos.order']
+        if 'laundry_service_type' not in pos_order._fields:
+            return []
+        return pos_order.fields_get(['laundry_service_type'])['laundry_service_type']['selection']
+
+    def _laundry_init_filter_options(self, options, previous_options):
+        """Publish the two custom filters, restoring whatever the user last picked.
+
+        The filter bar reads and writes these keys directly, and the client sends
+        the whole options dict back as previous_options on every reload.
+        """
+        ticked = {
+            entry.get('id')
+            for entry in previous_options.get(SERVICE_TYPE_OPTION) or []
+            if isinstance(entry, dict) and entry.get('selected')
+        }
+        options[SERVICE_TYPE_OPTION] = [
+            {'id': key, 'name': label, 'selected': key in ticked}
+            for key, label in self._laundry_service_type_selection()
+        ]
+
+        for text_key, mode_key in (
+            (SERVICE_TEXT_OPTION, SERVICE_MODE_OPTION),
+            (ADDRESS_TEXT_OPTION, ADDRESS_MODE_OPTION),
+        ):
+            options[text_key] = str(previous_options.get(text_key) or '').strip()
+            options[mode_key] = (
+                'not_contains' if previous_options.get(mode_key) == 'not_contains' else 'contains'
+            )
+
+    def _laundry_get_filter_domain(self, options):
+        """Both filters as one domain; concatenating two domains is an AND."""
+        return self._laundry_service_type_domain(options) + self._laundry_address_domain(options)
+
+    def _laundry_service_type_domain(self, options):
+        """Restrict to the ticked service types, then to the typed text.
+
+        The text is matched against the *label* the report shows ("Drop-off"),
+        not against the stored technical key ('dropoff'): it is resolved to a set
+        of keys here rather than run as an ILIKE on the column.
+        """
+        choices = options.get(SERVICE_TYPE_OPTION) or []
+        if not choices:
+            return []
+
+        every_key = {choice['id'] for choice in choices}
+        allowed = set(every_key)
+        # Rows with no service type at all - an invoice that never went through
+        # the POS. They stay in until something positively asks for a type.
+        allow_blank = True
+
+        ticked = {choice['id'] for choice in choices if choice.get('selected')}
+        if ticked:
+            allowed &= ticked
+            allow_blank = False
+
+        text = (options.get(SERVICE_TEXT_OPTION) or '').strip().lower()
+        if text:
+            matching = {choice['id'] for choice in choices if text in (choice['name'] or '').lower()}
+            if options.get(SERVICE_MODE_OPTION) == 'not_contains':
+                allowed -= matching
+            else:
+                allowed &= matching
+                allow_blank = False
+
+        if allowed == every_key and allow_blank:
+            return []
+
+        # A POS order reaches this report two ways: as a "pay later" line stamped
+        # with pos_order_id, or as the invoice the order was turned into.
+        on_order = [
+            '|',
+            ('pos_order_id.laundry_service_type', 'in', sorted(allowed)),
+            ('move_id.pos_order_ids.laundry_service_type', 'in', sorted(allowed)),
+        ]
+        if not allow_blank:
+            return on_order
+
+        no_order = ['&', ('pos_order_id', '=', False), ('move_id.pos_order_ids', '=', False)]
+        return ['|'] + on_order + no_order
+
+    def _laundry_address_domain(self, options):
+        """Search the same address parts the Address column is built from."""
+        text = (options.get(ADDRESS_TEXT_OPTION) or '').strip()
+        if not text:
+            return []
+
+        if options.get(ADDRESS_MODE_OPTION) != 'not_contains':
+            return ['|'] * (len(ADDRESS_FIELDS) - 1) + [
+                (f'partner_id.{name}', 'ilike', text) for name in ADDRESS_FIELDS
+            ]
+
+        # "Does not contain" has to hold for every part of the address, and an
+        # empty part - or no customer at all - contains nothing, so it passes.
+        # Spelled out with explicit "= False" leaves rather than relying on how
+        # the ORM treats NULL under a negative operator.
+        leaves = []
+        for name in ADDRESS_FIELDS:
+            leaves += [
+                '|',
+                (f'partner_id.{name}', '=', False),
+                (f'partner_id.{name}', 'not ilike', text),
+            ]
+        return ['|', ('partner_id', '=', False)] + ['&'] * (len(ADDRESS_FIELDS) - 1) + leaves
 
     # ------------------------------------------------------------------
     # Aging buckets
@@ -357,15 +495,13 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
                 columns[index].update({'no_format': value, 'is_zero': False})
 
     def _laundry_format_partner_address(self, partner):
-        """One-line address, matching the street/street2 convention used in the POS."""
-        address_parts = (
-            partner.street,
-            partner.street2,
-            partner.city,
-            # Add partner.state_id.name / partner.zip / partner.country_id.name here
-            # if the receivables team needs the full postal address.
-        )
-        return ", ".join(part for part in address_parts if part)
+        """One-line address, matching the street/street2 convention used in the POS.
+
+        Built from ADDRESS_FIELDS, which the Address filter also searches, so the
+        filter can never look at something the column does not show. Add 'zip' or
+        'country_id' there if the receivables team needs the full postal address.
+        """
+        return ", ".join(partner[name] for name in ADDRESS_FIELDS if partner[name])
 
     def _laundry_fill_document_columns(self, report, options, lines):
         """Fill Date / Reference / Service Type on the receivable-line rows.
@@ -453,7 +589,10 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
                         fields.Datetime.context_timestamp(order, order.date_order).date()
                         if order.date_order else move_line.date
                     ),
-                    'doc_ref': order.name,
+                    # The customer-facing "Order Number" the receipt shows. It is
+                    # not unique (laundry_pos/models/pos_order.py), so fall back
+                    # to the unique order reference when it is empty.
+                    'doc_ref': order.tracking_number or order.name,
                     'service_type': service_labels.get(order.laundry_service_type, ''),
                 }
             else:
