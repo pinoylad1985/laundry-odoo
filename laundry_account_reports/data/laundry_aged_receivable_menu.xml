@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!--
+        Accounting > Reporting > Partner Reports > Aged Receivable (Detailed),
+        right next to the standard Aged Receivable, which is left untouched.
+
+        Kept in its own file (no auto_sequence) so the menu sequence below is not
+        rewritten by the auto-numbering used in laundry_aged_receivable_report.xml.
+    -->
+    <record id="laundry_action_aged_receivable" model="ir.actions.client">
+        <field name="name">Aged Receivable (Detailed)</field>
+        <field name="tag">account_report</field>
+        <field name="path">aged-receivable-detailed</field>
+        <field name="context" eval="{'report_id': ref('laundry_account_reports.laundry_aged_receivable_report')}"/>
+    </record>
+
+    <menuitem id="laundry_menu_aged_receivable_detailed"
+              name="Aged Receivable (Detailed)"
+              action="laundry_action_aged_receivable"
+              parent="account.account_reports_partners_reports_menu"
+              groups="account.group_account_readonly,account.group_account_basic"
+              sequence="25"/>
+</odoo>

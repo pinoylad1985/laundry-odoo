@@ -1,0 +1,213 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo auto_sequence="1">
+    <!--
+        Laundry Aged Receivable: a report of its own, NOT a change to the standard
+        Accounting > Reporting > Aged Receivable (which stays exactly as Odoo ships it).
+
+        Two differences from the standard report:
+
+        1. Aging buckets. The standard report has six uniform buckets driven by an
+           "aging interval" setting; this one has eleven fixed ones - Not Due, then one
+           column per day for the first five days overdue, then 6-30 / 31-60 / 61-120 /
+           121-360 / 360+. The buckets live in
+           models/laundry_aged_receivable.py::_laundry_get_aging_periods; the column
+           headers here and the period0..period10 expressions below must stay in step
+           with that list (same order, same count).
+
+        2. Three descriptive columns - Date, Order / Invoice, Service Type - identifying
+           the document behind each open line: the POS order for a "pay later" order, or
+           the invoice for anything invoiced (POS orders converted to an invoice, and
+           Sales orders). They deliberately have NO expression: Odoo emits one cell per
+           column regardless, and _custom_line_postprocessor fills them in.
+
+        Rows are still one open receivable line each, grouped under the customer, and
+        the amounts come from the same core SQL the standard report uses.
+    -->
+    <record id="laundry_aged_receivable_report" model="account.report">
+        <field name="name">Aged Receivable (Detailed)</field>
+        <field name="filter_date_range" eval="False"/>
+        <field name="filter_unfold_all" eval="True"/>
+        <field name="filter_partner" eval="True"/>
+        <field name="filter_period_comparison" eval="False"/>
+        <field name="filter_account_type">receivable</field>
+        <field name="filter_hierarchy">never</field>
+        <field name="filter_show_draft" eval="True"/>
+        <field name="filter_multi_company">selector</field>
+        <field name="default_opening_date_filter">today</field>
+        <field name="custom_handler_model_id" ref="model_laundry_aged_receivable_report_handler"/>
+        <field name="column_ids">
+            <!-- Filled by _custom_line_postprocessor, hence no expression. -->
+            <record id="laundry_aged_receivable_report_doc_date" model="account.report.column">
+                <field name="name">Date</field>
+                <field name="expression_label">doc_date</field>
+                <field name="figure_type">date</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_doc_ref" model="account.report.column">
+                <field name="name">Order / Invoice</field>
+                <field name="expression_label">doc_ref</field>
+                <field name="figure_type">string</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_service_type" model="account.report.column">
+                <field name="name">Service Type</field>
+                <field name="expression_label">service_type</field>
+                <field name="figure_type">string</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <!-- Aging buckets. Keep in step with _laundry_get_aging_periods. -->
+            <record id="laundry_aged_receivable_report_period0" model="account.report.column">
+                <field name="name">Not Due</field>
+                <field name="expression_label">period0</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period1" model="account.report.column">
+                <field name="name">1 Day</field>
+                <field name="expression_label">period1</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period2" model="account.report.column">
+                <field name="name">2 Days</field>
+                <field name="expression_label">period2</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period3" model="account.report.column">
+                <field name="name">3 Days</field>
+                <field name="expression_label">period3</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period4" model="account.report.column">
+                <field name="name">4 Days</field>
+                <field name="expression_label">period4</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period5" model="account.report.column">
+                <field name="name">5 Days</field>
+                <field name="expression_label">period5</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period6" model="account.report.column">
+                <field name="name">6-30</field>
+                <field name="expression_label">period6</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period7" model="account.report.column">
+                <field name="name">31-60</field>
+                <field name="expression_label">period7</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period8" model="account.report.column">
+                <field name="name">61-120</field>
+                <field name="expression_label">period8</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period9" model="account.report.column">
+                <field name="name">121-360</field>
+                <field name="expression_label">period9</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_period10" model="account.report.column">
+                <field name="name">360+</field>
+                <field name="expression_label">period10</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_total" model="account.report.column">
+                <field name="name">Total</field>
+                <field name="expression_label">total</field>
+                <field name="sortable" eval="True"/>
+            </record>
+        </field>
+        <field name="line_ids">
+            <record id="laundry_aged_receivable_line" model="account.report.line">
+                <field name="name">Aged Receivable</field>
+                <field name="groupby">partner_id, id</field>
+                <field name="expression_ids">
+                    <record id="laundry_aged_receivable_line_period0" model="account.report.expression">
+                        <field name="label">period0</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period0</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period1" model="account.report.expression">
+                        <field name="label">period1</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period1</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period2" model="account.report.expression">
+                        <field name="label">period2</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period2</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period3" model="account.report.expression">
+                        <field name="label">period3</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period3</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period4" model="account.report.expression">
+                        <field name="label">period4</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period4</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period5" model="account.report.expression">
+                        <field name="label">period5</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period5</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period6" model="account.report.expression">
+                        <field name="label">period6</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period6</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period7" model="account.report.expression">
+                        <field name="label">period7</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period7</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period8" model="account.report.expression">
+                        <field name="label">period8</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period8</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period9" model="account.report.expression">
+                        <field name="label">period9</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period9</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_period10" model="account.report.expression">
+                        <field name="label">period10</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">period10</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                    <record id="laundry_aged_receivable_line_total" model="account.report.expression">
+                        <field name="label">total</field>
+                        <field name="engine">custom</field>
+                        <field name="formula">_report_custom_engine_aged_receivable</field>
+                        <field name="subformula">total</field>
+                        <field name="auditable" eval="True"/>
+                    </record>
+                </field>
+            </record>
+        </field>
+    </record>
+</odoo>
