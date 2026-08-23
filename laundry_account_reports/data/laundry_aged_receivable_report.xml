@@ -14,7 +14,7 @@
            headers here and the period0..period10 expressions below must stay in step
            with that list (same order, same count).
 
-        2. Four descriptive columns. Address sits on the customer rows; Date,
+        2. Five descriptive columns. Address and Phone sit on the customer rows; Date,
            Order / Invoice and Service Type identify the document behind each open
            line: the POS order for a "pay later" order, or the invoice for anything
            invoiced (POS orders converted to an invoice, and Sales orders). All four
@@ -41,6 +41,12 @@
             <record id="laundry_aged_receivable_report_partner_address" model="account.report.column">
                 <field name="name">Address</field>
                 <field name="expression_label">partner_address</field>
+                <field name="figure_type">string</field>
+                <field name="sortable" eval="True"/>
+            </record>
+            <record id="laundry_aged_receivable_report_partner_phone" model="account.report.column">
+                <field name="name">Phone</field>
+                <field name="expression_label">partner_phone</field>
                 <field name="figure_type">string</field>
                 <field name="sortable" eval="True"/>
             </record>

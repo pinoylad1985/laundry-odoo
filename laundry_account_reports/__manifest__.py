@@ -1,6 +1,6 @@
 {
     'name': 'Laundry Accounting Reports',
-    'version': '1.2.0',
+    'version': '1.3.0',
     'author': 'laundryx',
     'summary': 'Aged Receivable (Detailed) report: per-order aging with document and address columns',
     'description': """

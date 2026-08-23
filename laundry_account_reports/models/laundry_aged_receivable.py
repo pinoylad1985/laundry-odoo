@@ -24,6 +24,7 @@ PERIOD_NAMES = {
 
 # Columns filled by _custom_line_postprocessor instead of by the SQL engine.
 DOCUMENT_LABELS = ('doc_date', 'doc_ref', 'service_type')
+PARTNER_LABELS = ('partner_address', 'partner_phone')
 
 
 class LaundryAgedReceivableReportHandler(models.AbstractModel):
@@ -303,25 +304,22 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
     def _custom_line_postprocessor(self, report, options, lines):
         lines = super()._custom_line_postprocessor(report, options, lines)
         self._laundry_fill_document_columns(report, options, lines)
-        self._laundry_fill_partner_address(report, options, lines)
+        self._laundry_fill_partner_columns(report, options, lines)
         return lines
 
-    def _laundry_fill_partner_address(self, report, options, lines):
-        """Fill the Address column on the customer rows.
+    def _laundry_fill_partner_columns(self, report, options, lines):
+        """Fill Address and Phone on the customer rows.
 
         Same no-expression trick as the document columns, one level up: the
         customer rows are res.partner, the rows nested under them are
         account.move.line, so the two fills never touch the same cell.
         """
-        column_index = next(
-            (
-                index
-                for index, column in enumerate(options['columns'])
-                if column['expression_label'] == 'partner_address'
-            ),
-            None,
-        )
-        if column_index is None:
+        indexes = {
+            column['expression_label']: index
+            for index, column in enumerate(options['columns'])
+            if column['expression_label'] in PARTNER_LABELS
+        }
+        if not indexes:
             return
 
         partner_ids = set()
@@ -332,8 +330,13 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
         if not partner_ids:
             return
 
-        addresses = {
-            partner.id: self._laundry_format_partner_address(partner)
+        details = {
+            partner.id: {
+                'partner_address': self._laundry_format_partner_address(partner),
+                # laundry_pos computes its Customer Phone from partner.phone
+                # alone, so the report shows the same number the POS does.
+                'partner_phone': partner.phone or '',
+            }
             for partner in self.env['res.partner'].browse(sorted(partner_ids))
         }
 
@@ -342,12 +345,16 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
             if model != 'res.partner':
                 continue
 
-            address = addresses.get(model_id)
-            columns = line.get('columns') or []
-            if not address or column_index >= len(columns) or not columns[column_index]:
+            partner_details = details.get(model_id)
+            if not partner_details:
                 continue
 
-            columns[column_index].update({'no_format': address, 'is_zero': False})
+            columns = line.get('columns') or []
+            for label, index in indexes.items():
+                value = partner_details.get(label)
+                if not value or index >= len(columns) or not columns[index]:
+                    continue
+                columns[index].update({'no_format': value, 'is_zero': False})
 
     def _laundry_format_partner_address(self, partner):
         """One-line address, matching the street/street2 convention used in the POS."""
