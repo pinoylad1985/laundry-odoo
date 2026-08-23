@@ -50,7 +50,13 @@ class PosSession(models.Model):
         stats = {'sessions': len(sessions), 'linked': 0, 'skipped_lines': 0, 'skipped_sessions': 0}
         pending = []
 
-        for session in sessions:
+        for position, session in enumerate(sessions, start=1):
+            if position % 250 == 0:
+                _logger.info(
+                    "Aged receivable backfill: %s/%s sessions, %s lines linked so far",
+                    position, len(sessions), stats['linked'],
+                )
+
             payments_by_key = session._laundry_group_split_payments()
             if not payments_by_key:
                 continue
@@ -98,6 +104,11 @@ class PosSession(models.Model):
             if len(pending) >= batch_size:
                 self._laundry_flush_pos_order_links(pending)
                 pending = []
+                # This walks every closed session the database has ever had, so
+                # drop the ORM cache between batches: without it the browsed
+                # orders, payments and move lines accumulate for the whole run
+                # and the upgrade can run the container out of memory.
+                self.env.invalidate_all()
 
         self._laundry_flush_pos_order_links(pending)
         _logger.info("Aged receivable backfill finished: %s", stats)

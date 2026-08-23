@@ -14,11 +14,12 @@
            headers here and the period0..period10 expressions below must stay in step
            with that list (same order, same count).
 
-        2. Three descriptive columns - Date, Order / Invoice, Service Type - identifying
-           the document behind each open line: the POS order for a "pay later" order, or
-           the invoice for anything invoiced (POS orders converted to an invoice, and
-           Sales orders). They deliberately have NO expression: Odoo emits one cell per
-           column regardless, and _custom_line_postprocessor fills them in.
+        2. Four descriptive columns. Address sits on the customer rows; Date,
+           Order / Invoice and Service Type identify the document behind each open
+           line: the POS order for a "pay later" order, or the invoice for anything
+           invoiced (POS orders converted to an invoice, and Sales orders). All four
+           deliberately have NO expression: Odoo emits one cell per column regardless,
+           and _custom_line_postprocessor fills them in.
 
         Rows are still one open receivable line each, grouped under the customer, and
         the amounts come from the same core SQL the standard report uses.
@@ -37,6 +38,12 @@
         <field name="custom_handler_model_id" ref="model_laundry_aged_receivable_report_handler"/>
         <field name="column_ids">
             <!-- Filled by _custom_line_postprocessor, hence no expression. -->
+            <record id="laundry_aged_receivable_report_partner_address" model="account.report.column">
+                <field name="name">Address</field>
+                <field name="expression_label">partner_address</field>
+                <field name="figure_type">string</field>
+                <field name="sortable" eval="True"/>
+            </record>
             <record id="laundry_aged_receivable_report_doc_date" model="account.report.column">
                 <field name="name">Date</field>
                 <field name="expression_label">doc_date</field>
