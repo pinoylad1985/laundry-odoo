@@ -1,6 +1,6 @@
 {
     'name': 'Laundry Accounting Reports',
-    'version': '1.4.1',
+    'version': '1.4.2',
     'author': 'laundryx',
     'summary': 'Aged Receivable (Detailed) report: per-order aging with document and address columns',
     'description': """
@@ -15,9 +15,10 @@ To make that possible it also stores a link from each receivable move line back
 to its POS order (account.move.line.pos_order_id), which core does not record
 for orders paid on Customer Account.
 
-The filter bar gains a Service Type filter (tick as many types as you like) and
-an Address filter with a "contains" / "does not contain" text box, and every
-column can be dragged wider or narrower (double-click a handle to reset).
+The filter bar gains a Service Type filter (tick as many types as you like, plus
+a "(No service type)" entry for invoices raised outside the POS) and an Address
+filter with a "contains" / "does not contain" text box, and every column can be
+dragged wider or narrower (double-click a handle to reset).
 """,
     'category': 'Accounting/Accounting',
     'depends': ['account_reports', 'point_of_sale', 'laundry_pos'],

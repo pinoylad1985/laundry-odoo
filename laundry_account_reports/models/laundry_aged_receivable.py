@@ -2,7 +2,7 @@ from itertools import chain
 
 from dateutil.relativedelta import relativedelta
 
-from odoo import fields, models
+from odoo import _, fields, models
 from odoo.tools import SQL
 
 # Header shown for each aging bucket, keyed by expression label. Set here rather
@@ -35,6 +35,12 @@ ADDRESS_FIELDS = ('street', 'street2', 'city')
 SERVICE_TYPE_OPTION = 'laundry_service_types'       # list of {id, name, selected}
 ADDRESS_TEXT_OPTION = 'laundry_address_text'        # free text
 ADDRESS_MODE_OPTION = 'laundry_address_mode'        # 'contains' | 'not_contains'
+
+# Extra entry in the Service Type tick list, covering the rows the report shows
+# with a blank Service Type: an invoice raised outside the POS (Sales, manual),
+# and any POS order carrying no type. It is not a value of the field, hence a
+# sentinel that no selection key can collide with.
+NO_SERVICE_TYPE_KEY = '__none__'
 
 
 class LaundryAgedReceivableReportHandler(models.AbstractModel):
@@ -115,6 +121,11 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
             {'id': key, 'name': label, 'selected': key in ticked}
             for key, label in self._laundry_service_type_selection()
         ]
+        options[SERVICE_TYPE_OPTION].append({
+            'id': NO_SERVICE_TYPE_KEY,
+            'name': _("(No service type)"),
+            'selected': NO_SERVICE_TYPE_KEY in ticked,
+        })
 
         options[ADDRESS_TEXT_OPTION] = str(previous_options.get(ADDRESS_TEXT_OPTION) or '').strip()
         options[ADDRESS_MODE_OPTION] = (
@@ -126,27 +137,49 @@ class LaundryAgedReceivableReportHandler(models.AbstractModel):
         return self._laundry_service_type_domain(options) + self._laundry_address_domain(options)
 
     def _laundry_service_type_domain(self, options):
-        """Restrict to the ticked service types.
+        """Restrict to the ticked service types; nothing ticked means no filtering.
 
-        Nothing ticked means no filtering at all. Ticking a type is positively
-        asking for that type, so rows with no service type - an invoice that
-        never went through the POS - drop out as soon as anything is ticked.
+        Ticking a type is positively asking for that type, so rows showing a
+        blank Service Type drop out unless "(No service type)" is ticked too.
         """
-        ticked = sorted(
+        ticked = {
             choice['id']
             for choice in options.get(SERVICE_TYPE_OPTION) or []
             if choice.get('selected')
-        )
+        }
         if not ticked:
             return []
 
-        # A POS order reaches this report two ways: as a "pay later" line stamped
-        # with pos_order_id, or as the invoice the order was turned into.
-        return [
-            '|',
-            ('pos_order_id.laundry_service_type', 'in', ticked),
-            ('move_id.pos_order_ids.laundry_service_type', 'in', ticked),
-        ]
+        domains = []
+
+        keys = sorted(ticked - {NO_SERVICE_TYPE_KEY})
+        if keys:
+            # A POS order reaches this report two ways: as a "pay later" line
+            # stamped with pos_order_id, or as the invoice the order was turned
+            # into.
+            domains.append([
+                '|',
+                ('pos_order_id.laundry_service_type', 'in', keys),
+                ('move_id.pos_order_ids.laundry_service_type', 'in', keys),
+            ])
+
+        if NO_SERVICE_TYPE_KEY in ticked:
+            # Follows the same order of preference as _laundry_get_document_values
+            # - the stamped order first, the invoice's orders only when there is
+            # no stamped one - so this matches exactly the rows whose Service Type
+            # cell is empty, whether that is an invoice from Sales with no order
+            # behind it at all or an order that was never given a type.
+            domains.append([
+                '|',
+                '&', ('pos_order_id', '!=', False), ('pos_order_id.laundry_service_type', '=', False),
+                '&', ('pos_order_id', '=', False),
+                '|', ('move_id.pos_order_ids', '=', False),
+                ('move_id.pos_order_ids.laundry_service_type', '=', False),
+            ])
+
+        if len(domains) == 1:
+            return domains[0]
+        return ['|'] + domains[0] + domains[1]
 
     def _laundry_address_domain(self, options):
         """Search the same address parts the Address column is built from."""
