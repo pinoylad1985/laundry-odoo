@@ -18,7 +18,7 @@ Promotion flow: work → push to `staging` → it deploys to staging → test �
 → run the production deploy (backs up first, pulls `main`, restarts, upgrades the module). After a deploy, in
 Odoo: **Apps → Update Apps List → Upgrade Laundry POS**.
 
-- **GitHub repo:** https://github.com/pinoylad1985/laundry-pos-odoo
+- **GitHub repo:** https://github.com/pinoylad1985/laundry-odoo
 - **Odoo version:** 19 (Enterprise) · **Python:** 3.13 · **Frontend:** OWL 2
 
 ## Module Structure
