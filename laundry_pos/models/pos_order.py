@@ -140,6 +140,13 @@ class PosOrder(models.Model):
     laundry_refund_manager = fields.Char(string='Refund Approved By')     # manager (override path only)
     laundry_refund_reason = fields.Char(string='Refund Reason')           # reason (override path only)
 
+    # --- Payment control ---
+    # Customer Account (pay-later) tender on a Drop-off / Drop-off & Delivery order requires
+    # a manager PIN at payment. Set to the approving manager's name (see the payment screen
+    # patch + manager_gate popup). Blank = never needed one (any other service type, or paid
+    # by cash/card). Set frontend-side and synced like the other stored pos.order fields.
+    laundry_account_approved_by = fields.Char(string='Account Approved By')
+
     @api.depends('laundry_delivery_datetime', 'laundry_claim_datetime')
     def _compute_laundry_due_datetime(self):
         # Legacy fallback to the ex-Studio field for old records. Guarded by a

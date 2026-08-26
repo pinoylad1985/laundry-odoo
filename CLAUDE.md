@@ -103,6 +103,22 @@ product grid ("Tap New Order or Settle Order above to begin").
 | `locker` | Locker |
 | `self_service` | Self-service |
 
+## Customer Account payment gate — v1.4.14
+On a **Drop-off**, **Drop-off & Delivery**, or **Self-service** order, tendering via **Customer Account**
+(the pay-later / on-account method, `pos.payment.method.type == 'pay_later'`) requires a **manager PIN**. The
+remaining service types (**Pickup & Delivery**, **Locker**) are unaffected — Customer Account is allowed freely.
+- The gated set lives in ONE place — `ACCOUNT_GATED_SERVICE_TYPES` in `overrides/payment_screen_patch.js` —
+  used for both the gate check and the popup message (`No Customer Account for the following service types: …`).
+- Gated in `addNewPaymentLine`: if the tapped method is `pay_later`, the order's `laundry_service_type` is in
+  that set, and it isn't approved yet, the add is blocked and the **`ManagerPinPopup`** (`static/src/manager_gate/`)
+  opens. On a valid PIN (`pos.order.check_laundry_manager`, the same `is_laundry_manager` check the refund gate
+  uses) it records the manager and re-enters to add the line.
+- **Approval is per-order and sticky:** once approved, `pos.order.laundry_account_approved_by` (a stored Char,
+  set frontend-side, synced like the other laundry fields; an optional column on the POS Orders list) holds the
+  manager's name and the tender can be added/removed/re-amounted without re-prompting.
+- ⚠ **Operational dependency:** if NO employee has `is_laundry_manager` + a PIN, this gate can never be
+  satisfied → Customer Account is effectively **blocked** on Drop-off orders. Configure managers first.
+
 ## Service Products (matched by name)
 | Code | Name contains | Quantity behavior |
 |------|---------------|-------------------|
