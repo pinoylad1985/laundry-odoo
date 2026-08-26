@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<templates>
+    <!--
+        The standard report header plus a drag handle on the right edge of every
+        column. The handle sits inside the header cell, which is also the sort
+        button, so startResize stops the click from reaching it.
+    -->
+    <t t-name="laundry_account_reports.LaundryAgedReceivableHeader" t-inherit="account_reports.AccountReportHeaderCustomizable">
+        <!-- Leftmost column: the customer / line name, which has no expression label. -->
+        <xpath expr="//tr[@data-id='column_subheaders_row']/th[1]" position="inside">
+            <span
+                class="laundry_column_resizer d-print-none"
+                title="Drag to resize this column. Double-click to reset all columns."
+                t-on-mousedown="(ev) => this.startResize(ev, '#name')"
+                t-on-dblclick="() => this.resetWidths()"
+                t-on-click="(ev) => ev.stopPropagation()"
+            />
+        </xpath>
+
+        <xpath expr="//tr[@data-id='column_subheaders_row']//th[@t-att-data-expression_label]" position="inside">
+            <span
+                class="laundry_column_resizer d-print-none"
+                title="Drag to resize this column. Double-click to reset all columns."
+                t-on-mousedown="(ev) => this.startResize(ev, subheader.expression_label)"
+                t-on-dblclick="() => this.resetWidths()"
+                t-on-click="(ev) => ev.stopPropagation()"
+            />
+        </xpath>
+    </t>
+</templates>

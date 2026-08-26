@@ -1,0 +1,105 @@
+// Aged Receivable (Detailed) only: the report sets
+// custom_display_config['css_custom_class'] to include laundry_aged_receivable,
+// so nothing here can reach the standard accounting reports.
+.account_report.laundry_aged_receivable {
+
+    //------------------------------------------------------------------------------------------------------------------
+    // Resizable columns
+    //------------------------------------------------------------------------------------------------------------------
+    // The drag handle straddles the right border of each column header.
+    thead > tr[data-id="column_subheaders_row"] > th {
+        position: relative;
+
+        // Kept inside the cell rather than straddling its border: the clipping
+        // rule further down makes the header cell its own overflow container,
+        // which would cut off anything sticking out.
+        > .laundry_column_resizer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 9px;
+            height: 100%;
+            cursor: col-resize;
+            user-select: none;
+            z-index: 1;
+
+            &::after {
+                content: "";
+                position: absolute;
+                top: 15%;
+                right: 2px;
+                width: 2px;
+                height: 70%;
+                border-radius: 1px;
+                background-color: transparent;
+            }
+
+            &:hover::after {
+                background-color: currentColor;
+                opacity: 0.4;
+            }
+        }
+    }
+
+    // header.js pins a column by setting width / min-width / max-width on its
+    // cells. Under the table's automatic layout that is only honoured if the
+    // cell can actually get smaller than its text, hence the clipping below.
+    // With no width pinned it changes nothing: the cells are already as wide as
+    // their contents.
+    th,
+    td.line_name,
+    td.line_cell {
+        overflow: hidden;
+    }
+
+    td.line_name > .wrapper,
+    td.line_cell > .wrapper {
+        min-width: 0;
+
+        > .content {
+            min-width: 0;
+            overflow: hidden;
+        }
+    }
+
+    td.line_name .name,
+    td.line_cell .name {
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    //------------------------------------------------------------------------------------------------------------------
+    // Custom filters
+    //------------------------------------------------------------------------------------------------------------------
+    .laundry_filter {
+        // Wide enough for "Does not contain" to sit on one line with the text box.
+        min-width: 260px;
+
+        .laundry_text_filter {
+            cursor: default;
+
+            // The row is not a DropdownItem, so hovering it should not look clickable.
+            &:hover,
+            &:focus {
+                background-color: transparent;
+            }
+
+            > .laundry_text_mode {
+                display: flex;
+                width: 100%;
+                margin-bottom: 4px;
+            }
+
+            > input {
+                width: 100%;
+            }
+        }
+    }
+}
+
+// While a column is being dragged the pointer often leaves the handle, so the
+// cursor and the no-select behaviour have to live on the document.
+body.laundry_resizing_column {
+    cursor: col-resize !important;
+    user-select: none;
+}
