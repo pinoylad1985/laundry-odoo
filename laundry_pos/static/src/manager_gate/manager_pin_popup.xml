@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.ManagerPinPopup">
+        <Dialog title="title" size="'md'">
+            <div class="laundry-manager-gate">
+                <p t-if="body" class="mb-1"><t t-esc="body"/></p>
+                <ul t-if="items.length" class="mb-2 ps-4">
+                    <li t-foreach="items" t-as="item" t-key="item"><t t-esc="item"/></li>
+                </ul>
+                <p t-if="note" class="mb-2"><t t-esc="note"/></p>
+                <div class="d-flex align-items-center gap-2 bg-white border rounded-3 p-2">
+                    <input type="password" inputmode="numeric" autocomplete="off"
+                           class="form-control form-control-lg border-0 shadow-none"
+                           placeholder="Manager PIN"
+                           t-att-value="state.pin"
+                           t-on-input="(ev) => this.state.pin = ev.target.value"
+                           t-on-keydown="onKeydown"/>
+                </div>
+                <div t-if="state.error" class="text-danger mt-2"><t t-esc="state.error"/></div>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-on-click="confirm">Approve</button>
+                <button class="btn btn-secondary" t-on-click="() => this.props.close()">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>
