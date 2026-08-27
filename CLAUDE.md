@@ -103,6 +103,39 @@ product grid ("Tap New Order or Settle Order above to begin").
 | `locker` | Locker |
 | `self_service` | Self-service |
 
+## Reprint copy picker — v1.4.16
+Reprinting used to always print the FULL set of copies. Now `PosStore.printReceipt` opens
+**`ReprintCopiesPopup`** (`static/src/reprint_picker/`) so the cashier picks which copies to print.
+- **First print vs reprint:** the print straight after payment prints everything automatically (no extra
+  tap at checkout) and sets `order._laundryPrinted`. A print is treated as a **reprint** when `opts.order`
+  is passed (the Order List button) **or** `_laundryPrinted` is set. `_laundryPrinted` is an in-memory prop,
+  so it is lost on reload — that fails SAFE (you get the picker, which is what a reprint wants).
+- **Nothing is pre-ticked** and Print is disabled until at least one copy is selected, so a stray tap
+  prints nothing. Cancel / empty selection prints nothing and returns early.
+- **Copy order = SHOP → TRANSACTION (1/n…n/n) → CUSTOMER**, set once in `computeLaundryCopies` and used for
+  BOTH the picker's row order AND the physical print sequence (the automatic post-payment print included).
+  Shop copy leads because it's the one most often reprinted on its own.
+- **`laundryReprintOptions(order)`** (in `overrides/order_receipt_patch.js`) = `computeLaundryCopies` plus a
+  **disabled** CUSTOMER COPY row when the service type doesn't produce one (Pickup & Delivery, Locker) —
+  greyed with a reason rather than hidden, so its absence is visible and not confusing.
+- The tick is a **FontAwesome icon, not a native `<input type=checkbox>`** — OWL's `t-att-checked` sets the
+  attribute, which desyncs from the DOM property once the browser toggles it natively. Don't "simplify" it back.
+
+## Schedule display (Pickup / Delivery / Claim) — v1.4.15
+The cashier's picked schedule lives on `order.laundry_schedule`, a **plain in-memory JS prop** — it does NOT
+survive a page reload, an order re-sync, or a different device/browser. `laundry_service_type` (a real stored
+field) always does. So **never gate a schedule fallback on `laundry_service_type` being missing** — that was
+the v1.4.14 bug: both fallbacks (the localStorage rehydrate in `product_screen_patch`, and the receipt's own)
+were `if (!svcType)`, which is never true for a set-up order → the Pickup/Delivery lines silently vanished
+from the receipt + setup banner after any reload, while Service Type / TAT / Customer Type still printed.
+- **The durable source is the stored fields** — `laundry_pickup_datetime` / `laundry_delivery_datetime` /
+  `laundry_claim_datetime` on `pos.order`, written at modal submit. `fmtStoredDateTime()` in
+  `utils/laundry_products.js` renders them in the same `YYYY-MM-DD h:mm AM` shape as `fmtDateTime12()`.
+- **Resolution order** (receipt `receipt_header_patch` + banner `product_screen_patch`): in-memory
+  `laundry_schedule` → localStorage → **stored datetime fields**. The last one always works.
+- POS loads datetime fields as **luxon DateTime in local time**; `fmtStoredDateTime` also handles a raw
+  string/Date defensively (serialized values are UTC and must be shifted to local, else PH time is off by 8h).
+
 ## Customer Account payment gate — v1.4.14
 On a **Drop-off**, **Drop-off & Delivery**, or **Self-service** order, tendering via **Customer Account**
 (the pay-later / on-account method, `pos.payment.method.type == 'pay_later'`) requires a **manager PIN**. The
