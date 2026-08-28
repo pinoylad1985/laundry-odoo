@@ -209,8 +209,12 @@ patch(PosStore.prototype, {
         }
 
         // Pickup & Delivery / Locker orders require a rider sign-off (PIN) before payment.
+        // `_riderSignedOff` is in-memory, so a reload between sign-off and payment would
+        // ask for the PIN again; the rider NAME is a stored field, so treat it as proof
+        // the sign-off already happened.
         const svc = order?.laundry_service_type;
-        if (["pickup_delivery", "locker"].includes(svc) && !order?._riderSignedOff) {
+        const signedOff = order?._riderSignedOff || !!order?.laundry_pickup_rider;
+        if (["pickup_delivery", "locker"].includes(svc) && !signedOff) {
             const dialog = this.dialog || this.env?.services?.dialog;
             const payArgs = arguments;
             dialog?.add(RiderSignoffPopup, {
