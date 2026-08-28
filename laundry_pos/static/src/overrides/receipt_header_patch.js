@@ -2,7 +2,11 @@
 
 import { patch } from "@web/core/utils/patch";
 import { ReceiptHeader } from "@point_of_sale/app/screens/receipt_screen/receipt/receipt_header/receipt_header";
-import { laundryCodeForProduct, fmtDateTime12 } from "@laundry_pos/utils/laundry_products";
+import {
+    laundryCodeForProduct,
+    fmtDateTime12,
+    fmtStoredDateTime,
+} from "@laundry_pos/utils/laundry_products";
 import { LAUNDRY_MENU } from "@laundry_pos/utils/laundry_instructions";
 import { lsLoad } from "@laundry_pos/utils/laundry_storage";
 
@@ -22,14 +26,21 @@ patch(ReceiptHeader.prototype, {
         let svcType = order.laundry_service_type;
         let custType = order.laundry_customer_type;
         let turnaround = order.laundry_turnaround;
+        // `laundry_schedule` is an in-memory JS prop — it is gone after a reload,
+        // a re-sync, or on another device, while laundry_service_type (a stored
+        // field) always comes back. So this fallback must NOT be gated on svcType
+        // alone, or the schedule can never be recovered. Last resort is the stored
+        // laundry_*_datetime fields, in the getters below.
         let schedule = order.laundry_schedule || {};
-        if (!svcType) {
+        if (!svcType || !Object.keys(schedule).length) {
             const stored = lsLoad(order.uuid);
             if (stored?.status === "submitted") {
-                svcType = stored.serviceType;
-                custType = stored.customerType;
-                turnaround = stored.turnaround;
-                schedule = stored.schedule || {};
+                svcType = svcType || stored.serviceType;
+                custType = custType || stored.customerType;
+                turnaround = turnaround || stored.turnaround;
+                if (!Object.keys(schedule).length) {
+                    schedule = stored.schedule || {};
+                }
             }
         }
         if (!svcType) return null;
@@ -78,7 +89,11 @@ patch(ReceiptHeader.prototype, {
 
     get laundryPickup() {
         const d = this._laundryData();
-        return d ? fmtDateTime12(d.schedule.pickupDate, d.schedule.pickupHour) : "";
+        if (!d) return "";
+        return (
+            fmtDateTime12(d.schedule.pickupDate, d.schedule.pickupHour) ||
+            fmtStoredDateTime(d.order.laundry_pickup_datetime)
+        );
     },
 
     get laundryDeliveryLabel() {
@@ -95,7 +110,10 @@ patch(ReceiptHeader.prototype, {
         if (d.schedule.claimDate) {
             return fmtDateTime12(d.schedule.claimDate, d.schedule.claimHour);
         }
-        return "";
+        return (
+            fmtStoredDateTime(d.order.laundry_delivery_datetime) ||
+            fmtStoredDateTime(d.order.laundry_claim_datetime)
+        );
     },
 
     // Pickup rider who signed off on a Pickup & Delivery / Locker order (set at payment).

@@ -26,6 +26,35 @@ export function lsLoad(uuid) {
     return null;
 }
 
+// Orders whose receipt has already been printed once — the next print is then a
+// REPRINT and offers the copy picker (see PosStore.printReceipt).
+//
+// Kept in its OWN key, not merged into the record above: lsSave overwrites the
+// whole per-order entry, so re-running setup on an order would wipe the flag.
+// Persisting it (rather than relying on the in-memory `_laundryPrinted` prop)
+// means a reload or a next-session Order List reprint still gets the picker.
+const LS_PRINTED_KEY = "laundry_pos_printed";
+const LS_PRINTED_MAX = 200;
+
+export function lsMarkPrinted(uuid) {
+    if (!uuid) return;
+    try {
+        const list = JSON.parse(localStorage.getItem(LS_PRINTED_KEY) || "[]");
+        if (list.includes(uuid)) return;
+        list.push(uuid);
+        while (list.length > LS_PRINTED_MAX) list.shift();
+        localStorage.setItem(LS_PRINTED_KEY, JSON.stringify(list));
+    } catch {}
+}
+
+export function lsWasPrinted(uuid) {
+    if (!uuid) return false;
+    try {
+        return JSON.parse(localStorage.getItem(LS_PRINTED_KEY) || "[]").includes(uuid);
+    } catch {}
+    return false;
+}
+
 export function lsDelete(uuid) {
     if (!uuid) return;
     try {

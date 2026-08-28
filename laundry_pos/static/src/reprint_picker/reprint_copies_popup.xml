@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.ReprintCopiesPopup">
+        <Dialog title="'Reprint Receipt'" size="'md'">
+            <div class="laundry-reprint-picker">
+                <p class="mb-2">Select the copies to print:</p>
+                <div class="d-flex flex-column gap-2">
+                    <!-- The whole row is the tap target (POS is touch-first). The tick is
+                         drawn as an icon, not a native checkbox, so its visual state always
+                         follows `state` instead of the browser's own toggling. -->
+                    <div t-foreach="props.copies" t-as="copy" t-key="copy_index"
+                         t-attf-class="laundry-reprint-row d-flex align-items-center gap-3 border rounded-3 p-3 {{ copy.disabled ? 'opacity-50' : 'bg-white' }}"
+                         t-att-style="copy.disabled ? 'cursor: not-allowed;' : 'cursor: pointer;'"
+                         t-on-click="() => this.toggle(copy_index)">
+                        <i t-attf-class="fa fa-lg {{ state.checked[copy_index] ? 'fa-check-square text-primary' : 'fa-square-o text-muted' }}"/>
+                        <div class="d-flex flex-column">
+                            <span class="fw-bold"><t t-esc="copy.label"/></span>
+                            <small t-if="copy.disabled" class="text-muted"><t t-esc="copy.reason"/></small>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-link px-0 mt-2" t-on-click="toggleAll">
+                    <t t-esc="allSelected ? 'Clear all' : 'Select all'"/>
+                </button>
+            </div>
+            <t t-set-slot="footer">
+                <button class="btn btn-primary" t-att-disabled="!selectedCount" t-on-click="confirm">
+                    Print<t t-if="selectedCount"> (<t t-esc="selectedCount"/>)</t>
+                </button>
+                <button class="btn btn-secondary" t-on-click="() => this.props.close()">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>

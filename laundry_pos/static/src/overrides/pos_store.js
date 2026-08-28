@@ -3,9 +3,15 @@
 import { patch } from "@web/core/utils/patch";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { AlertDialog, ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
-import { lsDelete } from "@laundry_pos/utils/laundry_storage";
+import { lsDelete, lsMarkPrinted, lsWasPrinted } from "@laundry_pos/utils/laundry_storage";
 import { lineNeedsConfig, laundryCodeForProduct, wdfBilledQty } from "@laundry_pos/utils/laundry_products";
-import { computeLaundryCopies, setPrintOnlyCopy } from "@laundry_pos/overrides/order_receipt_patch";
+import {
+    computeLaundryCopies,
+    laundryReprintOptions,
+    setPrintOnlyCopy,
+} from "@laundry_pos/overrides/order_receipt_patch";
+import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
+import { ReprintCopiesPopup } from "@laundry_pos/reprint_picker/reprint_copies_popup";
 import { allowWdfQty } from "@laundry_pos/overrides/pos_order_line_patch";
 import { consumeWdfWeight, consumeLaundryNote } from "@laundry_pos/overrides/product_configurator_popup_patch";
 import { RiderSignoffPopup } from "@laundry_pos/rider_signoff/rider_signoff_popup";
@@ -96,12 +102,32 @@ patch(PosStore.prototype, {
     /**
      * Print one job per laundry copy (TRANSACTION/SHOP/CUSTOMER) so the thermal
      * printer cuts between each. Non-laundry orders print once, normally.
+     *
+     * The FIRST print (straight after payment) prints the full set automatically —
+     * no extra tap at checkout. Any print after that is a REPRINT and opens the
+     * copy picker, so reprinting just the shop copy doesn't spit out all of them.
+     *
+     * "Already printed" is the ONLY reprint signal. Don't reintroduce `opts.order`
+     * as one: core passes the order on the post-payment print too, so it flagged
+     * every first print as a reprint. The flag is persisted (not just the
+     * in-memory `_laundryPrinted` prop) so it survives a reload and a later
+     * session's Order List reprint.
      */
     async printReceipt(opts = {}) {
         const order = opts.order || this.getOrder();
-        const copies = computeLaundryCopies(order);
+        let copies = computeLaundryCopies(order);
         if (!(copies.length && copies[0]?.label)) {
             return super.printReceipt(opts); // not a laundry order — single receipt
+        }
+        if (order?._laundryPrinted || lsWasPrinted(order?.uuid)) {
+            const dialog = this.dialog || this.env?.services?.dialog;
+            const chosen = await makeAwaitable(dialog, ReprintCopiesPopup, {
+                copies: laundryReprintOptions(order),
+            });
+            if (!chosen?.length) {
+                return; // cancelled, or nothing selected
+            }
+            copies = chosen;
         }
         let result;
         for (const copy of copies) {
@@ -111,6 +137,10 @@ patch(PosStore.prototype, {
             } finally {
                 setPrintOnlyCopy(null);
             }
+        }
+        if (order) {
+            order._laundryPrinted = true;
+            lsMarkPrinted(order.uuid);
         }
         return result;
     },

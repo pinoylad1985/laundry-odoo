@@ -51,6 +51,29 @@ export function fmtDateTime12(date, hour) {
     return t ? `${date} ${t}` : date;
 }
 
+// Same output as fmtDateTime12, but from a STORED pos.order datetime field
+// (laundry_pickup_datetime / laundry_delivery_datetime / laundry_claim_datetime).
+//
+// The schedule the cashier picked also lives on `order.laundry_schedule`, but that
+// is a plain in-memory JS prop: it does not survive a reload, a re-sync, or another
+// device. The stored fields do — so they are the fallback everywhere the schedule
+// is displayed (receipt + setup banner).
+//
+// POS loads datetime fields as luxon DateTime in local time; the string/Date cases
+// are defensive (a raw serialized value is UTC and must be shifted to local).
+export function fmtStoredDateTime(value) {
+    if (!value) return "";
+    const { DateTime } = luxon;
+    let dt = value;
+    if (typeof value === "string") {
+        dt = DateTime.fromSQL(value, { zone: "utc" }).toLocal();
+        if (!dt.isValid) dt = DateTime.fromISO(value, { zone: "utc" }).toLocal();
+    } else if (value instanceof Date) {
+        dt = DateTime.fromJSDate(value);
+    }
+    return dt?.isValid ? dt.toFormat("yyyy-MM-dd h:mm a") : "";
+}
+
 // Replace any turnaround value in `selectedIds` with the one matching `tat`
 // ("express"/"regular"). The schedule (TAT) — not the cashier — decides it.
 export function withTatTurnaround(productTemplate, selectedIds, tat) {

@@ -9,6 +9,7 @@ import { lsSave, lsLoad } from "@laundry_pos/utils/laundry_storage";
 import {
     laundryCodeForProduct,
     fmtDateTime12,
+    fmtStoredDateTime,
     withTatTurnaround,
     buildConfiguredLineVals,
 } from "@laundry_pos/utils/laundry_products";
@@ -174,8 +175,14 @@ patch(ProductScreen.prototype, {
         return "—";
     },
 
+    // In-memory schedule if present, else whatever was stored for this order on
+    // THIS browser (the in-memory prop does not survive a reload / re-sync).
     _getLaundrySchedule() {
-        return this.pos.getOrder()?.laundry_schedule || {};
+        const order = this.pos.getOrder();
+        const schedule = order?.laundry_schedule || {};
+        if (Object.keys(schedule).length) return schedule;
+        const stored = lsLoad(order?.uuid);
+        return (stored?.status === "submitted" && stored.schedule) || {};
     },
 
     _fmtDateTime(date, hour) {
@@ -184,7 +191,10 @@ patch(ProductScreen.prototype, {
 
     _getLaundryPickup() {
         const s = this._getLaundrySchedule();
-        return this._fmtDateTime(s.pickupDate, s.pickupHour);
+        return (
+            this._fmtDateTime(s.pickupDate, s.pickupHour) ||
+            fmtStoredDateTime(this.pos.getOrder()?.laundry_pickup_datetime)
+        );
     },
 
     // Drop-off uses a Claim date; the other service types use a Delivery date.
@@ -196,7 +206,11 @@ patch(ProductScreen.prototype, {
         const s = this._getLaundrySchedule();
         if (s.deliveryDate) return this._fmtDateTime(s.deliveryDate, s.deliveryHour);
         if (s.claimDate) return this._fmtDateTime(s.claimDate, s.claimHour);
-        return "";
+        const order = this.pos.getOrder();
+        return (
+            fmtStoredDateTime(order?.laundry_delivery_datetime) ||
+            fmtStoredDateTime(order?.laundry_claim_datetime)
+        );
     },
 
     // Push the order's current TAT onto already-configured laundry lines so a
