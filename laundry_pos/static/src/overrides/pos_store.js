@@ -3,7 +3,7 @@
 import { patch } from "@web/core/utils/patch";
 import { PosStore } from "@point_of_sale/app/services/pos_store";
 import { AlertDialog, ConfirmationDialog } from "@web/core/confirmation_dialog/confirmation_dialog";
-import { lsDelete } from "@laundry_pos/utils/laundry_storage";
+import { lsDelete, lsMarkPrinted, lsWasPrinted } from "@laundry_pos/utils/laundry_storage";
 import { lineNeedsConfig, laundryCodeForProduct, wdfBilledQty } from "@laundry_pos/utils/laundry_products";
 import {
     computeLaundryCopies,
@@ -106,8 +106,12 @@ patch(PosStore.prototype, {
      * The FIRST print (straight after payment) prints the full set automatically —
      * no extra tap at checkout. Any print after that is a REPRINT and opens the
      * copy picker, so reprinting just the shop copy doesn't spit out all of them.
-     * A reprint is either an explicit `opts.order` (the Order List button) or an
-     * order this session has already printed.
+     *
+     * "Already printed" is the ONLY reprint signal. Don't reintroduce `opts.order`
+     * as one: core passes the order on the post-payment print too, so it flagged
+     * every first print as a reprint. The flag is persisted (not just the
+     * in-memory `_laundryPrinted` prop) so it survives a reload and a later
+     * session's Order List reprint.
      */
     async printReceipt(opts = {}) {
         const order = opts.order || this.getOrder();
@@ -115,7 +119,7 @@ patch(PosStore.prototype, {
         if (!(copies.length && copies[0]?.label)) {
             return super.printReceipt(opts); // not a laundry order — single receipt
         }
-        if (opts.order || order?._laundryPrinted) {
+        if (order?._laundryPrinted || lsWasPrinted(order?.uuid)) {
             const dialog = this.dialog || this.env?.services?.dialog;
             const chosen = await makeAwaitable(dialog, ReprintCopiesPopup, {
                 copies: laundryReprintOptions(order),
@@ -136,6 +140,7 @@ patch(PosStore.prototype, {
         }
         if (order) {
             order._laundryPrinted = true;
+            lsMarkPrinted(order.uuid);
         }
         return result;
     },

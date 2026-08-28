@@ -14,9 +14,16 @@ fronted by Cloudflare.
 - **Production** — `main` branch → `odoo.laundryx.app` (database `laundryx`).
 - **Staging** — `staging` branch → `staging.laundryx.app` (database `laundryx_staging`).
 
-Promotion flow: work → push to `staging` → it deploys to staging → test → open a PR to merge `staging` → `main`
-→ run the production deploy (backs up first, pulls `main`, restarts, upgrades the module). After a deploy, in
-Odoo: **Apps → Update Apps List → Upgrade Laundry POS**.
+Promotion flow: work → push to `staging` → run the staging deploy → test → open a PR to merge `staging` → `main`
+→ run the production deploy (backs up first, pulls `main`, restarts, upgrades the module).
+
+Deploy scripts live on the VPS in `/opt/odoo` and **take the module(s) as an argument** — bare invocation just
+prints usage. They run the module upgrade themselves, so **do NOT** follow a deploy with
+*Apps → Update Apps List → Upgrade*; that is handled.
+```bash
+ssh -t root@72.62.244.190 'cd /opt/odoo && ./deploy-staging.sh laundry_pos'   # pauses for a `yes` prompt
+```
+Deploy only the module(s) actually being promoted — `laundry_pos` and `laundry_account_reports` move separately.
 
 - **GitHub repo:** https://github.com/pinoylad1985/laundry-odoo
 - **Odoo version:** 19 (Enterprise) · **Python:** 3.13 · **Frontend:** OWL 2
@@ -106,10 +113,13 @@ product grid ("Tap New Order or Settle Order above to begin").
 ## Reprint copy picker — v1.4.16
 Reprinting used to always print the FULL set of copies. Now `PosStore.printReceipt` opens
 **`ReprintCopiesPopup`** (`static/src/reprint_picker/`) so the cashier picks which copies to print.
-- **First print vs reprint:** the print straight after payment prints everything automatically (no extra
-  tap at checkout) and sets `order._laundryPrinted`. A print is treated as a **reprint** when `opts.order`
-  is passed (the Order List button) **or** `_laundryPrinted` is set. `_laundryPrinted` is an in-memory prop,
-  so it is lost on reload — that fails SAFE (you get the picker, which is what a reprint wants).
+- **First print vs reprint:** the print straight after payment prints everything automatically (no extra tap
+  at checkout); every print after that opens the picker. The ONLY reprint signal is **"this order has already
+  been printed"** — `order._laundryPrinted` (in-memory) or `lsWasPrinted(uuid)` (localStorage, key
+  `laundry_pos_printed`), set together at the end of `printReceipt`. Persisting it means a reload, or a later
+  session's Order List reprint, still gets the picker.
+- ⚠ **Do NOT use `opts.order` as a reprint signal.** That was the first attempt and it was wrong: core passes
+  the order on the **post-payment** print too, so the picker appeared on the very first print.
 - **Nothing is pre-ticked** and Print is disabled until at least one copy is selected, so a stray tap
   prints nothing. Cancel / empty selection prints nothing and returns early.
 - **Copy order = SHOP → TRANSACTION (1/n…n/n) → CUSTOMER**, set once in `computeLaundryCopies` and used for
