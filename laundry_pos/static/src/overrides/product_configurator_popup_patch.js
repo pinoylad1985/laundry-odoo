@@ -2,8 +2,16 @@
 
 import { patch } from "@web/core/utils/patch";
 import { useState, useRef } from "@odoo/owl";
-import { ProductConfiguratorPopup } from "@point_of_sale/app/components/popups/product_configurator_popup/product_configurator_popup";
-import { laundryCodeForProduct, wdfRoundedKg } from "@laundry_pos/utils/laundry_products";
+import {
+    ProductConfiguratorPopup,
+    BaseProductAttribute,
+} from "@point_of_sale/app/components/popups/product_configurator_popup/product_configurator_popup";
+import {
+    laundryCodeForProduct,
+    wdfRoundedKg,
+    laundryIsExpressSelection,
+    laundryEffectiveExtra,
+} from "@laundry_pos/utils/laundry_products";
 
 function isTurnaround(attrLine) {
     return String(attrLine?.attribute_id?.name || "").startsWith("Turnaround");
@@ -204,6 +212,18 @@ patch(ProductConfiguratorPopup.prototype, {
         }
     },
 
+    // Express pricing: a value with an Express Price charges THAT instead of its
+    // Extra Price when the turnaround is EXPRESS. Overriding core's getter covers
+    // BOTH the modal's header total and computePayload().price_extra — the latter is
+    // what the product-grid add-flow bills. (The cart-tap path prices itself through
+    // buildConfiguredLineVals, which applies the same rule.)
+    get priceExtra() {
+        const isExpress = laundryIsExpressSelection(this.selectedValues);
+        return this.selectedValues
+            .filter((value) => value.attribute_id.create_variant === "no_variant")
+            .reduce((acc, val) => acc + laundryEffectiveExtra(val, isExpress), 0);
+    },
+
     // Used by the template to grey out / lock the turnaround attribute.
     isTurnaroundAttr(attrLine) {
         return isTurnaround(attrLine);
@@ -212,5 +232,17 @@ patch(ProductConfiguratorPopup.prototype, {
     // True when this product has a turnaround attribute (drives the note).
     get hasLaundryTurnaround() {
         return this.validAttributeLineIds.some((a) => isTurnaround(a));
+    },
+});
+
+// The price pill next to each option shows the price that will actually be charged:
+// on an express order that's the value's Express Price. `allSelectedValues` carries
+// the whole current selection, so each option can see the chosen turnaround.
+patch(BaseProductAttribute.prototype, {
+    laundryValueExtra(value) {
+        return laundryEffectiveExtra(
+            value,
+            laundryIsExpressSelection(this.props.allSelectedValues || [])
+        );
     },
 });
