@@ -47,4 +47,25 @@
             </div>
         </xpath>
     </t>
+    <!-- The price pill on each option shows what will ACTUALLY be charged: on an
+         express order, the value's Express Price instead of its Extra Price. Both
+         display types the laundry products use are covered. -->
+    <t t-inherit="point_of_sale.RadioProductAttribute" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('price-extra-cell')]" position="attributes">
+            <attribute name="t-if">laundryValueExtra(value)</attribute>
+        </xpath>
+        <xpath expr="//span[hasclass('price_extra')]/t" position="replace">
+            <t t-esc="getFormatPriceExtra(laundryValueExtra(value))"/>
+        </xpath>
+    </t>
+
+    <t t-inherit="point_of_sale.PillsProductAttribute" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('price-extra-cell')]" position="attributes">
+            <attribute name="t-if">laundryValueExtra(value)</attribute>
+        </xpath>
+        <xpath expr="//span[hasclass('price_extra')]/t" position="replace">
+            <t t-esc="getFormatPriceExtra(laundryValueExtra(value))"/>
+        </xpath>
+    </t>
+
 </templates>

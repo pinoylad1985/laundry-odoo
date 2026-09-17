@@ -123,6 +123,31 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
+## Express pricing per item — v1.4.19
+Express used to be a flat **+50** (the `price_extra` on the Turnaround "Express" value). It is now a
+**per-item price**: every attribute value carries **`laundry_express_price`** ("Express Price",
+`models/product_attribute.py`), edited right next to Extra Price on the product's Attributes tab
+(views inherit `product.product_template_attribute_value_view_tree` / `_view_form`).
+- **Express Price REPLACES Extra Price, it is not added to it.** `0`/unset = charge the normal Extra
+  Price even on an express order, so every non-laundry product and any item without an express price
+  behaves exactly like core. The Turnaround Express value's own `price_extra` is set to **0** in Odoo.
+- **"Is this express?" is read off the SELECTION**, not the order — `laundryIsExpressSelection(values)`
+  looks for a selected value whose attribute name starts with `Turnaround` and whose own name contains
+  `express` (same convention as `withTatTurnaround` / `isTurnaround`). `laundryEffectiveExtra(value,
+  isExpress)` then returns the price one value contributes. Both in `utils/laundry_products.js`.
+- **Three paths all had to be covered**, and they price independently:
+  1. cart-tap re-configure → `buildConfiguredLineVals` (sums `laundryEffectiveExtra`);
+  2. product-grid add → core's `computePayload().price_extra`, which reads the configurator's
+     `get priceExtra()` — **overridden** in `product_configurator_popup_patch.js`;
+  3. the modal's header total — same overridden getter (core builds the title from it).
+  A schedule change re-prices existing lines for free: `_reapplyTatToLaundryLines` removes and re-adds
+  each line through `buildConfiguredLineVals`.
+- The **price pill** next to each option shows the effective price via `laundryValueExtra(value)`,
+  patched onto `BaseProductAttribute.prototype` (both `RadioProductAttribute` and
+  `PillsProductAttribute` templates), so the pill never disagrees with what gets billed.
+- ⚠ `_load_pos_data_fields` on `product.template.attribute.value` is **extended with super()**, not
+  replaced — dropping core's list would break the configurator entirely.
+
 ## Reprint copy picker — v1.4.16
 Reprinting used to always print the FULL set of copies. Now `PosStore.printReceipt` opens
 **`ReprintCopiesPopup`** (`static/src/reprint_picker/`) so the cashier picks which copies to print.

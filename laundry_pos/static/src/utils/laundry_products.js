@@ -93,9 +93,29 @@ export function withTatTurnaround(productTemplate, selectedIds, tat) {
     return ids;
 }
 
+// True when the chosen attribute values include the EXPRESS turnaround. Express
+// pricing is per item, so this decides which price each value contributes below.
+export function laundryIsExpressSelection(values) {
+    return (values || []).some(
+        (v) =>
+            String(v?.attribute_id?.name || "").startsWith("Turnaround") &&
+            String(v?.name || "").toLowerCase().includes("express")
+    );
+}
+
+// What one attribute value adds to the price. On an EXPRESS order a value with an
+// "Express Price" set (laundry_express_price, edited on the product's Attributes tab)
+// charges THAT INSTEAD OF its Extra Price — not on top of it. 0 / unset means the
+// normal Extra Price applies on express orders too, so non-laundry products and any
+// item without an express price behave exactly as core does.
+export function laundryEffectiveExtra(value, isExpress) {
+    const express = value?.laundry_express_price || 0;
+    return isExpress && express ? express : value?.price_extra || 0;
+}
+
 // Build addLineToCurrentOrder vals for a product configured with `selectedIds`:
 // resolve the create_variant="always" product.product, link all chosen values,
-// and sum price_extra for the no_variant ones only.
+// and sum the no_variant ones' price (express-aware, see laundryEffectiveExtra).
 export function buildConfiguredLineVals(pos, productTemplate, selectedIds) {
     const ptavModel = pos.models["product.template.attribute.value"];
     const variants = productTemplate.product_variant_ids || [];
@@ -109,13 +129,18 @@ export function buildConfiguredLineVals(pos, productTemplate, selectedIds) {
     });
     variant = variant || variants[0] || null;
 
-    const links = [];
-    let priceExtra = 0;
+    const selected = [];
     for (const id of selectedIds) {
         const rec = ptavModel?.get(id);
-        if (!rec) continue;
+        if (rec) selected.push(rec);
+    }
+    const isExpress = laundryIsExpressSelection(selected);
+
+    const links = [];
+    let priceExtra = 0;
+    for (const rec of selected) {
         links.push(["link", rec]);
-        if (!variantValueIds.has(id)) priceExtra += rec.price_extra || 0;
+        if (!variantValueIds.has(rec.id)) priceExtra += laundryEffectiveExtra(rec, isExpress);
     }
     const vals = {
         product_tmpl_id: productTemplate,

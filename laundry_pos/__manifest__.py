@@ -1,6 +1,6 @@
 {
     'name': 'Laundry POS',
-    'version': '1.4.18',
+    'version': '1.4.19',
     'author': 'laundryx',
     'summary': 'Custom laundry service workflow for Point of Sale',
     'category': 'Point of Sale',
@@ -11,6 +11,7 @@
         'data/automations.xml',
         'data/pos_order_filters.xml',
         'views/pos_order_views.xml',
+        'views/product_attribute_views.xml',
         'views/hr_employee_views.xml',
     ],
     'assets': {
