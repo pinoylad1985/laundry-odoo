@@ -297,6 +297,25 @@ export class NewOrderModal extends Component {
         this.state[field] = value;
     }
 
+    // True when the picked date is NOT one of the three quick buttons — i.e. the
+    // cashier used the 📅 picker, so nothing on the row is highlighted and the
+    // chosen date has to be spelled out.
+    isCustomDate(dateVal) {
+        return !!dateVal && !this.quickDates.some((qd) => qd.value === dateVal);
+    }
+
+    // "Sat, Sep 27" for a YYYY-MM-DD value. Parsed field-by-field (not new Date(str),
+    // which reads a bare date as UTC and can show the previous day here).
+    fmtPickedDate(dateVal) {
+        const [y, m, d] = String(dateVal || "").split("-").map(Number);
+        if (!y || !m || !d) return dateVal || "";
+        return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+            weekday: "short",
+            month: "short",
+            day: "numeric",
+        });
+    }
+
     setHour(field, value) {
         this.state[field] = value;
     }

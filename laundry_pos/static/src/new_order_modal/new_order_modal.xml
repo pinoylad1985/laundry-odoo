@@ -136,7 +136,10 @@
                             <t t-esc="qd.label"/>
                         </button>
                         <div class="position-relative flex-shrink-0">
-                            <button class="btn btn-outline-secondary px-3 laundry-date-pick">📅</button>
+                            <button class="btn px-3 laundry-date-pick"
+                                    t-att-class="isCustomDate(state.claimDate) ? 'btn-primary' : 'btn-outline-secondary'">
+                                📅<span t-if="isCustomDate(state.claimDate)" class="ms-2"><t t-esc="fmtPickedDate(state.claimDate)"/></span>
+                            </button>
                             <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
                                    style="cursor:pointer;" t-model="state.claimDate"/>
                         </div>
@@ -162,7 +165,10 @@
                             <t t-esc="qd.label"/>
                         </button>
                         <div class="position-relative flex-shrink-0">
-                            <button class="btn btn-outline-secondary px-3 laundry-date-pick">📅</button>
+                            <button class="btn px-3 laundry-date-pick"
+                                    t-att-class="isCustomDate(state.deliveryDate) ? 'btn-primary' : 'btn-outline-secondary'">
+                                📅<span t-if="isCustomDate(state.deliveryDate)" class="ms-2"><t t-esc="fmtPickedDate(state.deliveryDate)"/></span>
+                            </button>
                             <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
                                    style="cursor:pointer;" t-model="state.deliveryDate"/>
                         </div>
@@ -189,7 +195,10 @@
                                 <t t-esc="qd.label"/>
                             </button>
                             <div class="position-relative flex-shrink-0">
-                                <button class="btn btn-outline-secondary px-3 laundry-date-pick">📅</button>
+                                <button class="btn px-3 laundry-date-pick"
+                                        t-att-class="isCustomDate(state.pickupDate) ? 'btn-primary' : 'btn-outline-secondary'">
+                                    📅<span t-if="isCustomDate(state.pickupDate)" class="ms-2"><t t-esc="fmtPickedDate(state.pickupDate)"/></span>
+                                </button>
                                 <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
                                        style="cursor:pointer;" t-model="state.pickupDate"/>
                             </div>
@@ -213,7 +222,10 @@
                                 <t t-esc="qd.label"/>
                             </button>
                             <div class="position-relative flex-shrink-0">
-                                <button class="btn btn-outline-secondary px-3 laundry-date-pick">📅</button>
+                                <button class="btn px-3 laundry-date-pick"
+                                        t-att-class="isCustomDate(state.pdDelDate) ? 'btn-primary' : 'btn-outline-secondary'">
+                                    📅<span t-if="isCustomDate(state.pdDelDate)" class="ms-2"><t t-esc="fmtPickedDate(state.pdDelDate)"/></span>
+                                </button>
                                 <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
                                        style="cursor:pointer;" t-model="state.pdDelDate"/>
                             </div>

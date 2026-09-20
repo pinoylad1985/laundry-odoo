@@ -123,6 +123,16 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
+## Custom dates are spelled out — v1.4.21
+The New Order modal's date rows are three quick buttons (**Today / Tomorrow / <3rd date>**) plus a 📅
+picker. Picking any other date used to leave **nothing** on screen showing it: no quick button
+highlights and the picker is an invisible `input[type=date]`. Now `isCustomDate(dateVal)` (true when
+the value matches no `quickDates` entry) turns the 📅 button **solid primary** and prints the date
+next to it as `fmtPickedDate(dateVal)` → "Sat, Sep 27". Applied to all four dates (claim / delivery /
+pickup / pdDel).
+- `fmtPickedDate` splits `YYYY-MM-DD` and builds a **local** `new Date(y, m-1, d)`. Do NOT pass the
+  string to `new Date()` — a bare date string is parsed as UTC and renders as the previous day here.
+
 ## Touch sizing for our modals — v1.4.20
 The POS runs on touchscreen laptops. Our dialogs were built at mouse metrics (lots of `.btn-sm`,
 ~31px, spaced `gap-1` = 4px); they are now held to a **44px tap-target floor with 8px between
