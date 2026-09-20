@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.RefundGatePopup">
-        <Dialog title="'Refund approval'" size="'md'">
+        <Dialog title="'Refund approval'" size="'md'" contentClass="'laundry-touch'">
             <div class="laundry-refund-gate">
-                <!-- Mode tabs -->
-                <div class="btn-group w-100 mb-3">
-                    <button class="btn"
+                <!-- Mode tabs: stacked, so two approval paths are never a near-miss apart. -->
+                <div class="d-flex flex-column gap-2 mb-3">
+                    <button class="btn text-start px-3"
                             t-att-class="state.mode === 'rebook' ? 'btn-primary' : 'btn-outline-secondary'"
                             t-on-click="() => this.setMode('rebook')">Rebooked order (same customer)</button>
-                    <button class="btn"
+                    <button class="btn text-start px-3"
                             t-att-class="state.mode === 'rebook_other' ? 'btn-primary' : 'btn-outline-secondary'"
                             t-on-click="() => this.setMode('rebook_other')">Rebooked order (different customer)</button>
-                    <button class="btn"
+                    <button class="btn text-start px-3"
                             t-att-class="state.mode === 'override' ? 'btn-primary' : 'btn-outline-secondary'"
                             t-on-click="() => this.setMode('override')">No rebooking</button>
                 </div>

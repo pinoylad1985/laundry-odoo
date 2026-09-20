@@ -1,6 +1,6 @@
 {
     'name': 'Laundry POS',
-    'version': '1.4.19',
+    'version': '1.4.20',
     'author': 'laundryx',
     'summary': 'Custom laundry service workflow for Point of Sale',
     'category': 'Point of Sale',

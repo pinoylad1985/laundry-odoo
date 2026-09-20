@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.RiderSignoffPopup">
-        <Dialog title="'Pickup Rider Signoff'" size="'md'">
+        <Dialog title="'Pickup Rider Signoff'" size="'md'" contentClass="'laundry-touch'">
             <div class="laundry-rider-signoff">
                 <div t-if="state.riderName" class="mb-2">
                     Rider: <b><t t-esc="state.riderName"/></b>

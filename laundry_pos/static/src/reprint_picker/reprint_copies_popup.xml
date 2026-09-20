@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.ReprintCopiesPopup">
-        <Dialog title="'Reprint Receipt'" size="'md'">
+        <Dialog title="'Reprint Receipt'" size="'md'" contentClass="'laundry-touch'">
             <div class="laundry-reprint-picker">
                 <p class="mb-2">Select the copies to print:</p>
                 <div class="d-flex flex-column gap-2">

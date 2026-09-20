@@ -123,6 +123,28 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
+## Touch sizing for our modals — v1.4.20
+The POS runs on touchscreen laptops. Our dialogs were built at mouse metrics (lots of `.btn-sm`,
+~31px, spaced `gap-1` = 4px); they are now held to a **44px tap-target floor with 8px between
+adjacent targets**.
+- **One stylesheet, `static/src/touch/laundry_touch.scss`, scoped to `.laundry-touch`** — passed by
+  each of our dialogs as the Dialog **`contentClass`** prop. That prop lands the class on
+  `.modal-content`, which is why it also covers the **footer** buttons; `bodyClass` would not, since
+  the footer is a slot rendered outside the body div. Core POS dialogs keep their own metrics.
+- `.btn` becomes `inline-flex` + centred, because `min-height` alone leaves the label pinned to the
+  top of the button. `.btn.text-start` re-left-aligns the list-style buttons (service types, refund
+  tabs).
+- **Icon-only buttons need a width floor too** — `.laundry-date-pick` (the 📅 button, which has an
+  invisible `input[type=date]` stretched over it) was ~30px wide.
+- Template-side, `.btn-sm` was dropped and `gap-1` widened to `gap-2` on: the 24 hour pills, the
+  quick-date row, the service +/− steppers, the customer-row Unselect / Edit Details, and every
+  Settle row action (those take payments — they were the smallest, tightest targets in the module).
+- **RefundGatePopup's three mode tabs left the `btn-group`** (flush, zero gap) for a stacked
+  `gap-2` column, so two different approval paths are never a near-miss apart.
+- `ReprintCopiesPopup` already followed this (whole row is the target, `p-3`) — it's the pattern.
+- ⚠ The **product configurator** is CORE's dialog, so it has no `.laundry-touch`; its pills are
+  already `btn-lg` and our weight/note inputs are `form-control-lg`.
+
 ## Express pricing per item — v1.4.19
 Express used to be a flat **+50** (the `price_extra` on the Turnaround "Express" value). It is now a
 **per-item price**: every attribute value carries **`laundry_express_price`** ("Express Price",
