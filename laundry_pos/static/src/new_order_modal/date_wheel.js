@@ -95,20 +95,6 @@ export class DateWheel extends Component {
         return Math.max(0, this._indexOf(dayFromToday(2)));
     }
 
-    /**
-     * Whether the whole key reads as selected.
-     *
-     * True when the chosen date is one of ours — not just while it sits under the
-     * band — so the key doesn't flicker grey mid-roll. Today and tomorrow are the
-     * exception: they have their own keys, which go primary themselves, and two
-     * solid keys claiming one selection is a contradiction. The row inside the wheel
-     * still highlights for those, so the wheel never looks out of step either.
-     */
-    get isActive() {
-        const v = this.props.value;
-        return !!v && v !== this.today && v !== this.tomorrow && this._indexOf(v) !== -1;
-    }
-
     _indexOf(value) {
         return this.dates.findIndex((d) => d.value === value);
     }

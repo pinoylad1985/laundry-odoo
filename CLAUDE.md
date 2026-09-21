@@ -123,7 +123,7 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
-## New Order modal keys — v1.4.26 (supersedes 1.4.21–1.4.25)
+## New Order modal keys — v1.4.27 (supersedes 1.4.21–1.4.26)
 The modal's choices are laid out as flush blocks of **numpad keys** — core's own
 `.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
 `static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
@@ -162,12 +162,12 @@ The modal's choices are laid out as flush blocks of **numpad keys** — core's o
     (`.laundry-wheel-item-active`); every other row is greyed + `blur(0.7px)`
     (`.laundry-wheel-item-idle`). So the scroll index is a plain property, not `useState` —
     scrolling doesn't re-render, only a new `value` prop does.
-  - **Two things mark the selection**: the key goes solid primary (`isActive`), AND the chosen
-    row is the only sharp one. `isActive` is "the selected date is one of ours", not "the date
-    under the band", so the key doesn't flicker grey mid-roll — **except for today/tomorrow**,
-    which have their own keys that go primary themselves; two solid keys for one selection
-    would contradict. Their ROWS still highlight, so the wheel never looks out of step.
-    Those rows also carry `(Today)` / `(Tomorrow)` after the date.
+  - **The selection is a band on the ROW, and the key itself stays grey.** The key shows two
+    half-visible neighbours as well, so colouring the whole key highlights the dates that were
+    NOT picked (that was the v1.4.26 bug). `.laundry-wheel-item-active` = primary background +
+    white + bold; `.laundry-wheel-item-idle` = grey + `blur(0.7px)`. A grey key also means no
+    contradiction when today/tomorrow are picked — their own keys go primary, and the wheel
+    just highlights the matching row, which carries `(Today)` / `(Tomorrow)` after the date.
   - **`onWillUpdateProps` rolls the wheel to a date picked elsewhere** (the Today/Tomorrow
     keys) — otherwise the highlighted row would sit off-screen and the key would look empty.
   - The list is `position: absolute; inset: 0`, NOT `height: 100%`: the key's height comes from

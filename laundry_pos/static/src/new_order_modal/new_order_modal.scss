@@ -135,8 +135,12 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
         filter: blur(0.7px);
     }
 
+    // The selection is a band on the ROW, not a colour on the key: the key holds two
+    // half-visible neighbours as well, and those are the dates that were NOT picked.
     .laundry-wheel-item-active {
         font-weight: 700;
+        background-color: $primary;
+        color: $white;
     }
 
     // The +/− keys get no width from a one-character label.
