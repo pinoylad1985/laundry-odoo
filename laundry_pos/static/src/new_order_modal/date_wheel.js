@@ -47,6 +47,8 @@ export class DateWheel extends Component {
 
     setup() {
         this.listRef = useRef("list");
+        this.today = dayFromToday(0);
+        this.tomorrow = dayFromToday(1);
         this.dates = this._buildDates();
         // Plain property, not `useState` — the highlight follows the SELECTED date
         // (a prop), so tracking the scroll position doesn't need to re-render.
@@ -79,12 +81,10 @@ export class DateWheel extends Component {
             out.push(v);
             out.sort();
         }
-        const today = dayFromToday(0);
-        const tomorrow = dayFromToday(1);
         return out.map((value) => ({
             value,
             label: fmtDateLabel(value),
-            note: value === today ? "(Today)" : value === tomorrow ? "(Tomorrow)" : "",
+            note: value === this.today ? "(Today)" : value === this.tomorrow ? "(Tomorrow)" : "",
         }));
     }
 
@@ -93,6 +93,20 @@ export class DateWheel extends Component {
         const picked = this._indexOf(this.props.value);
         if (picked !== -1) return picked;
         return Math.max(0, this._indexOf(dayFromToday(2)));
+    }
+
+    /**
+     * Whether the whole key reads as selected.
+     *
+     * True when the chosen date is one of ours — not just while it sits under the
+     * band — so the key doesn't flicker grey mid-roll. Today and tomorrow are the
+     * exception: they have their own keys, which go primary themselves, and two
+     * solid keys claiming one selection is a contradiction. The row inside the wheel
+     * still highlights for those, so the wheel never looks out of step either.
+     */
+    get isActive() {
+        const v = this.props.value;
+        return !!v && v !== this.today && v !== this.tomorrow && this._indexOf(v) !== -1;
     }
 
     _indexOf(value) {
