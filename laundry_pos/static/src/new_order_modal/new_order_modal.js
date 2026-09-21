@@ -335,10 +335,13 @@ export class NewOrderModal extends Component {
      */
     isHourDisabled(kind, h, dateVal) {
         // Past dates/times are allowed (no grey-out); only closed hours below are blocked.
-        // 4 AM–5 AM closed for every selector, regardless of service type.
+        // Claim — the Drop-off flow's only time — is open around the clock: the customer
+        // collects at the counter, so there is no route to schedule around.
+        if (kind === "claim") return false;
+        // 4 AM–5 AM closed for every other selector.
         if (h === 4 || h === 5) return true;
         // Pickup / Delivery also close 2 AM–3 AM.
-        if ((kind === "pickup" || kind === "delivery") && (h === 2 || h === 3)) return true;
+        if (kind === "pickup" || kind === "delivery") return h === 2 || h === 3;
         return false;
     }
 
