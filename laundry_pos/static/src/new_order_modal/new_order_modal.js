@@ -7,31 +7,31 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_instructions";
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
+import { DateWheel, fmtDateLabel } from "@laundry_pos/new_order_modal/date_wheel";
 
-// Buttons are styled like the POS numpad: core's `.numpad-button` reads its tint
-// from the CSS vars that `o_colorlist_item_numpad_color_N` sets, so a "color" here
-// is just that class name. A SELECTED button drops the tint for solid btn-primary.
-const TINT = (n) => `o_colorlist_item_numpad_color_${n}`;
-
+// Buttons are styled like the POS numpad (core's `.numpad-button`): every unselected
+// key is plain grey and the SELECTED one goes solid primary, so colour carries one
+// meaning only. The +/− steppers are the exception — red/green there is the control,
+// not decoration.
 const CUSTOMER_TYPES = [
-    { code: "new",       label: "New Customer",       color: TINT(10) },
-    { code: "returning", label: "Returning Customer", color: TINT(4) },
+    { code: "new",       label: "New Customer" },
+    { code: "returning", label: "Returning Customer" },
 ];
 
+// Order matters: the template lays these out in 2 columns filled DOWN, so this is
+// column 1 (drop-off, drop-off & delivery, self-service) then column 2 (pickup &
+// delivery, locker) — the store-drop-off flows first, the come-to-you flows second.
 const SERVICE_TYPES = [
-    { code: "dropoff",           label: "Drop-off",            color: TINT(4) },
-    { code: "dropoff_delivery",  label: "Drop-off & Delivery", color: TINT(7) },
-    { code: "pickup_delivery",   label: "Pickup & Delivery",   color: TINT(11) },
-    { code: "locker",            label: "Locker",              color: TINT(2) },
-    { code: "self_service",      label: "Self-service",        color: TINT(3) },
+    { code: "dropoff",           label: "Drop-off" },
+    { code: "dropoff_delivery",  label: "Drop-off & Delivery" },
+    { code: "self_service",      label: "Self-service" },
+    { code: "pickup_delivery",   label: "Pickup & Delivery" },
+    { code: "locker",            label: "Locker" },
 ];
-
-// Hours are tinted by time of day, which also marks where each 6-hour column starts.
-const HOUR_TINT = (h) => TINT(h < 6 ? 5 : h < 12 ? 3 : h < 18 ? 2 : 8);
 
 export class NewOrderModal extends Component {
     static template = "laundry_pos.NewOrderModal";
-    static components = { Dialog };
+    static components = { Dialog, DateWheel };
     static props = {
         getPayload: Function,
         close: Function,
@@ -72,7 +72,6 @@ export class NewOrderModal extends Component {
             h,
             value: String(h).padStart(2, "0") + ":00",
             label: label(h),
-            color: HOUR_TINT(h),
         }));
 
         // Pre-populate from previously submitted details (Change / after reload)
@@ -296,42 +295,23 @@ export class NewOrderModal extends Component {
 
     // ── Step 4: Schedule helpers ──────────────────────────────────────────
 
+    // Today and tomorrow only — everything further out is the DateWheel next to them.
+    // Each key reads as the DATE first ("Sep 21") with the shortcut under it, so the
+    // cashier confirms against the date rather than against a word.
     get quickDates() {
-        return [0, 1, 2].map((offset) => {
+        return [0, 1].map((offset) => {
             const d = new Date();
             d.setDate(d.getDate() + offset);
             const y = d.getFullYear();
             const m = String(d.getMonth() + 1).padStart(2, "0");
             const day = String(d.getDate()).padStart(2, "0");
             const value = `${y}-${m}-${day}`;
-            const label = offset === 0 ? "Today"
-                        : offset === 1 ? "Tomorrow"
-                        : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-            return { value, label };
+            return { value, label: fmtDateLabel(value), note: offset === 0 ? "Today" : "Tomorrow" };
         });
     }
 
     setDate(field, value) {
         this.state[field] = value;
-    }
-
-    // True when the picked date is NOT one of the three quick buttons — i.e. the
-    // cashier used the 📅 picker, so nothing on the row is highlighted and the
-    // chosen date has to be spelled out.
-    isCustomDate(dateVal) {
-        return !!dateVal && !this.quickDates.some((qd) => qd.value === dateVal);
-    }
-
-    // "Sat, Sep 27" for a YYYY-MM-DD value. Parsed field-by-field (not new Date(str),
-    // which reads a bare date as UTC and can show the previous day here).
-    fmtPickedDate(dateVal) {
-        const [y, m, d] = String(dateVal || "").split("-").map(Number);
-        if (!y || !m || !d) return dateVal || "";
-        return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-            weekday: "short",
-            month: "short",
-            day: "numeric",
-        });
     }
 
     setHour(field, value) {

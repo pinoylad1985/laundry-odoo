@@ -10,7 +10,7 @@
                     <button t-foreach="customerTypes" t-as="ct" t-key="ct.code"
                             type="button"
                             class="btn numpad-button position-relative rounded-0 border-0 fs-5"
-                            t-att-class="state.customerType === ct.code ? 'btn-primary' : 'btn-secondary ' + ct.color"
+                            t-att-class="state.customerType === ct.code ? 'btn-primary' : 'btn-secondary'"
                             t-on-click="() => this.selectCustomerType(ct.code)">
                         <t t-esc="ct.label"/>
                     </button>
@@ -82,12 +82,12 @@
             <!-- ② Select Service Type (appears after customer type chosen) -->
             <section t-if="state.customerType" class="mb-4">
                 <p class="fw-semibold text-muted mb-2">2. Select Service Type</p>
-                <!-- 2 columns; an odd last one (Self-service) spans the full width. -->
-                <div class="laundry-grid laundry-grid-2">
+                <!-- 2 columns filled DOWN: drop-off flows on the left, come-to-you on the right. -->
+                <div class="laundry-grid laundry-grid-types">
                     <button t-foreach="serviceTypes" t-as="st" t-key="st.code"
                             type="button"
                             class="btn numpad-button position-relative rounded-0 border-0 fs-5"
-                            t-att-class="(state.serviceType === st.code ? 'btn-primary' : 'btn-secondary ' + st.color) + (st_index === serviceTypes.length - 1 and serviceTypes.length % 2 ? ' laundry-span-2' : '')"
+                            t-att-class="state.serviceType === st.code ? 'btn-primary' : 'btn-secondary'"
                             t-on-click="() => this.selectServiceType(st.code)">
                         <t t-esc="st.label"/>
                     </button>
@@ -224,36 +224,27 @@
     </t>
 
     <!--
-        Reusable date row — the 3 quick dates + the 📅 picker as one 4-up numpad block.
-        Caller sets: field (the state key), selectedDate (its current value).
+        Reusable date row — Today, Tomorrow and the rolling DateWheel as one 3-up
+        numpad block. Caller sets: field (the state key), selectedDate (its value).
     -->
     <t t-name="laundry_pos.QuickDates">
-        <div class="laundry-grid laundry-grid-4 mb-2">
+        <div class="laundry-grid laundry-grid-3 mb-2">
             <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
                     type="button"
-                    class="btn numpad-button position-relative rounded-0 border-0 fs-5"
-                    t-att-class="selectedDate === qd.value ? 'btn-primary' : 'btn-secondary o_colorlist_item_numpad_color_3'"
+                    class="btn numpad-button position-relative rounded-0 border-0 fs-5 laundry-date-key"
+                    t-att-class="selectedDate === qd.value ? 'btn-primary' : 'btn-secondary'"
                     t-on-click="() => this.setDate(field, qd.value)">
-                <t t-esc="qd.label"/>
+                <span t-esc="qd.label"/>
+                <span class="small fw-normal">(<t t-esc="qd.note"/>)</span>
             </button>
-            <!-- The cell holds an invisible native date input stretched over the button. -->
-            <div class="position-relative laundry-date-cell">
-                <button type="button"
-                        class="btn numpad-button position-relative rounded-0 border-0 laundry-date-pick"
-                        t-att-class="isCustomDate(selectedDate) ? 'btn-primary' : 'btn-secondary o_colorlist_item_numpad_color_6'">
-                    📅<span t-if="isCustomDate(selectedDate)" class="ms-1 small"><t t-esc="fmtPickedDate(selectedDate)"/></span>
-                </button>
-                <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
-                       style="cursor:pointer;"
-                       t-att-value="selectedDate"
-                       t-on-change="(ev) => this.setDate(field, ev.target.value)"/>
-            </div>
+            <!-- Everything past tomorrow: one key you roll, opening on the day after. -->
+            <DateWheel value="selectedDate" onSelect="(v) => this.setDate(field, v)"/>
         </div>
     </t>
 
     <!--
         Reusable hour picker — 24 pills as 4 columns of 6, filled DOWN each column
-        (12 AM–5 AM, 6 AM–11 AM, 12 PM–5 PM, 6 PM–11 PM), tinted by time of day.
+        (12 AM–5 AM, 6 AM–11 AM, 12 PM–5 PM, 6 PM–11 PM).
         Caller sets: kind ('claim'|'pickup'|'delivery'), field (state key), selected, dateVal.
     -->
     <t t-name="laundry_pos.HourPills">
@@ -262,7 +253,7 @@
                     type="button"
                     class="btn numpad-button position-relative rounded-0 border-0 fs-5"
                     t-att-disabled="isHourDisabled(kind, hr.h, dateVal)"
-                    t-att-class="isHourDisabled(kind, hr.h, dateVal) ? 'btn-secondary text-muted' : (selected === hr.value ? 'btn-primary' : 'btn-secondary ' + hr.color)"
+                    t-att-class="isHourDisabled(kind, hr.h, dateVal) ? 'btn-secondary text-muted' : (selected === hr.value ? 'btn-primary' : 'btn-secondary')"
                     t-on-click="() => this.setHour(field, hr.value)">
                 <t t-esc="hr.label"/>
             </button>

@@ -146,15 +146,45 @@ now follows it: flush grids of large tinted keys, no gaps, rounded only on the b
 - The four date rows are now one `laundry_pos.QuickDates` sub-template (same `t-set` pattern as
   `HourPills`), so the block exists once instead of four times.
 
-## Custom dates are spelled out — v1.4.21
-The New Order modal's date rows are three quick buttons (**Today / Tomorrow / <3rd date>**) plus a 📅
-picker. Picking any other date used to leave **nothing** on screen showing it: no quick button
-highlights and the picker is an invisible `input[type=date]`. Now `isCustomDate(dateVal)` (true when
-the value matches no `quickDates` entry) turns the 📅 button **solid primary** and prints the date
-next to it as `fmtPickedDate(dateVal)` → "Sat, Sep 27". Applied to all four dates (claim / delivery /
-pickup / pdDel).
-- `fmtPickedDate` splits `YYYY-MM-DD` and builds a **local** `new Date(y, m-1, d)`. Do NOT pass the
-  string to `new Date()` — a bare date string is parsed as UTC and renders as the previous day here.
+## New Order modal keys — v1.4.23 (supersedes 1.4.21/1.4.22)
+The modal's choices are laid out as flush blocks of **numpad keys** — core's own
+`.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
+`static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
+- **Colour means ONE thing: selected.** The chosen key is solid `btn-primary`, every other key
+  is plain `btn-secondary` grey. The service **+/−** steppers are the only tinted keys left
+  (`o_colorlist_item_numpad_color_1` / `_10`) — there red/green IS the control. The v1.4.22
+  per-key tints on customer types / service types / dates / hours were removed for this.
+  ⚠ A key gets colour ONLY from `o_colorlist_item_numpad_color_N` (it sets `--bg`); with no
+  tint class `--bg` is unset and `btn-primary` falls through to solid primary. That's the
+  mechanism — don't "fix" it by hard-coding backgrounds.
+- **Compound scope `.laundry-touch.laundry-neworder` is deliberate** — the asset glob loads
+  `new_order_modal/` before `touch/` (alphabetical), so a plain `.laundry-neworder .btn` would
+  lose to `.laundry-touch .btn`. Don't simplify the selector.
+- **Service types: 2 columns filled DOWN** (`.laundry-grid-types`, `grid-auto-flow: column` +
+  `grid-template-rows: repeat(3, 1fr)`) — left column Drop-off / Drop-off & Delivery /
+  Self-service, right column Pickup & Delivery / Locker. The column split is the *order of
+  `SERVICE_TYPES`* in `new_order_modal.js`, not markup — reordering that list re-lays the grid.
+- **Hours: 4 columns of 6, also filled down**, so a column is a block of time
+  (12 AM–5 AM, 6–11 AM, 12–5 PM, 6–11 PM).
+- **Dates are 3 keys: Today | Tomorrow | the wheel.** The two quick keys read as the date with
+  the word underneath in parentheses — `Sep 21` / `(Today)` — so the cashier confirms against
+  the date, not the word.
+- **`DateWheel` (`new_order_modal/date_wheel.{js,xml}`) replaced the 📅 `input[type=date]`.**
+  One key you scroll: 60 days starting at the **day after tomorrow**, which is what it opens on
+  (shown, NOT pre-selected — rolling or tapping selects). A `props.value` outside that window
+  (an order scheduled months out) is spliced in, so the wheel never disagrees with the selection.
+  - **`ITEM_H = 44` in `date_wheel.js` MUST equal `$laundry-wheel-item-h` in the SCSS** — the
+    scroll offset is read back as an item index (`round(scrollTop / ITEM_H)`).
+  - `onSelect` fires only after a **150 ms settle**, so rolling past a date doesn't pick it;
+    the bold highlight follows the scroll immediately.
+  - `isActive` (the key's primary colour) = "the selected date is one of ours", not "the date
+    under the band" — otherwise the key flickers grey mid-roll.
+  - The list is `position: absolute; inset: 0`, NOT `height: 100%`: the key's height comes from
+    `min-height`, which a percentage height can't resolve against — it would grow to all 60 rows
+    and never scroll.
+- `fmtDateLabel` splits `YYYY-MM-DD` and builds a **local** `new Date(y, m-1, d)`. Do NOT pass
+  the string to `new Date()` — a bare date string is parsed as UTC and renders as the previous
+  day here.
 
 ## Touch sizing for our modals — v1.4.20
 The POS runs on touchscreen laptops. Our dialogs were built at mouse metrics (lots of `.btn-sm`,
@@ -167,10 +197,8 @@ adjacent targets**.
 - `.btn` becomes `inline-flex` + centred, because `min-height` alone leaves the label pinned to the
   top of the button. `.btn.text-start` re-left-aligns the list-style buttons (service types, refund
   tabs).
-- **Icon-only buttons need a width floor too** — `.laundry-date-pick` (the 📅 button, which has an
-  invisible `input[type=date]` stretched over it) was ~30px wide.
 - Template-side, `.btn-sm` was dropped and `gap-1` widened to `gap-2` on: the 24 hour pills, the
-  quick-date row, the service +/− steppers, the customer-row Unselect / Edit Details, and every
+  quick-date row (both since rebuilt as numpad grids — see v1.4.23), the service +/− steppers, the customer-row Unselect / Edit Details, and every
   Settle row action (those take payments — they were the smallest, tightest targets in the module).
 - **RefundGatePopup's three mode tabs left the `btn-group`** (flush, zero gap) for a stacked
   `gap-2` column, so two different approval paths are never a near-miss apart.

@@ -38,10 +38,4 @@ $laundry-tap-min: 44px;
     .form-select {
         min-height: $laundry-tap-min;
     }
-
-    // Icon-only buttons get no width from their label, so they need a floor on the
-    // other axis as well — the date-picker button is 📅 and nothing else.
-    .laundry-date-pick {
-        min-width: $laundry-tap-min;
-    }
 }

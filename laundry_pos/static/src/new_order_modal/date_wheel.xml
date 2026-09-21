@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!--
+        One numpad key that scrolls. The outer key stays put (it carries the centre
+        band and the selected colour); only the inner list scrolls inside it.
+    -->
+    <t t-name="laundry_pos.DateWheel">
+        <div class="btn numpad-button position-relative rounded-0 border-0 laundry-wheel"
+             t-att-class="isActive ? 'btn-primary' : 'btn-secondary'">
+            <div class="laundry-wheel-list" t-ref="list" t-on-scroll="onScroll">
+                <div t-foreach="dates" t-as="d" t-key="d.value"
+                     class="laundry-wheel-item fs-5"
+                     t-att-class="d_index === state.index ? 'fw-bold' : 'opacity-50'"
+                     t-on-click="() => this.pick(d_index)">
+                    <t t-esc="d.label"/>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

@@ -7,12 +7,17 @@
 // from `--bg`, which the `o_colorlist_item_numpad_color_N` classes set — we only lay
 // the keys out and set the sizes here.
 //
+// Colour carries ONE meaning: the SELECTED key is solid primary and every other key
+// is plain grey. The only tinted keys in the modal are the service +/− steppers,
+// where red/green is the control itself rather than decoration.
+//
 // Scoped to `.laundry-touch.laundry-neworder`, both passed by this dialog as the
 // Dialog `contentClass`. The compound selector is deliberate: it outranks the plain
 // `.laundry-touch .btn` rule in touch/laundry_touch.scss whatever order the bundle
 // loads the two files in.
 
 $laundry-neworder-btn-h: 88px; // double the 44px tap-target floor
+$laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H in date_wheel.js
 
 .laundry-touch.laundry-neworder {
     .btn {
@@ -31,8 +36,16 @@ $laundry-neworder-btn-h: 88px; // double the 44px tap-target floor
         grid-template-columns: repeat(2, 1fr);
     }
 
-    .laundry-grid-4 {
-        grid-template-columns: repeat(4, 1fr);
+    .laundry-grid-3 {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    // The 5 service types as 2 columns filled DOWN: the three store-drop-off flows
+    // on the left, the two come-to-you flows on the right.
+    .laundry-grid-types {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        grid-auto-flow: column;
     }
 
     // 24 hours as 4 columns of 6, filled DOWN each column rather than across, so a
@@ -43,17 +56,65 @@ $laundry-neworder-btn-h: 88px; // double the 44px tap-target floor
         grid-auto-flow: column;
     }
 
-    // An odd number of service types leaves the last one alone on its row.
-    .laundry-span-2 {
-        grid-column: 1 / -1;
+    // Today / Tomorrow read as the DATE with the word under it, so the cashier
+    // confirms against the date and not against a word.
+    .laundry-date-key {
+        flex-direction: column;
+        gap: 0.125rem;
+        line-height: 1.1;
     }
 
-    // The date-picker cell is a wrapper (it holds the invisible native input
-    // stretched over the key), so the key itself has to fill it.
-    .laundry-date-cell .btn {
-        width: 100%;
-        height: 100%;
-        flex-wrap: wrap;
+    // ── The date wheel ───────────────────────────────────────────────────────
+    // One key that scrolls. The key itself doesn't move (it carries the selected
+    // colour and the centre band); the list inside it does. $laundry-wheel-item-h
+    // MUST stay equal to ITEM_H in date_wheel.js — the scroll offset is read back
+    // as an item index, so the two have to agree.
+    .laundry-wheel {
+        display: block;
+        padding: 0;
+        overflow: hidden;
+
+        // Hairlines marking the row that counts. Above the list so they read as a
+        // fixed band the dates roll through, and click-through so they never eat a tap.
+        &::before {
+            content: "";
+            position: absolute;
+            z-index: 1;
+            left: 0;
+            right: 0;
+            top: ($laundry-neworder-btn-h - $laundry-wheel-item-h) * 0.5;
+            height: $laundry-wheel-item-h;
+            border-top: 1px solid currentColor;
+            border-bottom: 1px solid currentColor;
+            opacity: 0.25;
+            pointer-events: none;
+        }
+    }
+
+    // Absolute rather than `height: 100%`: the key's height comes from `min-height`
+    // and the grid row, so a percentage height would have nothing to resolve against
+    // and the list would grow to all 60 rows instead of scrolling.
+    .laundry-wheel-list {
+        position: absolute;
+        inset: 0;
+        overflow-y: auto;
+        scroll-snap-type: y mandatory;
+        // Half a key above and below, so the row at scrollTop = index * item-h
+        // lands centred in the key.
+        padding: ($laundry-neworder-btn-h - $laundry-wheel-item-h) * 0.5 0;
+        scrollbar-width: none;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
+    }
+
+    .laundry-wheel-item {
+        height: $laundry-wheel-item-h;
+        line-height: $laundry-wheel-item-h;
+        scroll-snap-align: center;
+        text-align: center;
+        cursor: pointer;
     }
 
     // The +/− keys get no width from a one-character label.
