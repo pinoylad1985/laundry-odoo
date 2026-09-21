@@ -42,6 +42,9 @@ export class NewOrderModal extends Component {
         this.pos = usePos();
         this.dialog = useService("dialog");
         this.state = useState({
+            // Flipped by a failed Continue, never on its own: the modal shouldn't
+            // scold a cashier about a section they haven't reached yet.
+            showErrors: false,
             // Step 1 — Customer
             customerType: null,
             partnerQuery: "",
@@ -414,6 +417,44 @@ export class NewOrderModal extends Component {
         return !!(s.pickupDate && s.pickupHour && s.pdDelDate && s.pdDelHour);
     }
 
+    // ── What's missing (only ever true after a failed Continue) ───────────
+
+    get missingCustomerType() {
+        return this.state.showErrors && !this.state.customerType;
+    }
+
+    // A Returning customer must have a partner actually selected; a New one doesn't.
+    get missingPartner() {
+        return (
+            this.state.showErrors &&
+            this.state.customerType === "returning" &&
+            !this.state.selectedPartner
+        );
+    }
+
+    get missingCustomer() {
+        return this.missingCustomerType || this.missingPartner;
+    }
+
+    get missingServiceType() {
+        return this.state.showErrors && !this.state.serviceType;
+    }
+
+    get missingServices() {
+        return (
+            this.state.showErrors &&
+            !!this.state.serviceType &&
+            this.state.serviceType !== "self_service" &&
+            !this.hasAnyService
+        );
+    }
+
+    // Takes the state key, so the date/hour sub-templates can ask about whichever
+    // field they were handed rather than each caller spelling it out.
+    isMissing(key) {
+        return this.state.showErrors && !this.state[key];
+    }
+
     get canConfirm() {
         // Variant/attribute selection happens later in the main POS cart and is
         // enforced at payment, so it is not required to confirm the modal.
@@ -450,7 +491,12 @@ export class NewOrderModal extends Component {
     }
 
     confirm() {
-        if (!this.canConfirm) return;
+        // Continue stays enabled when the form is incomplete: a dead button says
+        // nothing about WHY. Pressing it marks every unfilled section in red instead.
+        if (!this.canConfirm) {
+            this.state.showErrors = true;
+            return;
+        }
         this.props.getPayload({
             customerType: this.state.customerType,
             serviceType:  this.state.serviceType,

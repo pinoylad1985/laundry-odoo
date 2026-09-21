@@ -123,7 +123,7 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
-## New Order modal keys — v1.4.30 (supersedes 1.4.21–1.4.29)
+## New Order modal keys — v1.4.31 (supersedes 1.4.21–1.4.30)
 The modal's choices are laid out as flush blocks of **numpad keys** — core's own
 `.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
 `static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
@@ -174,6 +174,13 @@ The modal's choices are laid out as flush blocks of **numpad keys** — core's o
     `min-height`, which a percentage height can't resolve against.
 - All four date rows are ONE `laundry_pos.DateRow` sub-template (same `t-set` pattern as
   `HourPills`), so the strip exists once instead of four times.
+- **Continue is ALWAYS enabled; pressing it when incomplete marks the gaps red.** It used to
+  be `disabled` until `canConfirm`, which said nothing about *why*. Now `confirm()` sets
+  `state.showErrors` and returns; every `missing*` getter (and `isMissing(stateKey)`, which the
+  date/hour sub-templates call with the `field` they were handed) is gated on that flag, so the
+  modal never scolds a cashier about a section they haven't reached. The marks clear themselves
+  as each gap is filled. `.laundry-invalid` is an **outline**, not a border — the key grids are
+  flush blocks, so a border would resize every key inside them.
 - `fmtDateLabel` splits `YYYY-MM-DD` and builds a **local** `new Date(y, m-1, d)`. Do NOT pass
   the string to `new Date()` — a bare date string is parsed as UTC and renders as the previous
   day here.

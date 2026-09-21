@@ -5,8 +5,13 @@
 
             <!-- ① Who is this order for? -->
             <section class="mb-4">
-                <p class="fw-semibold text-muted mb-2">1. Who is this order for?</p>
-                <div class="laundry-grid laundry-grid-2">
+                <p class="fw-semibold mb-2"
+                   t-att-class="missingCustomer ? 'text-danger' : 'text-muted'">
+                    1. Who is this order for?
+                    <span t-if="missingCustomer" class="small fw-normal">— required</span>
+                </p>
+                <div class="laundry-grid laundry-grid-2"
+                     t-att-class="missingCustomerType ? 'laundry-invalid' : ''">
                     <button t-foreach="customerTypes" t-as="ct" t-key="ct.code"
                             type="button"
                             class="btn numpad-button position-relative rounded-0 border-0 fs-5"
@@ -20,6 +25,7 @@
                 <div t-if="state.customerType === 'returning'" class="mt-3">
                     <input type="text"
                            class="form-control form-control-lg"
+                           t-att-class="missingPartner ? 'laundry-invalid' : ''"
                            placeholder="Search by name, phone, or address… (press Enter to search all)"
                            t-att-value="state.partnerQuery"
                            t-on-input="onSearchInput"
@@ -81,9 +87,14 @@
 
             <!-- ② Select Service Type (appears after customer type chosen) -->
             <section t-if="state.customerType" class="mb-4">
-                <p class="fw-semibold text-muted mb-2">2. Select Service Type</p>
+                <p class="fw-semibold mb-2"
+                   t-att-class="missingServiceType ? 'text-danger' : 'text-muted'">
+                    2. Select Service Type
+                    <span t-if="missingServiceType" class="small fw-normal">— required</span>
+                </p>
                 <!-- 2 columns filled DOWN: drop-off flows on the left, come-to-you on the right. -->
-                <div class="laundry-grid laundry-grid-types">
+                <div class="laundry-grid laundry-grid-types"
+                     t-att-class="missingServiceType ? 'laundry-invalid' : ''">
                     <button t-foreach="serviceTypes" t-as="st" t-key="st.code"
                             type="button"
                             class="btn numpad-button position-relative rounded-0 border-0 fs-5"
@@ -96,9 +107,13 @@
 
             <!-- ③ Services: each pill adds the product to the main POS order -->
             <section t-if="state.serviceType" class="mb-4">
-                <p class="fw-semibold text-muted mb-2">3. Services</p>
+                <p class="fw-semibold mb-2"
+                   t-att-class="missingServices ? 'text-danger' : 'text-muted'">
+                    3. Services
+                    <span t-if="missingServices" class="small fw-normal">— add at least one</span>
+                </p>
                 <p t-if="servicesDisabled" class="text-muted small fst-italic mb-2">Not required for self-service.</p>
-                <div class="row g-2">
+                <div class="row g-2" t-att-class="missingServices ? 'laundry-invalid' : ''">
                     <div t-foreach="services" t-as="svc" t-key="svc.code" class="col-6">
                         <div class="d-flex flex-wrap align-items-center gap-2 p-2 border rounded h-100"
                              t-att-class="(serviceCount(svc.code) ? 'bg-primary text-white border-primary' : 'border-secondary-subtle') + (servicesDisabled ? ' opacity-50' : '')">
@@ -126,7 +141,8 @@
 
                 <!-- Drop-off: Claim date/time (6 AM – 3 AM) -->
                 <div t-if="state.serviceType === 'dropoff'" class="mb-3">
-                    <label class="form-label fw-semibold small text-muted">
+                    <label class="form-label fw-semibold small"
+                           t-att-class="isMissing('claimDate') or isMissing('claimHour') ? 'text-danger' : 'text-muted'">
                         Claim Date &amp; Time <span class="text-danger">*</span>
                     </label>
                     <t t-call="laundry_pos.DateRow">
@@ -143,7 +159,8 @@
 
                 <!-- Drop-off &amp; Delivery: Delivery date/time -->
                 <div t-if="state.serviceType === 'dropoff_delivery'" class="mb-3">
-                    <label class="form-label fw-semibold small text-muted">
+                    <label class="form-label fw-semibold small"
+                           t-att-class="isMissing('deliveryDate') or isMissing('deliveryHour') ? 'text-danger' : 'text-muted'">
                         Delivery Date &amp; Time <span class="text-danger">*</span>
                     </label>
                     <t t-call="laundry_pos.DateRow">
@@ -161,8 +178,9 @@
                 <!-- Pickup &amp; Delivery / Locker: Pickup + Delivery -->
                 <t t-if="state.serviceType === 'pickup_delivery' || state.serviceType === 'locker'">
                     <div class="mb-3">
-                        <label class="form-label fw-semibold small text-muted">
-                            Pickup Date &amp; Time <span class="text-danger">*</span>
+                        <label class="form-label fw-semibold small"
+                                   t-att-class="isMissing('pickupDate') or isMissing('pickupHour') ? 'text-danger' : 'text-muted'">
+                                Pickup Date &amp; Time <span class="text-danger">*</span>
                         </label>
                         <t t-call="laundry_pos.DateRow">
                             <t t-set="field" t-value="'pickupDate'"/>
@@ -176,8 +194,9 @@
                         </t>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-semibold small text-muted">
-                            Delivery Date &amp; Time <span class="text-danger">*</span>
+                        <label class="form-label fw-semibold small"
+                                   t-att-class="isMissing('pdDelDate') or isMissing('pdDelHour') ? 'text-danger' : 'text-muted'">
+                                Delivery Date &amp; Time <span class="text-danger">*</span>
                         </label>
                         <t t-call="laundry_pos.DateRow">
                             <t t-set="field" t-value="'pdDelDate'"/>
@@ -209,13 +228,15 @@
                 <div t-if="turnaroundError" class="mt-2 text-danger small fw-semibold" t-esc="turnaroundError"/>
             </section>
 
+            <p t-if="state.showErrors and !canConfirm" class="text-danger small fw-semibold mb-0">
+                Fill in the sections marked in red to continue.
+            </p>
+
             <t t-set-slot="footer">
                 <button class="btn btn-light me-auto" t-on-click="skip">
                     Skip for now
                 </button>
-                <button class="btn btn-primary px-4"
-                        t-att-disabled="!canConfirm"
-                        t-on-click="confirm">
+                <button class="btn btn-primary px-4" t-on-click="confirm">
                     Continue →
                 </button>
             </t>
@@ -228,7 +249,7 @@
         Caller sets: field (the state key), selectedDate (its value).
     -->
     <t t-name="laundry_pos.DateRow">
-        <div class="laundry-grid mb-2">
+        <div class="laundry-grid mb-2" t-att-class="isMissing(field) ? 'laundry-invalid' : ''">
             <DateWheel value="selectedDate" onSelect="(v) => this.setDate(field, v)"/>
         </div>
     </t>
@@ -240,7 +261,7 @@
         Caller sets: kind ('claim'|'pickup'|'delivery'), field (state key), selected, dateVal.
     -->
     <t t-name="laundry_pos.HourPills">
-        <div class="d-flex gap-2">
+        <div class="d-flex gap-2" t-att-class="isMissing(field) ? 'laundry-invalid' : ''">
             <t t-call="laundry_pos.HourBlock">
                 <t t-set="hrs" t-value="amHours"/>
             </t>

@@ -144,6 +144,14 @@ $laundry-wheel-item-w: 120px; // one date column in the strip — mirrored by IT
         color: $white;
     }
 
+    // Marked by a failed Continue. An OUTLINE, not a border: the key grids are flush
+    // blocks, so a border would take up space and resize every key inside them.
+    .laundry-invalid {
+        outline: 2px solid $danger;
+        outline-offset: 2px;
+        border-radius: $btn-border-radius;
+    }
+
     // The +/− keys get no width from a one-character label.
     .laundry-step-btn {
         min-width: 4rem;
