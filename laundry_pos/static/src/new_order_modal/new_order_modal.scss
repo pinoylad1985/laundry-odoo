@@ -74,8 +74,9 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
         padding: 0;
         overflow: hidden;
 
-        // Hairlines marking the row that counts. Above the list so they read as a
-        // fixed band the dates roll through, and click-through so they never eat a tap.
+        // Hairlines marking the row the wheel will pick when it stops. Above the list
+        // so they read as a fixed band the dates roll through, and click-through so
+        // they never eat a tap.
         &::before {
             content: "";
             position: absolute;
@@ -115,6 +116,20 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
         scroll-snap-align: center;
         text-align: center;
         cursor: pointer;
+        transition: opacity 0.1s ease, filter 0.1s ease;
+    }
+
+    // Only the SELECTED date is legible; every other row — before and after — is
+    // greyed and pushed slightly out of focus, so the choice is the one thing in
+    // the key that reads sharp. The blur stays light enough that the neighbouring
+    // dates can still be read well enough to scroll towards.
+    .laundry-wheel-item-idle {
+        opacity: 0.5;
+        filter: blur(0.7px);
+    }
+
+    .laundry-wheel-item-active {
+        font-weight: 700;
     }
 
     // The +/− keys get no width from a one-character label.

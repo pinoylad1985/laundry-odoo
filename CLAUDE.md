@@ -123,7 +123,7 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
-## New Order modal keys — v1.4.23 (supersedes 1.4.21/1.4.22)
+## New Order modal keys — v1.4.24 (supersedes 1.4.21/1.4.22/1.4.23)
 The modal's choices are laid out as flush blocks of **numpad keys** — core's own
 `.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
 `static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
@@ -147,17 +147,24 @@ The modal's choices are laid out as flush blocks of **numpad keys** — core's o
   the word underneath in parentheses — `Sep 21` / `(Today)` — so the cashier confirms against
   the date, not the word.
 - **`DateWheel` (`new_order_modal/date_wheel.{js,xml}`) replaced the 📅 `input[type=date]`.**
-  One key you scroll: 60 days starting at the **day after tomorrow**, which is what it opens on
-  (shown, NOT pre-selected — rolling or tapping selects). A `props.value` outside that window
-  (an order scheduled months out) is spliced in, so the wheel never disagrees with the selection.
+  One key you scroll, spanning **the last 5 days through ~2 months out** (`startOffset: -5`,
+  `days: 67`) so a backdated order and a far booking are both reachable. It opens on the day
+  after tomorrow — shown, NOT pre-selected; rolling or tapping selects. A `props.value` outside
+  that window is spliced in, so the wheel never disagrees with the selection.
   - **`ITEM_H = 44` in `date_wheel.js` MUST equal `$laundry-wheel-item-h` in the SCSS** — the
     scroll offset is read back as an item index (`round(scrollTop / ITEM_H)`).
-  - `onSelect` fires only after a **150 ms settle**, so rolling past a date doesn't pick it;
-    the bold highlight follows the scroll immediately.
-  - `isActive` (the key's primary colour) = "the selected date is one of ours", not "the date
-    under the band" — otherwise the key flickers grey mid-roll.
+  - `onSelect` fires only after a **150 ms settle**, so rolling past a date doesn't pick it.
+  - **The highlight is the SELECTED date, not the centre row.** Only that row is sharp
+    (`.laundry-wheel-item-active`); every other row is greyed + `blur(0.7px)`
+    (`.laundry-wheel-item-idle`). So the scroll index is a plain property, not `useState` —
+    scrolling doesn't re-render, only a new `value` prop does.
+  - **The key itself never goes solid primary.** Today and tomorrow appear BOTH in the wheel
+    and on their own keys, so a primary wheel key would contradict a primary Today key. The
+    wheel's rows carry `(Today)` / `(Tomorrow)` after the date for the same reason.
+  - **`onWillUpdateProps` rolls the wheel to a date picked elsewhere** (the Today/Tomorrow
+    keys) — otherwise the highlighted row would sit off-screen and the key would look empty.
   - The list is `position: absolute; inset: 0`, NOT `height: 100%`: the key's height comes from
-    `min-height`, which a percentage height can't resolve against — it would grow to all 60 rows
+    `min-height`, which a percentage height can't resolve against — it would grow to all rows
     and never scroll.
 - The four date rows are ONE `laundry_pos.QuickDates` sub-template (same `t-set` pattern as
   `HourPills`), so the block exists once instead of four times.

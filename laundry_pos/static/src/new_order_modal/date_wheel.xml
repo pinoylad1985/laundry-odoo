@@ -2,17 +2,19 @@
 <templates xml:space="preserve">
     <!--
         One numpad key that scrolls. The outer key stays put (it carries the centre
-        band and the selected colour); only the inner list scrolls inside it.
+        band) and only the inner list moves. The key itself never goes primary: the
+        selected DATE is the thing highlighted, since today and tomorrow appear both
+        here and on their own keys and two solid-primary keys would contradict.
     -->
     <t t-name="laundry_pos.DateWheel">
-        <div class="btn numpad-button position-relative rounded-0 border-0 laundry-wheel"
-             t-att-class="isActive ? 'btn-primary' : 'btn-secondary'">
+        <div class="btn numpad-button position-relative rounded-0 border-0 btn-secondary laundry-wheel">
             <div class="laundry-wheel-list" t-ref="list" t-on-scroll="onScroll">
                 <div t-foreach="dates" t-as="d" t-key="d.value"
                      class="laundry-wheel-item fs-5"
-                     t-att-class="d_index === state.index ? 'fw-bold' : 'opacity-50'"
+                     t-att-class="d.value === props.value ? 'laundry-wheel-item-active' : 'laundry-wheel-item-idle'"
                      t-on-click="() => this.pick(d_index)">
                     <t t-esc="d.label"/>
+                    <span t-if="d.note" class="small ms-1" t-esc="d.note"/>
                 </div>
             </div>
         </div>
