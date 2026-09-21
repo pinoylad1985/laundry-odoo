@@ -32,8 +32,8 @@ export function fmtDateLabel(dateVal) {
  *
  * It spans the last 5 days through two months out, so a backdated order and a far
  * booking are both reachable without leaving the modal. There are no separate
- * Today / Tomorrow keys — those two dates are rows in here like any other, marked
- * with a note, and today is where every field starts.
+ * Today / Tomorrow keys — those two dates are items in here like any other, marked
+ * with a note. Every field OPENS centred on today, but nothing is pre-selected.
  */
 export class DateWheel extends Component {
     static template = "laundry_pos.DateWheel";
@@ -89,7 +89,9 @@ export class DateWheel extends Component {
         }));
     }
 
-    // Open on the selection, which the modal defaults to today.
+    // Open on the selection if there is one, else on today. Opening there is NOT
+    // selecting: the cashier still has to pick, so a schedule can't be confirmed
+    // without having been looked at.
     _initialIndex() {
         const picked = this._indexOf(this.props.value);
         if (picked !== -1) return picked;

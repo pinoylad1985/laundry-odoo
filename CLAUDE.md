@@ -123,7 +123,7 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
-## New Order modal keys — v1.4.29 (supersedes 1.4.21–1.4.28)
+## New Order modal keys — v1.4.30 (supersedes 1.4.21–1.4.29)
 The modal's choices are laid out as flush blocks of **numpad keys** — core's own
 `.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
 `static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
@@ -153,9 +153,11 @@ The modal's choices are laid out as flush blocks of **numpad keys** — core's o
   like any other, marked `(Today)` / `(Tomorrow)` under the date.
   - **It flicks SIDEWAYS**, spanning the last 5 days through ~2 months out (`startOffset: -5`,
     `days: 67`), so a backdated order and a far booking are both reachable.
-  - **Every date field defaults to TODAY** (seeded in the modal's `useState`, and
-    `_applyInitialData` falls back to it with `|| s.x` rather than `|| ""`), since there is no
-    Today key any more and same-day is the common case. The HOUR is still an explicit choice.
+  - **Every field OPENS centred on today, but NOTHING is pre-selected** (`_initialIndex`
+    falls back to today; the state's dates stay `""`). Opening there saves the flick for the
+    common case; not selecting keeps a schedule from being confirmed without being looked at.
+    While nothing is picked, no item is dimmed either — there is no selection to make stand
+    out, so blurring the whole strip would only cost legibility.
   - **`ITEM_W = 120` in `date_wheel.js` MUST equal `$laundry-wheel-item-w` in the SCSS** — the
     scroll offset is read back as an item index (`round(scrollLeft / ITEM_W)`).
   - **`padding-inline: calc(50% - item-w/2)` on the list** is what lets the first and last

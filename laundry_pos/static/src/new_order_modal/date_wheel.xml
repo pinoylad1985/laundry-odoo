@@ -12,7 +12,7 @@
             <div class="laundry-wheel-list" t-ref="list" t-on-scroll="onScroll">
                 <div t-foreach="dates" t-as="d" t-key="d.value"
                      class="laundry-wheel-item fs-5"
-                     t-att-class="d.value === props.value ? 'laundry-wheel-item-active' : 'laundry-wheel-item-idle'"
+                     t-att-class="!props.value ? '' : (d.value === props.value ? 'laundry-wheel-item-active' : 'laundry-wheel-item-idle')"
                      t-on-click="() => this.pick(d_index)">
                     <span t-esc="d.label"/>
                     <span t-if="d.note" class="small fw-normal" t-esc="d.note"/>

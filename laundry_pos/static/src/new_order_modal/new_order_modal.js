@@ -7,7 +7,7 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_instructions";
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
-import { DateWheel, dayFromToday } from "@laundry_pos/new_order_modal/date_wheel";
+import { DateWheel } from "@laundry_pos/new_order_modal/date_wheel";
 
 // Buttons are styled like the POS numpad (core's `.numpad-button`): every unselected
 // key is plain grey and the SELECTED one goes solid primary, so colour carries one
@@ -41,7 +41,6 @@ export class NewOrderModal extends Component {
     setup() {
         this.pos = usePos();
         this.dialog = useService("dialog");
-        const today = dayFromToday(0);
         this.state = useState({
             // Step 1 — Customer
             customerType: null,
@@ -53,13 +52,12 @@ export class NewOrderModal extends Component {
             // Step 3 — Service Type
             serviceType: null,
             // Step 4 — Schedule (flat keys to keep OWL reactivity simple).
-            // Every date starts on TODAY: the date strip has no separate Today key
-            // any more, so a same-day order would otherwise cost a flick to say the
-            // most common thing. The hour is still an explicit choice.
-            claimDate: today,    claimHour: "",
-            deliveryDate: today, deliveryHour: "",
-            pickupDate: today,   pickupHour: "",
-            pdDelDate: today,    pdDelHour: "",
+            // No date is pre-selected: the strip OPENS on today, but picking is the
+            // cashier's act, so a schedule can't be confirmed without being looked at.
+            claimDate: "",    claimHour: "",
+            deliveryDate: "", deliveryHour: "",
+            pickupDate: "",   pickupHour: "",
+            pdDelDate: "",    pdDelHour: "",
         });
         this.customerTypes = CUSTOMER_TYPES;
         this.serviceTypes = SERVICE_TYPES;
@@ -101,18 +99,16 @@ export class NewOrderModal extends Component {
         // pickup_delivery, which map to pdDelDate/pdDelHour in state.
         const sched = data.schedule || {};
         const st = data.serviceType;
-        // `|| s.x` rather than `|| ""`: an order set up without a date keeps the
-        // today default instead of being blanked back out.
         if (st === "dropoff") {
-            s.claimDate = sched.claimDate || s.claimDate;
+            s.claimDate = sched.claimDate || "";
             s.claimHour = sched.claimHour || "";
         } else if (st === "dropoff_delivery") {
-            s.deliveryDate = sched.deliveryDate || s.deliveryDate;
+            s.deliveryDate = sched.deliveryDate || "";
             s.deliveryHour = sched.deliveryHour || "";
         } else if (st === "pickup_delivery" || st === "locker") {
-            s.pickupDate = sched.pickupDate || s.pickupDate;
+            s.pickupDate = sched.pickupDate || "";
             s.pickupHour = sched.pickupHour || "";
-            s.pdDelDate  = sched.deliveryDate || s.pdDelDate;
+            s.pdDelDate  = sched.deliveryDate || "";
             s.pdDelHour  = sched.deliveryHour || "";
         }
     }
