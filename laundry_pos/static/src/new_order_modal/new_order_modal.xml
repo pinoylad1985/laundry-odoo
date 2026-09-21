@@ -243,13 +243,26 @@
     </t>
 
     <!--
-        Reusable hour picker — 24 pills as 4 columns of 6, filled DOWN each column
-        (12 AM–5 AM, 6 AM–11 AM, 12 PM–5 PM, 6 PM–11 PM).
+        Reusable hour picker — AM and PM as two separate blocks with a gutter between
+        them, each 2 columns of 6 filled DOWN (12 AM–5 AM | 6–11 AM · 12 PM–5 PM |
+        6–11 PM). The gutter is the point: 9 AM and 9 PM are never adjacent keys.
         Caller sets: kind ('claim'|'pickup'|'delivery'), field (state key), selected, dateVal.
     -->
     <t t-name="laundry_pos.HourPills">
-        <div class="laundry-grid laundry-grid-hours">
-            <button t-foreach="hours" t-as="hr" t-key="hr.value"
+        <div class="d-flex gap-2">
+            <t t-call="laundry_pos.HourBlock">
+                <t t-set="hrs" t-value="amHours"/>
+            </t>
+            <t t-call="laundry_pos.HourBlock">
+                <t t-set="hrs" t-value="pmHours"/>
+            </t>
+        </div>
+    </t>
+
+    <!-- Half a day of hours as one flush block. Reads `hrs` plus HourPills' own t-sets. -->
+    <t t-name="laundry_pos.HourBlock">
+        <div class="laundry-grid laundry-grid-hours laundry-hour-half">
+            <button t-foreach="hrs" t-as="hr" t-key="hr.value"
                     type="button"
                     class="btn numpad-button position-relative rounded-0 border-0 fs-5"
                     t-att-disabled="isHourDisabled(kind, hr.h, dateVal)"

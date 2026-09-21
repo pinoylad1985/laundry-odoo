@@ -295,6 +295,16 @@ export class NewOrderModal extends Component {
 
     // ── Step 4: Schedule helpers ──────────────────────────────────────────
 
+    // The hour picker is two blocks with a gutter between them, so a morning slot is
+    // never one mis-tap away from the same hour in the afternoon.
+    get amHours() {
+        return this.hours.slice(0, 12);
+    }
+
+    get pmHours() {
+        return this.hours.slice(12);
+    }
+
     // Today and tomorrow only — everything further out is the DateWheel next to them.
     // Each key reads as the DATE first ("Sep 21") with the shortcut under it, so the
     // cashier confirms against the date rather than against a word.

@@ -48,12 +48,19 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
         grid-auto-flow: column;
     }
 
-    // 24 hours as 4 columns of 6, filled DOWN each column rather than across, so a
-    // column is a block of time (12 AM–5 AM, 6–11 AM, 12–5 PM, 6–11 PM).
+    // Half a day as 2 columns of 6, filled DOWN each column rather than across, so a
+    // column is a block of time (12 AM–5 AM | 6–11 AM, then 12 PM–5 PM | 6–11 PM).
     .laundry-grid-hours {
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         grid-template-rows: repeat(6, 1fr);
         grid-auto-flow: column;
+    }
+
+    // `flex: 1 1 0` rather than Bootstrap's `flex-fill` (`1 1 auto`): the two blocks
+    // must be equal halves, not sized by their labels ("12 AM" is wider than "1 PM").
+    .laundry-hour-half {
+        flex: 1 1 0;
+        min-width: 0;
     }
 
     // Today / Tomorrow read as the DATE with the word under it, so the cashier

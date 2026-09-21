@@ -123,7 +123,7 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
-## New Order modal keys — v1.4.24 (supersedes 1.4.21/1.4.22/1.4.23)
+## New Order modal keys — v1.4.25 (supersedes 1.4.21–1.4.24)
 The modal's choices are laid out as flush blocks of **numpad keys** — core's own
 `.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
 `static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
@@ -141,8 +141,12 @@ The modal's choices are laid out as flush blocks of **numpad keys** — core's o
   `grid-template-rows: repeat(3, 1fr)`) — left column Drop-off / Drop-off & Delivery /
   Self-service, right column Pickup & Delivery / Locker. The column split is the *order of
   `SERVICE_TYPES`* in `new_order_modal.js`, not markup — reordering that list re-lays the grid.
-- **Hours: 4 columns of 6, also filled down**, so a column is a block of time
-  (12 AM–5 AM, 6–11 AM, 12–5 PM, 6–11 PM).
+- **Hours: AM and PM are two separate blocks** with a gutter between them
+  (`laundry_pos.HourPills` wraps two `laundry_pos.HourBlock` calls; `amHours`/`pmHours`
+  in the JS). Each block is 2 columns of 6 filled DOWN, so a column is a block of time
+  (12 AM–5 AM | 6–11 AM · 12 PM–5 PM | 6–11 PM) and 9 AM is never adjacent to 9 PM.
+  The halves use `flex: 1 1 0` (`.laundry-hour-half`), NOT Bootstrap's `flex-fill`
+  (`1 1 auto`), which would size them by their labels instead of evenly.
 - **Dates are 3 keys: Today | Tomorrow | the wheel.** The two quick keys read as the date with
   the word underneath in parentheses — `Sep 21` / `(Today)` — so the cashier confirms against
   the date, not the word.
