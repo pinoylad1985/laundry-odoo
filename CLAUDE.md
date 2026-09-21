@@ -123,7 +123,7 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
-## New Order modal keys — v1.4.31 (supersedes 1.4.21–1.4.30)
+## New Order modal keys — v1.4.32 (supersedes 1.4.21–1.4.31)
 The modal's choices are laid out as flush blocks of **numpad keys** — core's own
 `.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
 `static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
@@ -164,6 +164,12 @@ The modal's choices are laid out as flush blocks of **numpad keys** — core's o
     dates reach the centre band, AND what makes `scrollLeft = index * ITEM_W` centre item
     `index` at any modal width. Change one of the two and the JS index goes wrong.
   - `onSelect` fires only after a **150 ms settle**, so sliding past a date doesn't pick it.
+  - ⚠ **A programmatic scroll must not count as choosing.** `_scrollToIndex` mutes selection
+    for the scroll it triggers (`this._muted`), and `onPointerDown` unmutes the moment the
+    cashier touches the strip. Without this the `onMounted` scroll fires the scroll handler,
+    whose settle then selects whatever date the strip opened on — which is exactly the
+    "default date" that was supposed to be gone (the v1.4.24–1.4.31 bug; it only appeared
+    once past days made the opening index non-zero, so `scrollTo` actually moved something).
   - **The selection is a band on the COLUMN; the key itself stays grey.** The key shows the
     neighbours too, so colouring the whole key highlights dates that were NOT picked (the
     v1.4.26 bug). `.laundry-wheel-item-active` = primary + white + bold;

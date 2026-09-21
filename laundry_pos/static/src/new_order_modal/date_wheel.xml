@@ -9,7 +9,8 @@
     -->
     <t t-name="laundry_pos.DateWheel">
         <div class="btn numpad-button position-relative rounded-0 border-0 btn-secondary laundry-wheel">
-            <div class="laundry-wheel-list" t-ref="list" t-on-scroll="onScroll">
+            <div class="laundry-wheel-list" t-ref="list"
+                 t-on-scroll="onScroll" t-on-pointerdown="onPointerDown">
                 <div t-foreach="dates" t-as="d" t-key="d.value"
                      class="laundry-wheel-item fs-5"
                      t-att-class="!props.value ? '' : (d.value === props.value ? 'laundry-wheel-item-active' : 'laundry-wheel-item-idle')"

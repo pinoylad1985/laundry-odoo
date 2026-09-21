@@ -66,7 +66,10 @@ export class DateWheel extends Component {
                 }
             }
         });
-        onWillUnmount(() => clearTimeout(this._settle));
+        onWillUnmount(() => {
+            clearTimeout(this._settle);
+            clearTimeout(this._unmute);
+        });
     }
 
     // A value from outside the window (an order scheduled months out) is spliced in,
@@ -102,10 +105,24 @@ export class DateWheel extends Component {
         return this.dates.findIndex((d) => d.value === value);
     }
 
+    // Scrolling the strip ourselves must never count as choosing. The scroll handler
+    // can't tell a programmatic scroll from a flick, so we mute selection until the
+    // scroll it triggers has played out — otherwise opening the modal would select
+    // whatever date the strip happens to open on.
     _scrollToIndex(index, smooth) {
         const el = this.listRef.el;
         if (!el) return;
+        this._muted = true;
+        clearTimeout(this._unmute);
+        this._unmute = setTimeout(() => (this._muted = false), smooth ? 600 : 100);
         el.scrollTo({ left: index * ITEM_W, behavior: smooth ? "smooth" : "auto" });
+    }
+
+    // Any touch on the strip is the cashier taking over, so stop muting immediately
+    // rather than waiting out a scroll they've just interrupted.
+    onPointerDown() {
+        clearTimeout(this._unmute);
+        this._muted = false;
     }
 
     // Flicking IS choosing, but the parent is only told once the strip has settled,
@@ -118,6 +135,7 @@ export class DateWheel extends Component {
             Math.max(0, Math.round(el.scrollLeft / ITEM_W))
         );
         this.index = index;
+        if (this._muted) return;
         clearTimeout(this._settle);
         this._settle = setTimeout(() => this.props.onSelect(this.dates[index].value), 150);
     }
