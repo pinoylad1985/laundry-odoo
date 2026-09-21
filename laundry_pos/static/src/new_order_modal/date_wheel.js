@@ -2,9 +2,9 @@
 
 import { Component, useRef, onMounted, onWillUpdateProps, onWillUnmount } from "@odoo/owl";
 
-// Must match $laundry-wheel-item-h in new_order_modal.scss — the scroll position is
-// read back as an item index, so JS and CSS have to agree on the row height.
-const ITEM_H = 44;
+// Must match $laundry-wheel-item-w in new_order_modal.scss — the scroll position is
+// read back as an item index, so JS and CSS have to agree on the column width.
+const ITEM_W = 120;
 
 function ymd(d) {
     const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -12,7 +12,7 @@ function ymd(d) {
     return `${d.getFullYear()}-${m}-${day}`;
 }
 
-function dayFromToday(offset) {
+export function dayFromToday(offset) {
     const d = new Date();
     d.setDate(d.getDate() + offset);
     return ymd(d);
@@ -27,19 +27,20 @@ export function fmtDateLabel(dateVal) {
 }
 
 /**
- * A rolling date picker, sized like one numpad key.
+ * The whole date picker for one schedule field: a strip of dates you flick
+ * SIDEWAYS, one key wide.
  *
- * It spans the last 5 days through two months out, so a backdated order and a
- * far-out booking are both reachable without leaving the modal. It opens on the day
- * after tomorrow (the most common "not today, not tomorrow" choice) but does NOT
- * select it — rolling or tapping does, which is what tells the parent a date was chosen.
+ * It spans the last 5 days through two months out, so a backdated order and a far
+ * booking are both reachable without leaving the modal. There are no separate
+ * Today / Tomorrow keys — those two dates are rows in here like any other, marked
+ * with a note, and today is where every field starts.
  */
 export class DateWheel extends Component {
     static template = "laundry_pos.DateWheel";
     static props = {
         value: { type: String, optional: true },
         onSelect: Function,
-        startOffset: { type: Number, optional: true }, // days from today for the first row
+        startOffset: { type: Number, optional: true }, // days from today for the first item
         days: { type: Number, optional: true },
     };
     // -5 … +61: the previous 5 days, then today onward.
@@ -54,8 +55,8 @@ export class DateWheel extends Component {
         // (a prop), so tracking the scroll position doesn't need to re-render.
         this.index = this._initialIndex();
         onMounted(() => this._scrollToIndex(this.index, false));
-        // A date picked on the Today / Tomorrow keys is one of ours too, so roll to it
-        // — otherwise the selected row would be highlighted somewhere off-screen.
+        // A date set from outside (an order being edited) has to roll into view, or
+        // the highlighted item would sit off-screen and the strip would look empty.
         onWillUpdateProps((next) => {
             if (next.value !== this.props.value) {
                 const i = this._indexOf(next.value);
@@ -69,7 +70,7 @@ export class DateWheel extends Component {
     }
 
     // A value from outside the window (an order scheduled months out) is spliced in,
-    // so the wheel can always show what is actually selected rather than silently
+    // so the strip can always show what is actually selected rather than silently
     // disagreeing with it.
     _buildDates() {
         const out = [];
@@ -88,11 +89,11 @@ export class DateWheel extends Component {
         }));
     }
 
-    // Open on the selection when there is one, else on the day after tomorrow.
+    // Open on the selection, which the modal defaults to today.
     _initialIndex() {
         const picked = this._indexOf(this.props.value);
         if (picked !== -1) return picked;
-        return Math.max(0, this._indexOf(dayFromToday(2)));
+        return Math.max(0, this._indexOf(this.today));
     }
 
     _indexOf(value) {
@@ -102,25 +103,24 @@ export class DateWheel extends Component {
     _scrollToIndex(index, smooth) {
         const el = this.listRef.el;
         if (!el) return;
-        el.scrollTo({ top: index * ITEM_H, behavior: smooth ? "smooth" : "auto" });
+        el.scrollTo({ left: index * ITEM_W, behavior: smooth ? "smooth" : "auto" });
     }
 
-    // Rolling IS choosing, but the parent is only told once the wheel has settled, so
-    // passing over a date doesn't pick it. Nothing highlights until then — the only
-    // highlighted row is the selected one.
+    // Flicking IS choosing, but the parent is only told once the strip has settled,
+    // so sliding past a date doesn't pick it.
     onScroll() {
         const el = this.listRef.el;
         if (!el) return;
         const index = Math.min(
             this.dates.length - 1,
-            Math.max(0, Math.round(el.scrollTop / ITEM_H))
+            Math.max(0, Math.round(el.scrollLeft / ITEM_W))
         );
         this.index = index;
         clearTimeout(this._settle);
         this._settle = setTimeout(() => this.props.onSelect(this.dates[index].value), 150);
     }
 
-    // Tapping a half-visible neighbour is more accurate than flicking on a touchscreen.
+    // Tapping a neighbour is more accurate than flicking on a touchscreen.
     pick(index) {
         this.index = index;
         this._scrollToIndex(index, true);

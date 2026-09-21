@@ -129,7 +129,7 @@
                     <label class="form-label fw-semibold small text-muted">
                         Claim Date &amp; Time <span class="text-danger">*</span>
                     </label>
-                    <t t-call="laundry_pos.QuickDates">
+                    <t t-call="laundry_pos.DateRow">
                         <t t-set="field" t-value="'claimDate'"/>
                         <t t-set="selectedDate" t-value="state.claimDate"/>
                     </t>
@@ -146,7 +146,7 @@
                     <label class="form-label fw-semibold small text-muted">
                         Delivery Date &amp; Time <span class="text-danger">*</span>
                     </label>
-                    <t t-call="laundry_pos.QuickDates">
+                    <t t-call="laundry_pos.DateRow">
                         <t t-set="field" t-value="'deliveryDate'"/>
                         <t t-set="selectedDate" t-value="state.deliveryDate"/>
                     </t>
@@ -164,7 +164,7 @@
                         <label class="form-label fw-semibold small text-muted">
                             Pickup Date &amp; Time <span class="text-danger">*</span>
                         </label>
-                        <t t-call="laundry_pos.QuickDates">
+                        <t t-call="laundry_pos.DateRow">
                             <t t-set="field" t-value="'pickupDate'"/>
                             <t t-set="selectedDate" t-value="state.pickupDate"/>
                         </t>
@@ -179,7 +179,7 @@
                         <label class="form-label fw-semibold small text-muted">
                             Delivery Date &amp; Time <span class="text-danger">*</span>
                         </label>
-                        <t t-call="laundry_pos.QuickDates">
+                        <t t-call="laundry_pos.DateRow">
                             <t t-set="field" t-value="'pdDelDate'"/>
                             <t t-set="selectedDate" t-value="state.pdDelDate"/>
                         </t>
@@ -224,20 +224,11 @@
     </t>
 
     <!--
-        Reusable date row — Today, Tomorrow and the rolling DateWheel as one 3-up
-        numpad block. Caller sets: field (the state key), selectedDate (its value).
+        Reusable date row — one full-width key holding the date strip.
+        Caller sets: field (the state key), selectedDate (its value).
     -->
-    <t t-name="laundry_pos.QuickDates">
-        <div class="laundry-grid laundry-grid-3 mb-2">
-            <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
-                    type="button"
-                    class="btn numpad-button position-relative rounded-0 border-0 fs-5 laundry-date-key"
-                    t-att-class="selectedDate === qd.value ? 'btn-primary' : 'btn-secondary'"
-                    t-on-click="() => this.setDate(field, qd.value)">
-                <span t-esc="qd.label"/>
-                <span class="small fw-normal">(<t t-esc="qd.note"/>)</span>
-            </button>
-            <!-- Everything past tomorrow: one key you roll, opening on the day after. -->
+    <t t-name="laundry_pos.DateRow">
+        <div class="laundry-grid mb-2">
             <DateWheel value="selectedDate" onSelect="(v) => this.setDate(field, v)"/>
         </div>
     </t>

@@ -17,7 +17,7 @@
 // loads the two files in.
 
 $laundry-neworder-btn-h: 88px; // double the 44px tap-target floor
-$laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H in date_wheel.js
+$laundry-wheel-item-w: 120px; // one date column in the strip — mirrored by ITEM_W in date_wheel.js
 
 .laundry-touch.laundry-neworder {
     .btn {
@@ -34,10 +34,6 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
 
     .laundry-grid-2 {
         grid-template-columns: repeat(2, 1fr);
-    }
-
-    .laundry-grid-3 {
-        grid-template-columns: repeat(3, 1fr);
     }
 
     // The 5 service types as 2 columns filled DOWN: the three store-drop-off flows
@@ -63,53 +59,52 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
         min-width: 0;
     }
 
-    // Today / Tomorrow read as the DATE with the word under it, so the cashier
-    // confirms against the date and not against a word.
-    .laundry-date-key {
-        flex-direction: column;
-        gap: 0.125rem;
-        line-height: 1.1;
-    }
-
-    // ── The date wheel ───────────────────────────────────────────────────────
-    // One key that scrolls. The key itself doesn't move (it carries the selected
-    // colour and the centre band); the list inside it does. $laundry-wheel-item-h
-    // MUST stay equal to ITEM_H in date_wheel.js — the scroll offset is read back
-    // as an item index, so the two have to agree.
+    // ── The date strip ───────────────────────────────────────────────────────
+    // One key you flick SIDEWAYS. The key doesn't move (it carries the centre band);
+    // the strip inside it does. $laundry-wheel-item-w MUST stay equal to ITEM_W in
+    // date_wheel.js — the scroll offset is read back as an item index, so the two
+    // have to agree.
     .laundry-wheel {
         display: block;
         padding: 0;
         overflow: hidden;
 
-        // Hairlines marking the row the wheel will pick when it stops. Above the list
-        // so they read as a fixed band the dates roll through, and click-through so
-        // they never eat a tap.
+        // Hairlines marking the column the strip will pick when it stops. Above the
+        // strip so they read as a fixed band the dates slide through, and
+        // click-through so they never eat a tap.
         &::before {
             content: "";
             position: absolute;
             z-index: 1;
-            left: 0;
-            right: 0;
-            top: ($laundry-neworder-btn-h - $laundry-wheel-item-h) * 0.5;
-            height: $laundry-wheel-item-h;
-            border-top: 1px solid currentColor;
-            border-bottom: 1px solid currentColor;
+            top: 0;
+            bottom: 0;
+            left: calc(50% - #{$laundry-wheel-item-w} * 0.5);
+            width: $laundry-wheel-item-w;
+            border-left: 1px solid currentColor;
+            border-right: 1px solid currentColor;
             opacity: 0.25;
             pointer-events: none;
         }
     }
 
-    // Absolute rather than `height: 100%`: the key's height comes from `min-height`
-    // and the grid row, so a percentage height would have nothing to resolve against
-    // and the list would grow to all 60 rows instead of scrolling.
+    // Absolute rather than `height: 100%`: the key's height comes from `min-height`,
+    // which a percentage height can't resolve against.
+    //
+    // The inline padding is what lets the FIRST and LAST dates reach the centre band.
+    // `50%` resolves against the key's width, so `50% - item/2` is exactly the offset
+    // that makes scrollLeft = index * item-w centre item `index` — the same tidy
+    // arithmetic the JS assumes, at any modal width.
     .laundry-wheel-list {
         position: absolute;
         inset: 0;
-        overflow-y: auto;
-        scroll-snap-type: y mandatory;
-        // Half a key above and below, so the row at scrollTop = index * item-h
-        // lands centred in the key.
-        padding: ($laundry-neworder-btn-h - $laundry-wheel-item-h) * 0.5 0;
+        display: flex;
+        align-items: stretch;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        padding-inline: calc(50% - #{$laundry-wheel-item-w} * 0.5);
+        touch-action: pan-x;
+        overscroll-behavior-x: contain; // a flick past the end must not scroll the modal
         scrollbar-width: none;
 
         &::-webkit-scrollbar {
@@ -118,25 +113,31 @@ $laundry-wheel-item-h: 44px; // one date row in the wheel — mirrored by ITEM_H
     }
 
     .laundry-wheel-item {
-        height: $laundry-wheel-item-h;
-        line-height: $laundry-wheel-item-h;
+        flex: 0 0 $laundry-wheel-item-w;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.125rem;
+        line-height: 1.1;
         scroll-snap-align: center;
         text-align: center;
+        white-space: nowrap;
         cursor: pointer;
         transition: opacity 0.1s ease, filter 0.1s ease;
     }
 
-    // Only the SELECTED date is legible; every other row — before and after — is
-    // greyed and pushed slightly out of focus, so the choice is the one thing in
-    // the key that reads sharp. The blur stays light enough that the neighbouring
-    // dates can still be read well enough to scroll towards.
+    // Only the SELECTED date is legible; every other column — before and after — is
+    // greyed and pushed slightly out of focus, so the choice is the one thing in the
+    // key that reads sharp. The blur stays light enough that the neighbouring dates
+    // can still be read well enough to flick towards.
     .laundry-wheel-item-idle {
         opacity: 0.5;
         filter: blur(0.7px);
     }
 
-    // The selection is a band on the ROW, not a colour on the key: the key holds two
-    // half-visible neighbours as well, and those are the dates that were NOT picked.
+    // The selection is a band on the COLUMN, not a colour on the key: the key holds
+    // the neighbouring dates too, and those are the ones that were NOT picked.
     .laundry-wheel-item-active {
         font-weight: 700;
         background-color: $primary;
