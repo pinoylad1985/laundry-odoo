@@ -8,13 +8,26 @@ import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_ins
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
 
-const SERVICE_TYPES = [
-    { code: "dropoff",           label: "Drop-off" },
-    { code: "dropoff_delivery",  label: "Drop-off & Delivery" },
-    { code: "pickup_delivery",   label: "Pickup & Delivery" },
-    { code: "locker",            label: "Locker" },
-    { code: "self_service",      label: "Self-service" },
+// Buttons are styled like the POS numpad: core's `.numpad-button` reads its tint
+// from the CSS vars that `o_colorlist_item_numpad_color_N` sets, so a "color" here
+// is just that class name. A SELECTED button drops the tint for solid btn-primary.
+const TINT = (n) => `o_colorlist_item_numpad_color_${n}`;
+
+const CUSTOMER_TYPES = [
+    { code: "new",       label: "New Customer",       color: TINT(10) },
+    { code: "returning", label: "Returning Customer", color: TINT(4) },
 ];
+
+const SERVICE_TYPES = [
+    { code: "dropoff",           label: "Drop-off",            color: TINT(4) },
+    { code: "dropoff_delivery",  label: "Drop-off & Delivery", color: TINT(7) },
+    { code: "pickup_delivery",   label: "Pickup & Delivery",   color: TINT(11) },
+    { code: "locker",            label: "Locker",              color: TINT(2) },
+    { code: "self_service",      label: "Self-service",        color: TINT(3) },
+];
+
+// Hours are tinted by time of day, which also marks where each 6-hour column starts.
+const HOUR_TINT = (h) => TINT(h < 6 ? 5 : h < 12 ? 3 : h < 18 ? 2 : 8);
 
 export class NewOrderModal extends Component {
     static template = "laundry_pos.NewOrderModal";
@@ -44,18 +57,23 @@ export class NewOrderModal extends Component {
             pickupDate: "",   pickupHour: "",
             pdDelDate: "",    pdDelHour: "",
         });
+        this.customerTypes = CUSTOMER_TYPES;
         this.serviceTypes = SERVICE_TYPES;
         this.services = LAUNDRY_MENU; // { code, label } pills
 
-        // Hour pills: two columns of 12 — AM (12 AM–11 AM) and PM (12 PM–11 PM)
+        // Hour pills: all 24 in order. The template lays them out as 4 columns of 6
+        // (grid-auto-flow: column), so they read 12 AM–5 AM / 6–11 AM / 12–5 PM / 6–11 PM.
         const label = (h) => {
             const ampm = h < 12 ? "AM" : "PM";
             const disp = h % 12 === 0 ? 12 : h % 12;
             return `${disp} ${ampm}`;
         };
-        const mk = (h) => ({ h, value: String(h).padStart(2, "0") + ":00", label: label(h) });
-        this.hoursAM = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(mk);
-        this.hoursPM = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].map(mk);
+        this.hours = Array.from({ length: 24 }, (_, h) => ({
+            h,
+            value: String(h).padStart(2, "0") + ":00",
+            label: label(h),
+            color: HOUR_TINT(h),
+        }));
 
         // Pre-populate from previously submitted details (Change / after reload)
         this._applyInitialData(this.props.initialData);

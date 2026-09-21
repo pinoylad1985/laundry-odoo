@@ -123,6 +123,29 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
+## New Order modal looks like the numpad — v1.4.22
+The cashier's other big touch surface is the **POS numpad below the cart**, so the New Order modal
+now follows it: flush grids of large tinted keys, no gaps, rounded only on the block's outer corners.
+- **The look is core's, not ours.** Keys carry `numpad-button position-relative rounded-0 border-0`
+  (from `point_of_sale/.../numpad/numpad.xml`); `.numpad-button` paints
+  `background-color: var(--bg, var(--btn-bg))`, and the **`o_colorlist_item_numpad_color_N`** classes
+  (pos.scss, tints of `$o-colors`) are what set `--bg`/`--hover-bg`/`--border-color`. So a "color" in
+  `new_order_modal.js` is just one of those class names — `TINT(n)`, `HOUR_TINT(h)`, and a `color` on
+  `CUSTOMER_TYPES` / `SERVICE_TYPES` / each hour.
+- **Selected = solid `btn-primary` with NO tint class**, which leaves `--bg` unset so `.numpad-button`
+  falls through to `var(--btn-bg)`. That is the only way a selection stays unmistakable against
+  pastel neighbours — core's own `.numpad-button.active` is far too subtle for a choice.
+- **Layout** (`new_order_modal.scss`): customer type + service types = 2 columns (an odd last service
+  type spans both via `.laundry-span-2`); the date row = 4 columns (3 quick dates + 📅); the 24 hours
+  = **4 columns of 6**, laid out with `grid-auto-flow: column` + `grid-template-rows: repeat(6, 1fr)`
+  so a column is a block of time (12 AM–5 AM / 6–11 AM / 12–5 PM / 6–11 PM) rather than a row of 4.
+- **Buttons are double height (88px)** — `$laundry-neworder-btn-h`, one number. The stylesheet is
+  scoped to the **compound** `.laundry-touch.laundry-neworder` (both classes are passed in this
+  dialog's `contentClass`) purely to outrank `.laundry-touch .btn` in `touch/laundry_touch.scss`
+  regardless of which file the bundle loads last. Our other modals keep the 44px floor.
+- The four date rows are now one `laundry_pos.QuickDates` sub-template (same `t-set` pattern as
+  `HourPills`), so the block exists once instead of four times.
+
 ## Custom dates are spelled out — v1.4.21
 The New Order modal's date rows are three quick buttons (**Today / Tomorrow / <3rd date>**) plus a 📅
 picker. Picking any other date used to leave **nothing** on screen showing it: no quick button

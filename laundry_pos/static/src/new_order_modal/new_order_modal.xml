@@ -1,18 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.NewOrderModal">
-        <Dialog title="'New Laundry Order'" size="'lg'" contentClass="'laundry-touch'">
+        <Dialog title="'New Laundry Order'" size="'lg'" contentClass="'laundry-touch laundry-neworder'">
 
             <!-- ① Who is this order for? -->
             <section class="mb-4">
                 <p class="fw-semibold text-muted mb-2">1. Who is this order for?</p>
-                <div class="d-flex gap-2">
-                    <button
-                        t-foreach="[{code:'new',label:'New Customer'},{code:'returning',label:'Returning Customer'}]"
-                        t-as="ct" t-key="ct.code"
-                        class="btn flex-fill py-3 fs-6"
-                        t-att-class="state.customerType === ct.code ? 'btn-primary' : 'btn-outline-secondary'"
-                        t-on-click="() => this.selectCustomerType(ct.code)">
+                <div class="laundry-grid laundry-grid-2">
+                    <button t-foreach="customerTypes" t-as="ct" t-key="ct.code"
+                            type="button"
+                            class="btn numpad-button position-relative rounded-0 border-0 fs-5"
+                            t-att-class="state.customerType === ct.code ? 'btn-primary' : 'btn-secondary ' + ct.color"
+                            t-on-click="() => this.selectCustomerType(ct.code)">
                         <t t-esc="ct.label"/>
                     </button>
                 </div>
@@ -48,8 +47,8 @@
                         </button>
                     </div>
 
-                    <!-- Search results -->
-                    <div t-if="filteredPartners.length" class="mt-2 border rounded overflow-auto" style="max-height:220px;">
+                    <!-- Search results — taller now that each row carries a double-height button. -->
+                    <div t-if="filteredPartners.length" class="mt-2 border rounded overflow-auto" style="max-height:320px;">
                         <div t-foreach="filteredPartners" t-as="partner" t-key="partner.id"
                              class="d-flex align-items-start gap-3 px-3 py-3 border-bottom">
                             <div class="flex-grow-1" t-on-click="() => this.pickPartner(partner)" style="cursor:pointer;">
@@ -83,10 +82,12 @@
             <!-- ② Select Service Type (appears after customer type chosen) -->
             <section t-if="state.customerType" class="mb-4">
                 <p class="fw-semibold text-muted mb-2">2. Select Service Type</p>
-                <div class="d-flex flex-column gap-2">
+                <!-- 2 columns; an odd last one (Self-service) spans the full width. -->
+                <div class="laundry-grid laundry-grid-2">
                     <button t-foreach="serviceTypes" t-as="st" t-key="st.code"
-                            class="btn text-start py-3 px-4 fs-6"
-                            t-att-class="state.serviceType === st.code ? 'btn-primary' : 'btn-outline-secondary'"
+                            type="button"
+                            class="btn numpad-button position-relative rounded-0 border-0 fs-5"
+                            t-att-class="(state.serviceType === st.code ? 'btn-primary' : 'btn-secondary ' + st.color) + (st_index === serviceTypes.length - 1 and serviceTypes.length % 2 ? ' laundry-span-2' : '')"
                             t-on-click="() => this.selectServiceType(st.code)">
                         <t t-esc="st.label"/>
                     </button>
@@ -103,14 +104,14 @@
                              t-att-class="(serviceCount(svc.code) ? 'bg-primary text-white border-primary' : 'border-secondary-subtle') + (servicesDisabled ? ' opacity-50' : '')">
                             <span class="fw-semibold fs-6" t-esc="svc.label"/>
                             <div class="d-flex align-items-center gap-2 ms-auto flex-shrink-0">
-                                <button type="button" class="btn fw-bold px-3"
-                                        t-att-class="serviceCount(svc.code) ? 'btn-outline-light' : 'btn-outline-secondary'"
+                                <button type="button"
+                                        class="btn numpad-button position-relative border-0 btn-secondary o_colorlist_item_numpad_color_1 fw-bold fs-4 laundry-step-btn"
                                         t-att-disabled="servicesDisabled || !serviceCount(svc.code)"
                                         t-on-click="() => this.removeService(svc.code)">−</button>
-                                <span class="fw-bold text-center" style="min-width:1.75rem;"
+                                <span class="fw-bold text-center fs-5" style="min-width:1.75rem;"
                                       t-esc="serviceCount(svc.code)"/>
-                                <button type="button" class="btn fw-bold px-3"
-                                        t-att-class="serviceCount(svc.code) ? 'btn-outline-light' : 'btn-outline-secondary'"
+                                <button type="button"
+                                        class="btn numpad-button position-relative border-0 btn-secondary o_colorlist_item_numpad_color_10 fw-bold fs-4 laundry-step-btn"
                                         t-att-disabled="servicesDisabled"
                                         t-on-click="() => this.addService(svc.code)">+</button>
                             </div>
@@ -120,7 +121,7 @@
             </section>
 
             <!-- ④ Schedule + Turnaround (appears after items added, not for self_service) -->
-            <section t-if="hasAnyService &amp;&amp; state.serviceType !== 'self_service'" class="mb-2">
+            <section t-if="hasAnyService and state.serviceType !== 'self_service'" class="mb-2">
                 <p class="fw-semibold text-muted mb-3">4. Schedule</p>
 
                 <!-- Drop-off: Claim date/time (6 AM – 3 AM) -->
@@ -128,22 +129,10 @@
                     <label class="form-label fw-semibold small text-muted">
                         Claim Date &amp; Time <span class="text-danger">*</span>
                     </label>
-                    <div class="d-flex gap-2 mb-2">
-                        <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
-                                class="btn flex-grow-1"
-                                t-att-class="state.claimDate === qd.value ? 'btn-primary' : 'btn-outline-secondary'"
-                                t-on-click="() => this.setDate('claimDate', qd.value)">
-                            <t t-esc="qd.label"/>
-                        </button>
-                        <div class="position-relative flex-shrink-0">
-                            <button class="btn px-3 laundry-date-pick"
-                                    t-att-class="isCustomDate(state.claimDate) ? 'btn-primary' : 'btn-outline-secondary'">
-                                📅<span t-if="isCustomDate(state.claimDate)" class="ms-2"><t t-esc="fmtPickedDate(state.claimDate)"/></span>
-                            </button>
-                            <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
-                                   style="cursor:pointer;" t-model="state.claimDate"/>
-                        </div>
-                    </div>
+                    <t t-call="laundry_pos.QuickDates">
+                        <t t-set="field" t-value="'claimDate'"/>
+                        <t t-set="selectedDate" t-value="state.claimDate"/>
+                    </t>
                     <t t-call="laundry_pos.HourPills">
                         <t t-set="kind" t-value="'claim'"/>
                         <t t-set="field" t-value="'claimHour'"/>
@@ -157,22 +146,10 @@
                     <label class="form-label fw-semibold small text-muted">
                         Delivery Date &amp; Time <span class="text-danger">*</span>
                     </label>
-                    <div class="d-flex gap-2 mb-2">
-                        <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
-                                class="btn flex-grow-1"
-                                t-att-class="state.deliveryDate === qd.value ? 'btn-primary' : 'btn-outline-secondary'"
-                                t-on-click="() => this.setDate('deliveryDate', qd.value)">
-                            <t t-esc="qd.label"/>
-                        </button>
-                        <div class="position-relative flex-shrink-0">
-                            <button class="btn px-3 laundry-date-pick"
-                                    t-att-class="isCustomDate(state.deliveryDate) ? 'btn-primary' : 'btn-outline-secondary'">
-                                📅<span t-if="isCustomDate(state.deliveryDate)" class="ms-2"><t t-esc="fmtPickedDate(state.deliveryDate)"/></span>
-                            </button>
-                            <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
-                                   style="cursor:pointer;" t-model="state.deliveryDate"/>
-                        </div>
-                    </div>
+                    <t t-call="laundry_pos.QuickDates">
+                        <t t-set="field" t-value="'deliveryDate'"/>
+                        <t t-set="selectedDate" t-value="state.deliveryDate"/>
+                    </t>
                     <t t-call="laundry_pos.HourPills">
                         <t t-set="kind" t-value="'delivery'"/>
                         <t t-set="field" t-value="'deliveryHour'"/>
@@ -187,22 +164,10 @@
                         <label class="form-label fw-semibold small text-muted">
                             Pickup Date &amp; Time <span class="text-danger">*</span>
                         </label>
-                        <div class="d-flex gap-2 mb-2">
-                            <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
-                                    class="btn flex-grow-1"
-                                    t-att-class="state.pickupDate === qd.value ? 'btn-primary' : 'btn-outline-secondary'"
-                                    t-on-click="() => this.setDate('pickupDate', qd.value)">
-                                <t t-esc="qd.label"/>
-                            </button>
-                            <div class="position-relative flex-shrink-0">
-                                <button class="btn px-3 laundry-date-pick"
-                                        t-att-class="isCustomDate(state.pickupDate) ? 'btn-primary' : 'btn-outline-secondary'">
-                                    📅<span t-if="isCustomDate(state.pickupDate)" class="ms-2"><t t-esc="fmtPickedDate(state.pickupDate)"/></span>
-                                </button>
-                                <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
-                                       style="cursor:pointer;" t-model="state.pickupDate"/>
-                            </div>
-                        </div>
+                        <t t-call="laundry_pos.QuickDates">
+                            <t t-set="field" t-value="'pickupDate'"/>
+                            <t t-set="selectedDate" t-value="state.pickupDate"/>
+                        </t>
                         <t t-call="laundry_pos.HourPills">
                             <t t-set="kind" t-value="'pickup'"/>
                             <t t-set="field" t-value="'pickupHour'"/>
@@ -214,22 +179,10 @@
                         <label class="form-label fw-semibold small text-muted">
                             Delivery Date &amp; Time <span class="text-danger">*</span>
                         </label>
-                        <div class="d-flex gap-2 mb-2">
-                            <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
-                                    class="btn flex-grow-1"
-                                    t-att-class="state.pdDelDate === qd.value ? 'btn-primary' : 'btn-outline-secondary'"
-                                    t-on-click="() => this.setDate('pdDelDate', qd.value)">
-                                <t t-esc="qd.label"/>
-                            </button>
-                            <div class="position-relative flex-shrink-0">
-                                <button class="btn px-3 laundry-date-pick"
-                                        t-att-class="isCustomDate(state.pdDelDate) ? 'btn-primary' : 'btn-outline-secondary'">
-                                    📅<span t-if="isCustomDate(state.pdDelDate)" class="ms-2"><t t-esc="fmtPickedDate(state.pdDelDate)"/></span>
-                                </button>
-                                <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
-                                       style="cursor:pointer;" t-model="state.pdDelDate"/>
-                            </div>
-                        </div>
+                        <t t-call="laundry_pos.QuickDates">
+                            <t t-set="field" t-value="'pdDelDate'"/>
+                            <t t-set="selectedDate" t-value="state.pdDelDate"/>
+                        </t>
                         <t t-call="laundry_pos.HourPills">
                             <t t-set="kind" t-value="'delivery'"/>
                             <t t-set="field" t-value="'pdDelHour'"/>
@@ -271,29 +224,48 @@
     </t>
 
     <!--
-        Reusable hour picker — two columns of 12 pills.
-        Caller sets: kind ('claim'|'pickup'|'delivery'), field (state key), selected (current value).
+        Reusable date row — the 3 quick dates + the 📅 picker as one 4-up numpad block.
+        Caller sets: field (the state key), selectedDate (its current value).
+    -->
+    <t t-name="laundry_pos.QuickDates">
+        <div class="laundry-grid laundry-grid-4 mb-2">
+            <button t-foreach="quickDates" t-as="qd" t-key="qd.value"
+                    type="button"
+                    class="btn numpad-button position-relative rounded-0 border-0 fs-5"
+                    t-att-class="selectedDate === qd.value ? 'btn-primary' : 'btn-secondary o_colorlist_item_numpad_color_3'"
+                    t-on-click="() => this.setDate(field, qd.value)">
+                <t t-esc="qd.label"/>
+            </button>
+            <!-- The cell holds an invisible native date input stretched over the button. -->
+            <div class="position-relative laundry-date-cell">
+                <button type="button"
+                        class="btn numpad-button position-relative rounded-0 border-0 laundry-date-pick"
+                        t-att-class="isCustomDate(selectedDate) ? 'btn-primary' : 'btn-secondary o_colorlist_item_numpad_color_6'">
+                    📅<span t-if="isCustomDate(selectedDate)" class="ms-1 small"><t t-esc="fmtPickedDate(selectedDate)"/></span>
+                </button>
+                <input type="date" class="position-absolute top-0 start-0 w-100 h-100 opacity-0"
+                       style="cursor:pointer;"
+                       t-att-value="selectedDate"
+                       t-on-change="(ev) => this.setDate(field, ev.target.value)"/>
+            </div>
+        </div>
+    </t>
+
+    <!--
+        Reusable hour picker — 24 pills as 4 columns of 6, filled DOWN each column
+        (12 AM–5 AM, 6 AM–11 AM, 12 PM–5 PM, 6 PM–11 PM), tinted by time of day.
+        Caller sets: kind ('claim'|'pickup'|'delivery'), field (state key), selected, dateVal.
     -->
     <t t-name="laundry_pos.HourPills">
-        <div class="d-flex gap-2">
-            <div class="d-flex flex-column gap-2 flex-fill">
-                <button t-foreach="hoursAM" t-as="hr" t-key="hr.value"
-                        type="button" class="btn"
-                        t-att-disabled="isHourDisabled(kind, hr.h, dateVal)"
-                        t-att-class="isHourDisabled(kind, hr.h, dateVal) ? 'btn-light text-muted disabled' : (selected === hr.value ? 'btn-primary' : 'btn-outline-secondary')"
-                        t-on-click="() => this.setHour(field, hr.value)">
-                    <t t-esc="hr.label"/>
-                </button>
-            </div>
-            <div class="d-flex flex-column gap-2 flex-fill">
-                <button t-foreach="hoursPM" t-as="hr" t-key="hr.value"
-                        type="button" class="btn"
-                        t-att-disabled="isHourDisabled(kind, hr.h, dateVal)"
-                        t-att-class="isHourDisabled(kind, hr.h, dateVal) ? 'btn-light text-muted disabled' : (selected === hr.value ? 'btn-primary' : 'btn-outline-secondary')"
-                        t-on-click="() => this.setHour(field, hr.value)">
-                    <t t-esc="hr.label"/>
-                </button>
-            </div>
+        <div class="laundry-grid laundry-grid-hours">
+            <button t-foreach="hours" t-as="hr" t-key="hr.value"
+                    type="button"
+                    class="btn numpad-button position-relative rounded-0 border-0 fs-5"
+                    t-att-disabled="isHourDisabled(kind, hr.h, dateVal)"
+                    t-att-class="isHourDisabled(kind, hr.h, dateVal) ? 'btn-secondary text-muted' : (selected === hr.value ? 'btn-primary' : 'btn-secondary ' + hr.color)"
+                    t-on-click="() => this.setHour(field, hr.value)">
+                <t t-esc="hr.label"/>
+            </button>
         </div>
     </t>
 </templates>
