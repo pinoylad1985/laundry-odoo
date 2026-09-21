@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!--
+        A strip of dates flicked sideways inside one numpad key. The key stays put
+        (it carries the centre band) and only the inner strip moves. The key stays
+        grey and the SELECTED column is what goes solid primary — colouring the whole
+        key would highlight the neighbouring dates too, which are exactly what the
+        cashier did not pick.
+    -->
+    <t t-name="laundry_pos.DateWheel">
+        <div class="btn numpad-button position-relative rounded-0 border-0 btn-secondary laundry-wheel">
+            <div class="laundry-wheel-list" t-ref="list"
+                 t-on-scroll="onScroll" t-on-pointerdown="onPointerDown">
+                <div t-foreach="dates" t-as="d" t-key="d.value"
+                     class="laundry-wheel-item fs-5"
+                     t-att-class="!props.value ? '' : (d.value === props.value ? 'laundry-wheel-item-active' : 'laundry-wheel-item-idle')"
+                     t-on-click="() => this.pick(d_index)">
+                    <span t-esc="d.label"/>
+                    <span t-if="d.note" class="small fw-normal" t-esc="d.note"/>
+                </div>
+            </div>
+        </div>
+    </t>
+</templates>

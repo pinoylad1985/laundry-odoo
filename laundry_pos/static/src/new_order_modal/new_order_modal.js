@@ -7,18 +7,31 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_instructions";
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
+import { DateWheel } from "@laundry_pos/new_order_modal/date_wheel";
 
+// Buttons are styled like the POS numpad (core's `.numpad-button`): every unselected
+// key is plain grey and the SELECTED one goes solid primary, so colour carries one
+// meaning only. The +/− steppers are the exception — red/green there is the control,
+// not decoration.
+const CUSTOMER_TYPES = [
+    { code: "new",       label: "New Customer" },
+    { code: "returning", label: "Returning Customer" },
+];
+
+// Order matters: the template lays these out in 2 columns filled DOWN, so this is
+// column 1 (drop-off, drop-off & delivery, self-service) then column 2 (pickup &
+// delivery, locker) — the store-drop-off flows first, the come-to-you flows second.
 const SERVICE_TYPES = [
     { code: "dropoff",           label: "Drop-off" },
     { code: "dropoff_delivery",  label: "Drop-off & Delivery" },
+    { code: "self_service",      label: "Self-service" },
     { code: "pickup_delivery",   label: "Pickup & Delivery" },
     { code: "locker",            label: "Locker" },
-    { code: "self_service",      label: "Self-service" },
 ];
 
 export class NewOrderModal extends Component {
     static template = "laundry_pos.NewOrderModal";
-    static components = { Dialog };
+    static components = { Dialog, DateWheel };
     static props = {
         getPayload: Function,
         close: Function,
@@ -29,6 +42,9 @@ export class NewOrderModal extends Component {
         this.pos = usePos();
         this.dialog = useService("dialog");
         this.state = useState({
+            // Flipped by a failed Continue, never on its own: the modal shouldn't
+            // scold a cashier about a section they haven't reached yet.
+            showErrors: false,
             // Step 1 — Customer
             customerType: null,
             partnerQuery: "",
@@ -38,24 +54,30 @@ export class NewOrderModal extends Component {
             rev: 0,
             // Step 3 — Service Type
             serviceType: null,
-            // Step 4 — Schedule (flat keys to keep OWL reactivity simple)
+            // Step 4 — Schedule (flat keys to keep OWL reactivity simple).
+            // No date is pre-selected: the strip OPENS on today, but picking is the
+            // cashier's act, so a schedule can't be confirmed without being looked at.
             claimDate: "",    claimHour: "",
             deliveryDate: "", deliveryHour: "",
             pickupDate: "",   pickupHour: "",
             pdDelDate: "",    pdDelHour: "",
         });
+        this.customerTypes = CUSTOMER_TYPES;
         this.serviceTypes = SERVICE_TYPES;
         this.services = LAUNDRY_MENU; // { code, label } pills
 
-        // Hour pills: two columns of 12 — AM (12 AM–11 AM) and PM (12 PM–11 PM)
+        // Hour pills: all 24 in order. The template lays them out as 4 columns of 6
+        // (grid-auto-flow: column), so they read 12 AM–5 AM / 6–11 AM / 12–5 PM / 6–11 PM.
         const label = (h) => {
             const ampm = h < 12 ? "AM" : "PM";
             const disp = h % 12 === 0 ? 12 : h % 12;
             return `${disp} ${ampm}`;
         };
-        const mk = (h) => ({ h, value: String(h).padStart(2, "0") + ":00", label: label(h) });
-        this.hoursAM = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map(mk);
-        this.hoursPM = [12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23].map(mk);
+        this.hours = Array.from({ length: 24 }, (_, h) => ({
+            h,
+            value: String(h).padStart(2, "0") + ":00",
+            label: label(h),
+        }));
 
         // Pre-populate from previously submitted details (Change / after reload)
         this._applyInitialData(this.props.initialData);
@@ -278,19 +300,14 @@ export class NewOrderModal extends Component {
 
     // ── Step 4: Schedule helpers ──────────────────────────────────────────
 
-    get quickDates() {
-        return [0, 1, 2].map((offset) => {
-            const d = new Date();
-            d.setDate(d.getDate() + offset);
-            const y = d.getFullYear();
-            const m = String(d.getMonth() + 1).padStart(2, "0");
-            const day = String(d.getDate()).padStart(2, "0");
-            const value = `${y}-${m}-${day}`;
-            const label = offset === 0 ? "Today"
-                        : offset === 1 ? "Tomorrow"
-                        : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-            return { value, label };
-        });
+    // The hour picker is two blocks with a gutter between them, so a morning slot is
+    // never one mis-tap away from the same hour in the afternoon.
+    get amHours() {
+        return this.hours.slice(0, 12);
+    }
+
+    get pmHours() {
+        return this.hours.slice(12);
     }
 
     setDate(field, value) {
@@ -308,10 +325,13 @@ export class NewOrderModal extends Component {
      */
     isHourDisabled(kind, h, dateVal) {
         // Past dates/times are allowed (no grey-out); only closed hours below are blocked.
-        // 4 AM–5 AM closed for every selector, regardless of service type.
+        // Claim — the Drop-off flow's only time — is open around the clock: the customer
+        // collects at the counter, so there is no route to schedule around.
+        if (kind === "claim") return false;
+        // 4 AM–5 AM closed for every other selector.
         if (h === 4 || h === 5) return true;
         // Pickup / Delivery also close 2 AM–3 AM.
-        if ((kind === "pickup" || kind === "delivery") && (h === 2 || h === 3)) return true;
+        if (kind === "pickup" || kind === "delivery") return h === 2 || h === 3;
         return false;
     }
 
@@ -397,6 +417,44 @@ export class NewOrderModal extends Component {
         return !!(s.pickupDate && s.pickupHour && s.pdDelDate && s.pdDelHour);
     }
 
+    // ── What's missing (only ever true after a failed Continue) ───────────
+
+    get missingCustomerType() {
+        return this.state.showErrors && !this.state.customerType;
+    }
+
+    // A Returning customer must have a partner actually selected; a New one doesn't.
+    get missingPartner() {
+        return (
+            this.state.showErrors &&
+            this.state.customerType === "returning" &&
+            !this.state.selectedPartner
+        );
+    }
+
+    get missingCustomer() {
+        return this.missingCustomerType || this.missingPartner;
+    }
+
+    get missingServiceType() {
+        return this.state.showErrors && !this.state.serviceType;
+    }
+
+    get missingServices() {
+        return (
+            this.state.showErrors &&
+            !!this.state.serviceType &&
+            this.state.serviceType !== "self_service" &&
+            !this.hasAnyService
+        );
+    }
+
+    // Takes the state key, so the date/hour sub-templates can ask about whichever
+    // field they were handed rather than each caller spelling it out.
+    isMissing(key) {
+        return this.state.showErrors && !this.state[key];
+    }
+
     get canConfirm() {
         // Variant/attribute selection happens later in the main POS cart and is
         // enforced at payment, so it is not required to confirm the modal.
@@ -433,7 +491,12 @@ export class NewOrderModal extends Component {
     }
 
     confirm() {
-        if (!this.canConfirm) return;
+        // Continue stays enabled when the form is incomplete: a dead button says
+        // nothing about WHY. Pressing it marks every unfilled section in red instead.
+        if (!this.canConfirm) {
+            this.state.showErrors = true;
+            return;
+        }
         this.props.getPayload({
             customerType: this.state.customerType,
             serviceType:  this.state.serviceType,

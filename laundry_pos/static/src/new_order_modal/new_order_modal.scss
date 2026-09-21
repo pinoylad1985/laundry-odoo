@@ -1,0 +1,159 @@
+// New Order modal — numpad-style button blocks.
+//
+// The cashier's other big touch surface is the POS numpad below the cart: flush
+// grids of large, tinted keys with no gaps between them. This modal follows it, so
+// the two read as the same machine. The look itself is core's — `.numpad-button`
+// (point_of_sale/static/src/app/components/numpad/numpad.scss) takes its background
+// from `--bg`, which the `o_colorlist_item_numpad_color_N` classes set — we only lay
+// the keys out and set the sizes here.
+//
+// Colour carries ONE meaning: the SELECTED key is solid primary and every other key
+// is plain grey. The only tinted keys in the modal are the service +/− steppers,
+// where red/green is the control itself rather than decoration.
+//
+// Scoped to `.laundry-touch.laundry-neworder`, both passed by this dialog as the
+// Dialog `contentClass`. The compound selector is deliberate: it outranks the plain
+// `.laundry-touch .btn` rule in touch/laundry_touch.scss whatever order the bundle
+// loads the two files in.
+
+$laundry-neworder-btn-h: 88px; // double the 44px tap-target floor
+$laundry-wheel-item-w: 120px; // one date column in the strip — mirrored by ITEM_W in date_wheel.js
+
+.laundry-touch.laundry-neworder {
+    .btn {
+        min-height: $laundry-neworder-btn-h;
+    }
+
+    // One flush block of keys, rounded only on the block's outer corners.
+    .laundry-grid {
+        display: grid;
+        gap: 0;
+        border-radius: $btn-border-radius;
+        overflow: hidden;
+    }
+
+    .laundry-grid-2 {
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    // The 5 service types as 2 columns filled DOWN: the three store-drop-off flows
+    // on the left, the two come-to-you flows on the right.
+    .laundry-grid-types {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(3, 1fr);
+        grid-auto-flow: column;
+    }
+
+    // Half a day as 2 columns of 6, filled DOWN each column rather than across, so a
+    // column is a block of time (12 AM–5 AM | 6–11 AM, then 12 PM–5 PM | 6–11 PM).
+    .laundry-grid-hours {
+        grid-template-columns: repeat(2, 1fr);
+        grid-template-rows: repeat(6, 1fr);
+        grid-auto-flow: column;
+    }
+
+    // `flex: 1 1 0` rather than Bootstrap's `flex-fill` (`1 1 auto`): the two blocks
+    // must be equal halves, not sized by their labels ("12 AM" is wider than "1 PM").
+    .laundry-hour-half {
+        flex: 1 1 0;
+        min-width: 0;
+    }
+
+    // ── The date strip ───────────────────────────────────────────────────────
+    // One key you flick SIDEWAYS. The key doesn't move (it carries the centre band);
+    // the strip inside it does. $laundry-wheel-item-w MUST stay equal to ITEM_W in
+    // date_wheel.js — the scroll offset is read back as an item index, so the two
+    // have to agree.
+    .laundry-wheel {
+        display: block;
+        padding: 0;
+        overflow: hidden;
+
+        // Hairlines marking the column the strip will pick when it stops. Above the
+        // strip so they read as a fixed band the dates slide through, and
+        // click-through so they never eat a tap.
+        &::before {
+            content: "";
+            position: absolute;
+            z-index: 1;
+            top: 0;
+            bottom: 0;
+            left: calc(50% - #{$laundry-wheel-item-w} * 0.5);
+            width: $laundry-wheel-item-w;
+            border-left: 1px solid currentColor;
+            border-right: 1px solid currentColor;
+            opacity: 0.25;
+            pointer-events: none;
+        }
+    }
+
+    // Absolute rather than `height: 100%`: the key's height comes from `min-height`,
+    // which a percentage height can't resolve against.
+    //
+    // The inline padding is what lets the FIRST and LAST dates reach the centre band.
+    // `50%` resolves against the key's width, so `50% - item/2` is exactly the offset
+    // that makes scrollLeft = index * item-w centre item `index` — the same tidy
+    // arithmetic the JS assumes, at any modal width.
+    .laundry-wheel-list {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: stretch;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        padding-inline: calc(50% - #{$laundry-wheel-item-w} * 0.5);
+        touch-action: pan-x;
+        overscroll-behavior-x: contain; // a flick past the end must not scroll the modal
+        scrollbar-width: none;
+
+        &::-webkit-scrollbar {
+            display: none;
+        }
+    }
+
+    .laundry-wheel-item {
+        flex: 0 0 $laundry-wheel-item-w;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.125rem;
+        line-height: 1.1;
+        scroll-snap-align: center;
+        text-align: center;
+        white-space: nowrap;
+        cursor: pointer;
+        transition: opacity 0.1s ease, filter 0.1s ease;
+    }
+
+    // Only the SELECTED date is legible; every other column — before and after — is
+    // greyed and pushed slightly out of focus, so the choice is the one thing in the
+    // key that reads sharp. The blur stays light enough that the neighbouring dates
+    // can still be read well enough to flick towards.
+    .laundry-wheel-item-idle {
+        opacity: 0.5;
+        filter: blur(0.7px);
+    }
+
+    // The selection is a band on the COLUMN, not a colour on the key: the key holds
+    // the neighbouring dates too, and those are the ones that were NOT picked.
+    .laundry-wheel-item-active {
+        font-weight: 700;
+        background-color: $primary;
+        color: $white;
+    }
+
+    // Marked by a failed Continue. An OUTLINE, not a border: the key grids are flush
+    // blocks, so a border would take up space and resize every key inside them.
+    .laundry-invalid {
+        outline: 2px solid $danger;
+        outline-offset: 2px;
+        border-radius: $btn-border-radius;
+    }
+
+    // The +/− keys get no width from a one-character label.
+    .laundry-step-btn {
+        min-width: 4rem;
+    }
+}

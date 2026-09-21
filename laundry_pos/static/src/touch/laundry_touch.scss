@@ -1,0 +1,41 @@
+// Touch sizing for the laundry modals — the POS runs on touchscreen laptops, where
+// these dialogs are driven by a finger rather than a mouse.
+//
+// Scoped to `.laundry-touch`, which each of our dialogs passes as the Dialog
+// `contentClass` prop. That class lands on `.modal-content`, so it covers the body
+// AND the footer buttons (the footer is a slot, rendered outside the body div).
+// Core POS dialogs keep their own metrics.
+//
+// 44px is the tap-target floor (Apple 44pt / Google 48dp / Windows 40px). Bootstrap's
+// .btn-sm lands around 31px, which is fine with a cursor and a coin-flip with a
+// fingertip — so the floor is applied to every control, .btn-sm included.
+
+$laundry-tap-min: 44px;
+
+.laundry-touch {
+    // Flex centring, because min-height alone would leave the label sitting at the
+    // top of a button whose height comes from padding + line-height.
+    .btn {
+        min-height: $laundry-tap-min;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    // Buttons that intentionally read as a left-aligned list row (service types).
+    .btn.text-start {
+        justify-content: flex-start;
+    }
+
+    // A link styled as a button ("Select all", "change") is a real target too, and
+    // inline text is the smallest target there is.
+    .btn-link {
+        min-height: $laundry-tap-min;
+    }
+
+    // Text fields: a taller field is easier to hit and easier to place a caret in.
+    .form-control,
+    .form-select {
+        min-height: $laundry-tap-min;
+    }
+}

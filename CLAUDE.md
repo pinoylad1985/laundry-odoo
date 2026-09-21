@@ -123,6 +123,94 @@ product grid ("Tap New Order or Settle Order above to begin").
 - **"ORDER # "** is prefixed to the Order Number (`tracking_number`, NOT `pos_reference` which is the Receipt
   Number) inside core's tracking-number wrapper, so it shows only when core shows the number.
 
+## New Order modal keys — v1.4.32 (supersedes 1.4.21–1.4.31)
+The modal's choices are laid out as flush blocks of **numpad keys** — core's own
+`.numpad-button` (`point_of_sale/.../numpad/numpad.scss`), double height at **88px**, in
+`static/src/new_order_modal/new_order_modal.scss` scoped to `.laundry-touch.laundry-neworder`.
+- **Colour means ONE thing: selected.** The chosen key is solid `btn-primary`, every other key
+  is plain `btn-secondary` grey. The service **+/−** steppers are the only tinted keys left
+  (`o_colorlist_item_numpad_color_1` / `_10`) — there red/green IS the control. The v1.4.22
+  per-key tints on customer types / service types / dates / hours were removed for this.
+  ⚠ A key gets colour ONLY from `o_colorlist_item_numpad_color_N` (it sets `--bg`); with no
+  tint class `--bg` is unset and `btn-primary` falls through to solid primary. That's the
+  mechanism — don't "fix" it by hard-coding backgrounds.
+- **Compound scope `.laundry-touch.laundry-neworder` is deliberate** — the asset glob loads
+  `new_order_modal/` before `touch/` (alphabetical), so a plain `.laundry-neworder .btn` would
+  lose to `.laundry-touch .btn`. Don't simplify the selector.
+- **Service types: 2 columns filled DOWN** (`.laundry-grid-types`, `grid-auto-flow: column` +
+  `grid-template-rows: repeat(3, 1fr)`) — left column Drop-off / Drop-off & Delivery /
+  Self-service, right column Pickup & Delivery / Locker. The column split is the *order of
+  `SERVICE_TYPES`* in `new_order_modal.js`, not markup — reordering that list re-lays the grid.
+- **Hours: AM and PM are two separate blocks** with a gutter between them
+  (`laundry_pos.HourPills` wraps two `laundry_pos.HourBlock` calls; `amHours`/`pmHours`
+  in the JS). Each block is 2 columns of 6 filled DOWN, so a column is a block of time
+  (12 AM–5 AM | 6–11 AM · 12 PM–5 PM | 6–11 PM) and 9 AM is never adjacent to 9 PM.
+  The halves use `flex: 1 1 0` (`.laundry-hour-half`), NOT Bootstrap's `flex-fill`
+  (`1 1 auto`), which would size them by their labels instead of evenly.
+- **A date is picked on ONE full-width key: the horizontal date strip** (`DateWheel`,
+  `new_order_modal/date_wheel.{js,xml}`). It replaced the 📅 `input[type=date]` in v1.4.23
+  and the separate Today / Tomorrow keys in v1.4.29 — those two are now items in the strip
+  like any other, marked `(Today)` / `(Tomorrow)` under the date.
+  - **It flicks SIDEWAYS**, spanning the last 5 days through ~2 months out (`startOffset: -5`,
+    `days: 67`), so a backdated order and a far booking are both reachable.
+  - **Every field OPENS centred on today, but NOTHING is pre-selected** (`_initialIndex`
+    falls back to today; the state's dates stay `""`). Opening there saves the flick for the
+    common case; not selecting keeps a schedule from being confirmed without being looked at.
+    While nothing is picked, no item is dimmed either — there is no selection to make stand
+    out, so blurring the whole strip would only cost legibility.
+  - **`ITEM_W = 120` in `date_wheel.js` MUST equal `$laundry-wheel-item-w` in the SCSS** — the
+    scroll offset is read back as an item index (`round(scrollLeft / ITEM_W)`).
+  - **`padding-inline: calc(50% - item-w/2)` on the list** is what lets the first and last
+    dates reach the centre band, AND what makes `scrollLeft = index * ITEM_W` centre item
+    `index` at any modal width. Change one of the two and the JS index goes wrong.
+  - `onSelect` fires only after a **150 ms settle**, so sliding past a date doesn't pick it.
+  - ⚠ **A programmatic scroll must not count as choosing.** `_scrollToIndex` mutes selection
+    for the scroll it triggers (`this._muted`), and `onPointerDown` unmutes the moment the
+    cashier touches the strip. Without this the `onMounted` scroll fires the scroll handler,
+    whose settle then selects whatever date the strip opened on — which is exactly the
+    "default date" that was supposed to be gone (the v1.4.24–1.4.31 bug; it only appeared
+    once past days made the opening index non-zero, so `scrollTo` actually moved something).
+  - **The selection is a band on the COLUMN; the key itself stays grey.** The key shows the
+    neighbours too, so colouring the whole key highlights dates that were NOT picked (the
+    v1.4.26 bug). `.laundry-wheel-item-active` = primary + white + bold;
+    `.laundry-wheel-item-idle` = grey + `blur(0.7px)`.
+  - **`onWillUpdateProps` rolls the strip to a date set from outside** (an order being edited)
+    — otherwise the highlighted column would sit off-screen and the key would look empty.
+  - The list is `position: absolute; inset: 0`, NOT `height: 100%`: the key's height comes from
+    `min-height`, which a percentage height can't resolve against.
+- All four date rows are ONE `laundry_pos.DateRow` sub-template (same `t-set` pattern as
+  `HourPills`), so the strip exists once instead of four times.
+- **Continue is ALWAYS enabled; pressing it when incomplete marks the gaps red.** It used to
+  be `disabled` until `canConfirm`, which said nothing about *why*. Now `confirm()` sets
+  `state.showErrors` and returns; every `missing*` getter (and `isMissing(stateKey)`, which the
+  date/hour sub-templates call with the `field` they were handed) is gated on that flag, so the
+  modal never scolds a cashier about a section they haven't reached. The marks clear themselves
+  as each gap is filled. `.laundry-invalid` is an **outline**, not a border — the key grids are
+  flush blocks, so a border would resize every key inside them.
+- `fmtDateLabel` splits `YYYY-MM-DD` and builds a **local** `new Date(y, m-1, d)`. Do NOT pass
+  the string to `new Date()` — a bare date string is parsed as UTC and renders as the previous
+  day here.
+
+## Touch sizing for our modals — v1.4.20
+The POS runs on touchscreen laptops. Our dialogs were built at mouse metrics (lots of `.btn-sm`,
+~31px, spaced `gap-1` = 4px); they are now held to a **44px tap-target floor with 8px between
+adjacent targets**.
+- **One stylesheet, `static/src/touch/laundry_touch.scss`, scoped to `.laundry-touch`** — passed by
+  each of our dialogs as the Dialog **`contentClass`** prop. That prop lands the class on
+  `.modal-content`, which is why it also covers the **footer** buttons; `bodyClass` would not, since
+  the footer is a slot rendered outside the body div. Core POS dialogs keep their own metrics.
+- `.btn` becomes `inline-flex` + centred, because `min-height` alone leaves the label pinned to the
+  top of the button. `.btn.text-start` re-left-aligns the list-style buttons (service types, refund
+  tabs).
+- Template-side, `.btn-sm` was dropped and `gap-1` widened to `gap-2` on: the 24 hour pills, the
+  quick-date row (both since rebuilt as numpad grids — see v1.4.23), the service +/− steppers, the customer-row Unselect / Edit Details, and every
+  Settle row action (those take payments — they were the smallest, tightest targets in the module).
+- **RefundGatePopup's three mode tabs left the `btn-group`** (flush, zero gap) for a stacked
+  `gap-2` column, so two different approval paths are never a near-miss apart.
+- `ReprintCopiesPopup` already followed this (whole row is the target, `p-3`) — it's the pattern.
+- ⚠ The **product configurator** is CORE's dialog, so it has no `.laundry-touch`; its pills are
+  already `btn-lg` and our weight/note inputs are `form-control-lg`.
+
 ## Express pricing per item — v1.4.19
 Express used to be a flat **+50** (the `price_extra` on the Turnaround "Express" value). It is now a
 **per-item price**: every attribute value carries **`laundry_express_price`** ("Express Price",

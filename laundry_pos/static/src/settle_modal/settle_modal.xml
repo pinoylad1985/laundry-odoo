@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.SettleModal">
-        <Dialog title="'Settle Order'" size="'lg'">
+        <Dialog title="'Settle Order'" size="'lg'" contentClass="'laundry-touch'">
 
             <!-- Customer pre-selected from the Control Button: box with Unselect +
                  settlement buttons, all visible at once. -->
@@ -23,7 +23,7 @@
                             </div>
                         </div>
                         <div class="d-flex flex-column align-items-end gap-2 flex-shrink-0">
-                            <button class="btn btn-sm btn-outline-secondary" t-on-click="() => this.unselect()">Unselect</button>
+                            <button class="btn btn-outline-secondary" t-on-click="() => this.unselect()">Unselect</button>
                             <t t-if="sinfo.totalDue gt 0">
                                 <button t-if="sinfo.posOrdersAmountDue gt 0" class="btn btn-primary text-nowrap"
                                         t-on-click="() => this.settleOrders(state.selectedPartner)">Settle orders</button>
@@ -72,20 +72,20 @@
                                     Deposited: <t t-esc="fmt(-info.totalDue)"/>
                                 </div>
                             </div>
-                            <div class="d-flex flex-column gap-1 flex-shrink-0">
+                            <div class="d-flex flex-column gap-2 flex-shrink-0">
                                 <t t-if="info.totalDue gt 0">
                                     <button t-if="info.posOrdersAmountDue gt 0"
-                                            class="btn btn-primary btn-sm text-nowrap"
+                                            class="btn btn-primary text-nowrap"
                                             t-on-click="() => this.settleOrders(p)">Settle orders</button>
                                     <button t-if="info.invoicesAmountDue gt 0"
-                                            class="btn btn-primary btn-sm text-nowrap"
+                                            class="btn btn-primary text-nowrap"
                                             t-on-click="() => this.settleInvoices(p)">Settle invoices</button>
                                     <button t-if="info.remainingDue gt 0 and payLaterExists()"
-                                            class="btn btn-primary btn-sm text-nowrap"
+                                            class="btn btn-primary text-nowrap"
                                             t-on-click="() => this.depositMoney(p, info.remainingDue)">Settle due amount</button>
                                 </t>
                                 <button t-elif="payLaterExists()"
-                                        class="btn btn-outline-primary btn-sm text-nowrap"
+                                        class="btn btn-outline-primary text-nowrap"
                                         t-on-click="() => this.depositMoney(p)">Deposit money</button>
                             </div>
                         </div>

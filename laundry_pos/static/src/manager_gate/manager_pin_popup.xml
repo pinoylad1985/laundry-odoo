@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.ManagerPinPopup">
-        <Dialog title="title" size="'md'">
+        <Dialog title="title" size="'md'" contentClass="'laundry-touch'">
             <div class="laundry-manager-gate">
                 <p t-if="body" class="mb-1"><t t-esc="body"/></p>
                 <ul t-if="items.length" class="mb-2 ps-4">
