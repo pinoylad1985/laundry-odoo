@@ -233,9 +233,21 @@ patch(ProductScreen.prototype, {
             const vals = buildConfiguredLineVals(this.pos, tmpl, updated);
             if (!vals.product_id) vals.product_id = line.product_id;
             vals.qty = line.qty; // preserve quantity
+            // The rebuild starts from product + attributes ONLY, so everything the
+            // cashier typed has to be carried across by hand or a schedule change
+            // silently wipes it (v1.4.33: the WDF Actual Weight, and with it the
+            // receipt's weight line + rounding note, were lost this way).
+            const actual = line.laundry_actual_weight;
+            const note = line.customer_note;
+            if (actual) vals.laundry_actual_weight = actual;
             if (typeof order.removeOrderline === "function") order.removeOrderline(line);
             else if (typeof line.delete === "function") line.delete();
-            await this.pos.addLineToCurrentOrder(vals, {}, false);
+            const newLine = await this.pos.addLineToCurrentOrder(vals, {}, false);
+            // Set them on the new line too: `vals` alone doesn't always land them.
+            if (newLine && actual) newLine.laundry_actual_weight = actual;
+            if (newLine && note && typeof newLine.setCustomerNote === "function") {
+                newLine.setCustomerNote(note);
+            }
         }
     },
 

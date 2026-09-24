@@ -315,6 +315,15 @@ real, loaded field) so it survives reloads/reprints. It's shown as-is, like a va
   custom payload — so the configurator stashes the weight on confirm (`consumeWdfWeight`) and
   `PosStore.addLineToCurrentOrder` applies it once the line exists. (The cart-tap path uses our own
   `_laundryConfigureLine`.)
+- ⚠ **Three places REBUILD a laundry line (remove + re-add), and each must carry the line's data
+  across by hand** — `buildConfiguredLineVals` returns product + attributes + price_extra and
+  nothing else, so `qty`, `laundry_actual_weight` and `customer_note` are copied explicitly:
+  `_laundryConfigureLine` (cart tap) and **`_reapplyTatToLaundryLines`** (a schedule change in the
+  New Order modal). The latter copied only `qty` until v1.4.33 — changing the schedule after a WDF
+  was configured wiped its Actual Weight, which silently dropped the weight line AND the rounding
+  note from the receipt (both are gated on it in `order_line_patch.xml`) and let the pay-time sweep
+  re-bill the line at the bare 6KG minimum. Anything added to a laundry line from here on has to be
+  added to BOTH rebuilds.
 
 ## Secondary Type (reporting classification)
 `pos.order.laundry_secondary_type` (computed, **stored**) classifies each order **Order / Payment / Adjustment /
