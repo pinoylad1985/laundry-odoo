@@ -14,6 +14,12 @@
                   decoration-muted="billed"
                   decoration-warning="not billed and customer_match == 'new'"
                   create="0">
+                <!-- The hourly cron is the routine path; this is for when the
+                     counter is waiting on a drop-off that just happened. -->
+                <header>
+                    <button name="action_sync_now" type="object" string="Sync now"
+                            display="always" class="btn-secondary"/>
+                </header>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="customer_name" string="Customer" optional="show"/>

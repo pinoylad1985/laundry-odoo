@@ -16,9 +16,11 @@ a link to the POS order it was billed on.
     'depends': ['laundry_pos'],
     'data': [
         'security/ir.model.access.csv',
+        'data/laundry_locker_cron.xml',
         'views/laundry_locker_transaction_views.xml',
         'views/laundry_locker_menus.xml',
     ],
+    'post_init_hook': 'post_init_hook',
     'installable': True,
     'application': True,
     'license': 'LGPL-3',

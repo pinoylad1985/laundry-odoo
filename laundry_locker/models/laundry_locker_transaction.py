@@ -59,6 +59,12 @@ class LaundryLockerTransaction(models.Model):
         string='Phone Key', compute='_compute_phone_last10', store=True, index=True
     )
 
+    # What the locker actually sent. Kept so a later sync can tell a value
+    # nobody touched from one a cashier corrected, and only overwrite the
+    # former - otherwise the hourly pull would put the customer's typo back.
+    source_name = fields.Char(string='Source Customer', copy=False)
+    source_phone = fields.Char(string='Source Phone', copy=False)
+
     # --- what they dropped off ------------------------------------------
     service = fields.Char(string='Service')
     turnaround = fields.Char(string='Turnaround')
