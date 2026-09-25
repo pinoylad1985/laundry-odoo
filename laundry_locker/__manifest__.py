@@ -19,7 +19,13 @@ a link to the POS order it was billed on.
         'data/laundry_locker_cron.xml',
         'views/laundry_locker_transaction_views.xml',
         'views/laundry_locker_menus.xml',
+        'views/pos_order_views.xml',
     ],
+    'assets': {
+        'point_of_sale._assets_pos': [
+            'laundry_locker/static/src/**/*',
+        ],
+    },
     'post_init_hook': 'post_init_hook',
     'installable': True,
     'application': True,

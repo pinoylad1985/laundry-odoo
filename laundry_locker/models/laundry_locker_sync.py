@@ -4,7 +4,7 @@ import logging
 import uuid
 from datetime import datetime, timezone
 from urllib.error import HTTPError
-from urllib.parse import urlencode
+from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
 from odoo import _, api, fields, models
@@ -107,6 +107,45 @@ class LaundryLockerTransaction(models.Model):
         with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             body = response.read()
         return json.loads(body.decode('utf-8')) if body else None
+
+    @api.model
+    def _firebase_patch(self, path, payload):
+        """Merge-write one node. PATCH, never PUT: siblings must survive."""
+        url = '%s/%s.json' % (self._firebase_base_url(), path.strip('/'))
+        body = json.dumps(payload).encode('utf-8')
+        request = Request(
+            url, data=body, method='PATCH',
+            headers={'Content-Type': 'application/json'},
+        )
+        with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
+            response.read()
+
+    def _push_billed_to_firebase(self):
+        """Write the billed state back for the dashboard to show.
+
+        It goes to /lockerBilled/{ref}, NOT onto the transaction itself:
+        /lockerTransactions is write-false, and a full `--once` rebuild PUTs the
+        whole node, which would wipe anything we had added there. Same reason
+        /lockerFlags and /lockerDoors are their own nodes.
+
+        Never fatal - Odoo is the source of truth for billing; this is the copy
+        the dashboard reads.
+        """
+        for tx in self:
+            if not tx.ref:
+                continue
+            payload = {
+                'billed': bool(tx.billed),
+                'at': self._now_ms(),
+                'order': tx.pos_order_id.pos_reference or '',
+            }
+            try:
+                self._firebase_patch('lockerBilled/%s' % quote(tx.ref, safe=''), payload)
+            except Exception:  # noqa: BLE001
+                _logger.warning(
+                    'Locker: could not write back the billed state for %s', tx.ref,
+                    exc_info=True,
+                )
 
     # ------------------------------------------------------------------
     # mapping

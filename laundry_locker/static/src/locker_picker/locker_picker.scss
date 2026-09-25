@@ -1,0 +1,25 @@
+// The picker is a full table on a touchscreen: rows are tap targets, so they
+// carry the same 44px floor as the rest of our dialogs (.laundry-touch).
+.laundry-locker-picker {
+    .laundry-locker-rows {
+        max-height: 55vh;
+        overflow: auto;
+    }
+
+    .laundry-locker-row {
+        cursor: pointer;
+
+        td {
+            padding-block: 0.6rem;
+            white-space: nowrap;
+        }
+
+        &:hover {
+            background-color: var(--bs-secondary-bg, #e9ecef);
+        }
+    }
+
+    .laundry-locker-verify {
+        cursor: pointer;
+    }
+}

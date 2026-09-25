@@ -55,6 +55,12 @@
                     <button name="action_rematch_partner" type="object"
                             string="Re-check Customer"
                             help="Re-run the phone lookup after correcting the number."/>
+                    <!-- The till marks a transaction billed as soon as it is
+                         picked, so an abandoned order needs a way back. -->
+                    <button name="action_unbill" type="object"
+                            string="Mark Unbilled"
+                            invisible="not billed"
+                            confirm="Put this transaction back in the till's locker picker?"/>
                 </header>
                 <sheet>
                     <div class="oe_title">

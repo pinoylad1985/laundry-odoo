@@ -1,0 +1,144 @@
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
+
+from .laundry_locker_transaction import phone_last10
+
+
+class LaundryLockerTransaction(models.Model):
+    _inherit = 'laundry.locker.transaction'
+
+    # ------------------------------------------------------------------
+    # what the POS picker reads
+    # ------------------------------------------------------------------
+    def _pos_row(self):
+        """One transaction as the till's picker shows it."""
+        self.ensure_one()
+        return {
+            'id': self.id,
+            'ref': self.ref or '',
+            'location_name': self.location_name or '',
+            'customer_name': self.customer_name or '',
+            'phone': self.phone or '',
+            'service': self.service or '',
+            'turnaround': self.turnaround or '',
+            'dirty_door': self.dirty_door or '',
+            'status_label': self.status_label or '',
+            'customer_match': self.customer_match or 'new',
+            'partner_id': self.partner_id.id or False,
+            'partner_name': self.partner_id.name or '',
+            'phone_verified': self.phone_verified,
+            'created_at': fields.Datetime.to_string(self.created_at) if self.created_at else '',
+        }
+
+    @api.model
+    def get_unbilled_for_pos(self, limit=300):
+        """The unbilled locker drop-offs, newest first.
+
+        Fetched when LOCKER is picked rather than pre-loaded with the session:
+        a drop-off that happens mid-shift has to be pickable without reopening
+        the register.
+        """
+        transactions = self.search([('billed', '=', False)], limit=limit)
+        return [tx._pos_row() for tx in transactions]
+
+    @api.model
+    def get_rows_for_pos(self, transaction_ids):
+        """Specific rows, billed or not - for re-opening one already taken."""
+        return [tx._pos_row() for tx in self.browse(transaction_ids).exists()]
+
+    @api.model
+    def pos_check_phone(self, phone):
+        """Re-run the Returning/New lookup for a number typed at the till."""
+        key = phone_last10(phone)
+        partner = self.env['res.partner']
+        if key:
+            partner = partner.search(
+                [('laundry_phone_last10', '=', key)], limit=1, order='id'
+            )
+        return {
+            'last10': key,
+            'customer_match': 'returning' if partner else 'new',
+            'partner_id': partner.id or False,
+            'partner_name': partner.name or '',
+        }
+
+    # ------------------------------------------------------------------
+    # taking one at the till
+    # ------------------------------------------------------------------
+    def pos_claim(self, phone=None, customer_name=None, phone_verified=False, recheck=False):
+        """Take this transaction for the order being built at the till.
+
+        Marks it billed straight away rather than at payment: two tills working
+        the same locker queue must not both pick up the same drop-off. An order
+        that is then abandoned is put back with Mark Unbilled.
+
+        `recheck` is the same call made again for a transaction THIS till
+        already took - correcting the number from the New Order modal - so the
+        already-billed guard would otherwise refuse its own claim.
+        """
+        self.ensure_one()
+        if self.billed and not recheck:
+            order_ref = self.pos_order_id.pos_reference
+            if order_ref:
+                raise UserError(
+                    _('Ref %(ref)s has already been billed on %(order)s.',
+                      ref=self.ref, order=order_ref)
+                )
+            raise UserError(_('Ref %s has already been billed.') % self.ref)
+
+        corrections = {}
+        if phone is not None and (phone or '').strip() != (self.phone or ''):
+            corrections['phone'] = (phone or '').strip() or False
+        if customer_name is not None and (customer_name or '').strip() != (self.customer_name or ''):
+            corrections['customer_name'] = (customer_name or '').strip() or False
+        if phone_verified:
+            corrections['phone_verified'] = True
+        if corrections:
+            # Writing the phone re-runs the match, so partner_id below is
+            # already the answer for the CORRECTED number.
+            self.write(corrections)
+
+        partner = self.partner_id
+        if not partner:
+            if not self.phone_verified:
+                raise UserError(_(
+                    'This number has no customer yet. Call it and confirm it rings '
+                    'before a contact is created from it - a locker customer who '
+                    'mistyped their number would otherwise be saved under it '
+                    'permanently.'
+                ))
+            if not self.phone:
+                raise UserError(_('A phone number is needed to create the customer.'))
+            partner = self.env['res.partner'].create({
+                'name': self.customer_name or self.ref,
+                'phone': self.phone,
+            })
+            self.partner_id = partner
+
+        if not self.billed:
+            self._mark_billed()
+        return {
+            'id': self.id,
+            'ref': self.ref,
+            'partner_id': partner.id,
+            'partner_name': partner.name,
+            'phone': self.phone or '',
+            'customer_name': self.customer_name or '',
+            'customer_match': self.customer_match,
+            'service': self.service or '',
+            'turnaround': self.turnaround or '',
+            'dirty_door': self.dirty_door or '',
+            'location_name': self.location_name or '',
+        }
+
+    def _mark_billed(self, pos_order=None):
+        vals = {'billed': True, 'billed_date': fields.Datetime.now()}
+        if pos_order:
+            vals['pos_order_id'] = pos_order.id
+        self.write(vals)
+        self._push_billed_to_firebase()
+
+    def action_unbill(self):
+        """Put a transaction back in the picker - for an abandoned order."""
+        self.write({'billed': False, 'billed_date': False, 'pos_order_id': False})
+        self._push_billed_to_firebase()
