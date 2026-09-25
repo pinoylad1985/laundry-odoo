@@ -19,7 +19,9 @@
         }
     }
 
-    .laundry-locker-verify {
-        cursor: pointer;
+    // The customer block swaps between displayed and editable; pinning a
+    // floor keeps the dialog from jumping as it changes shape.
+    .laundry-locker-customer {
+        min-height: 9.5rem;
     }
 }
