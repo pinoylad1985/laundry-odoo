@@ -1,4 +1,12 @@
+import logging
+
 from odoo import api, fields, models
+
+_logger = logging.getLogger(__name__)
+
+# An order only takes a drop-off once it has been rung up. Everything before
+# that is a basket, and a basket reserves nothing.
+VALIDATED_STATES = ('paid', 'done', 'invoiced')
 
 
 class PosOrder(models.Model):
@@ -12,35 +20,54 @@ class PosOrder(models.Model):
         help="PudoPro reference of the locker drop-off this order bills.",
     )
 
-    def _link_laundry_locker(self):
-        """Point the locker transaction at the order that billed it.
+    def _sync_laundry_locker(self):
+        """Settle locker drop-offs against the orders that actually took them.
 
-        The transaction was already marked billed at the till (so a second till
-        could not take it while this order was being built); this is where it
-        learns WHICH order, once that order exists server-side.
+        Picking a drop-off at the till reserves NOTHING: an order still being
+        built has taken nothing, so the drop-off stays unbilled and stays in
+        every till's picker, and an abandoned order needs no cleanup. It is
+        billed here instead, when an order is validated - and whichever order
+        is validated first is the one that gets it.
+
+        The same hook hands one back: a refund means the bag is going home
+        unwashed, so the drop-off returns to the queue to be billed again.
         """
         Transaction = self.env['laundry.locker.transaction']
-        for order in self.filtered('laundry_locker_ref'):
-            transaction = Transaction.search(
-                [('ref', '=', order.laundry_locker_ref)], limit=1
-            )
-            if not transaction or transaction.pos_order_id == order:
+        for order in self:
+            if order.state not in VALIDATED_STATES:
                 continue
-            transaction.pos_order_id = order
-            if not transaction.billed:
-                transaction._mark_billed(order)
-            else:
-                # Already billed - just let the dashboard know the order number.
-                transaction._push_billed_to_firebase()
+
+            if order.laundry_locker_ref:
+                transaction = Transaction.search(
+                    [('ref', '=', order.laundry_locker_ref)], limit=1
+                )
+                if transaction:
+                    transaction._laundry_take(order)
+
+            # Read off the REFUNDED lines, not off this order's own ref: a
+            # refund is built by the till from the original's lines and does
+            # not carry the locker ref across.
+            originals = order.lines.refunded_orderline_id.order_id
+            for original in originals.filtered('laundry_locker_ref'):
+                transaction = Transaction.search(
+                    [('ref', '=', original.laundry_locker_ref)], limit=1
+                )
+                # Only give back what that order actually took - if another
+                # order won the drop-off, refunding this one must not free it.
+                if transaction and transaction.pos_order_id == original:
+                    transaction._laundry_give_back()
 
     @api.model_create_multi
     def create(self, vals_list):
         orders = super().create(vals_list)
-        orders._link_laundry_locker()
+        orders._sync_laundry_locker()
         return orders
 
     def write(self, vals):
         result = super().write(vals)
-        if 'laundry_locker_ref' in vals:
-            self._link_laundry_locker()
+        # `state` matters as much as the ref: an order that syncs as a draft
+        # and is validated later reaches its billing moment through a state
+        # change, with the ref untouched.
+        if 'laundry_locker_ref' in vals or 'state' in vals:
+            self._sync_laundry_locker()
         return result

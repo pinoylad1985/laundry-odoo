@@ -1,7 +1,11 @@
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .laundry_locker_transaction import phone_last10
+
+_logger = logging.getLogger(__name__)
 
 
 class LaundryLockerTransaction(models.Model):
@@ -99,19 +103,24 @@ class LaundryLockerTransaction(models.Model):
     # ------------------------------------------------------------------
     # taking one at the till
     # ------------------------------------------------------------------
-    def pos_claim(self, phone=None, customer_name=None, phone_verified=False, recheck=False):
-        """Take this transaction for the order being built at the till.
+    def pos_claim(self, phone=None, customer_name=None, phone_verified=False):
+        """Put this transaction on the order being built at the till.
 
-        Marks it billed straight away rather than at payment: two tills working
-        the same locker queue must not both pick up the same drop-off. An order
-        that is then abandoned is put back with Mark Unbilled.
+        This RESERVES NOTHING. A drop-off stays unbilled and stays in every
+        till's picker until an order is actually validated, so the same bag can
+        be picked at two tills and the sale that is rung up first is the one
+        that takes it (see pos.order._sync_laundry_locker). The cost of that is
+        one till occasionally losing a basket it was building; the cost of
+        reserving it at the pick was worse - an order abandoned mid-build
+        stranded the drop-off, billed against nothing and gone from the queue.
 
-        `recheck` is the same call made again for a transaction THIS till
-        already took - correcting the number from the New Order modal - so the
-        already-billed guard would otherwise refuse its own claim.
+        What this DOES settle is the customer: a number that matched nobody
+        becomes a contact here, on the cashier's word that it rang.
         """
         self.ensure_one()
-        if self.billed and not recheck:
+        # The only claim still refused: a validated order already took it, and
+        # that is not something a second till can undo from the picker.
+        if self.billed:
             order_ref = self.pos_order_id.pos_reference
             if order_ref:
                 raise UserError(
@@ -149,8 +158,6 @@ class LaundryLockerTransaction(models.Model):
             })
             self.partner_id = partner
 
-        if not self.billed:
-            self._mark_billed()
         # The same shape a picker row has, so the modal reads one thing whether
         # it came from the list or from a claim. The partner is pinned on top
         # because it may have been created a few lines above.
@@ -166,6 +173,41 @@ class LaundryLockerTransaction(models.Model):
         self._push_billed_to_firebase()
 
     def action_unbill(self):
-        """Put a transaction back in the picker - for an abandoned order."""
+        """Put a transaction back in the picker - a rescue, run by hand."""
         self.write({'billed': False, 'billed_date': False, 'pos_order_id': False})
         self._push_billed_to_firebase()
+
+    # ------------------------------------------------------------------
+    # billing, which happens when an order is validated - not when it is built
+    # ------------------------------------------------------------------
+    def _laundry_take(self, pos_order):
+        """Bill this drop-off on a validated order. First one there wins.
+
+        Two tills can both have this drop-off on an order they are building;
+        only one of them can have sold it. Returns whether `pos_order` is the
+        one that got it.
+        """
+        self.ensure_one()
+        if self.billed and self.pos_order_id and self.pos_order_id != pos_order:
+            _logger.info(
+                'Locker %s was already billed on %s; %s did not take it.',
+                self.ref, self.pos_order_id.pos_reference, pos_order.pos_reference,
+            )
+            return False
+        if not self.billed:
+            self._mark_billed(pos_order)
+            return True
+        # Billed with no order on it - marked by hand - so this sale adopts it.
+        if self.pos_order_id != pos_order:
+            self.pos_order_id = pos_order
+        self._push_billed_to_firebase()
+        return True
+
+    def _laundry_give_back(self):
+        """Hand a billed drop-off back - its sale was refunded.
+
+        The bag is going home unwashed, so the drop-off returns to the queue
+        and can be billed again, by a rebooking most often.
+        """
+        for transaction in self.filtered('billed'):
+            transaction.action_unbill()

@@ -91,6 +91,9 @@ class LaundryLockerTransaction(models.Model):
     )
 
     # --- billing ---------------------------------------------------------
+    # Set when a POS order carrying this ref is VALIDATED, not when a till
+    # picks it: until a sale is rung up the drop-off is nobody's, and stays in
+    # every till's picker. Cleared again if that sale is refunded.
     billed = fields.Boolean(string='Billed', index=True, copy=False)
     billed_date = fields.Datetime(string='Billed On', copy=False)
     pos_order_id = fields.Many2one(

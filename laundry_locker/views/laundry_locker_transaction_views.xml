@@ -62,8 +62,11 @@
                     <button name="action_rematch_partner" type="object"
                             string="Re-check Customer"
                             help="Re-run the phone lookup after correcting the number."/>
-                    <!-- The till marks a transaction billed as soon as it is
-                         picked, so an abandoned order needs a way back. -->
+                    <!-- A transaction is billed when a POS order is
+                         VALIDATED, and un-billed automatically when that sale
+                         is refunded. This is the manual way back, for a
+                         transaction billed on an order that went wrong some
+                         other way. -->
                     <button name="action_unbill" type="object"
                             string="Mark Unbilled"
                             invisible="not billed"

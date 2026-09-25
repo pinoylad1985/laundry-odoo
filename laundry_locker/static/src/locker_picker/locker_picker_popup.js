@@ -205,7 +205,6 @@ export class LockerPickerPopup extends Component {
                     phone: this.state.phone,
                     customer_name: this.state.customerName,
                     phone_verified: this.state.verified,
-                    recheck: this.isRecheck,
                 }
             );
             this.props.getPayload(result);

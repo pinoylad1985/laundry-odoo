@@ -20,7 +20,9 @@ patch(NewOrderModal.prototype, {
         // of sending the cashier back to the queue.
         const ref = this.pos.getOrder()?.laundry_locker_ref;
         if (ref) {
-            this.lockerState.claim = { ref, partner_name: "", phone: "", id: null };
+            this.lockerState.claim = {
+                ref, partner_name: "", phone: "", id: null, phone_verified: false,
+            };
             this._loadLockerClaim(ref);
         }
     },
@@ -29,7 +31,7 @@ patch(NewOrderModal.prototype, {
         const rows = await this.lockerOrm.searchRead(
             "laundry.locker.transaction",
             [["ref", "=", ref]],
-            ["id", "ref", "phone", "customer_name", "partner_id"],
+            ["id", "ref", "phone", "customer_name", "partner_id", "phone_verified"],
             { limit: 1 }
         );
         const row = rows[0];
@@ -42,6 +44,9 @@ patch(NewOrderModal.prototype, {
             phone: row.phone || "",
             customer_name: row.customer_name || "",
             partner_name: row.partner_id ? row.partner_id[1] : "",
+            // Whether the number was taken on a cashier's word rather than
+            // matched - which is the only case Correct number is for.
+            phone_verified: !!row.phone_verified,
         };
     },
 
@@ -53,23 +58,19 @@ patch(NewOrderModal.prototype, {
                 this.openLockerPicker(false);
             }
         } else if (previous === "locker") {
-            // Switching away releases the drop-off, or it would sit billed
-            // against an order that no longer bills it.
             this.releaseLockerClaim();
         }
     },
 
-    async releaseLockerClaim() {
-        const claim = this.lockerState.claim;
+    // Dropping a drop-off is purely local: picking one never took it off
+    // anyone, so there is nothing to give back. Unbilling here would be
+    // actively wrong - it would free a drop-off that a DIFFERENT till may
+    // have meanwhile sold.
+    releaseLockerClaim() {
         this.lockerState.claim = null;
         const order = this.pos.getOrder();
         if (order) {
             order.laundry_locker_ref = false;
-        }
-        if (claim?.id) {
-            await this.lockerOrm.call(
-                "laundry.locker.transaction", "action_unbill", [claim.id]
-            );
         }
     },
 
@@ -85,13 +86,8 @@ patch(NewOrderModal.prototype, {
         if (!result) {
             return;
         }
-        // Swapping to a different drop-off releases the first one, or it would
-        // sit billed against an order that never bills it.
-        if (previous?.id && previous.id !== result.id) {
-            await this.lockerOrm.call(
-                "laundry.locker.transaction", "action_unbill", [previous.id]
-            );
-        }
+        // Swapping to another drop-off needs no release either - see
+        // releaseLockerClaim.
         this.lockerState.claim = result;
 
         const order = this.pos.getOrder();
