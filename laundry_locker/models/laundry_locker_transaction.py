@@ -119,6 +119,22 @@ class LaundryLockerTransaction(models.Model):
     pos_order_id = fields.Many2one(
         'pos.order', string='POS Order', ondelete='set null', copy=False
     )
+    # Both copied off the order and STORED, so the locker list can be read,
+    # searched and grouped on them without opening the order - and so the two
+    # numbers are never mistaken for each other. The ORDER number is the one
+    # the counter calls out and the one printed big on the receipt, and it is
+    # NOT unique: it restarts with every session. The RECEIPT number is.
+    #
+    # Computed, not related: a stored related is writable, and a stray write
+    # here would travel back onto the pos.order.
+    pos_order_number = fields.Char(
+        string='Order #', compute='_compute_pos_order_numbers', store=True, index=True,
+        help="Order number of the sale that billed this drop-off. Not unique.",
+    )
+    pos_order_ref = fields.Char(
+        string='Receipt #', compute='_compute_pos_order_numbers', store=True, index=True,
+        help="Receipt number of the sale that billed this drop-off. Unique.",
+    )
 
     synced_at = fields.Datetime(string='Last Synced')
 
@@ -151,6 +167,12 @@ class LaundryLockerTransaction(models.Model):
             tx.partner_id = self.env['res.partner'].search(
                 [('laundry_phone_last10', '=', key)], limit=1, order='id'
             )
+
+    @api.depends('pos_order_id.tracking_number', 'pos_order_id.pos_reference')
+    def _compute_pos_order_numbers(self):
+        for tx in self:
+            tx.pos_order_number = tx.pos_order_id.tracking_number or False
+            tx.pos_order_ref = tx.pos_order_id.pos_reference or False
 
     @api.depends('partner_id')
     def _compute_customer_match(self):

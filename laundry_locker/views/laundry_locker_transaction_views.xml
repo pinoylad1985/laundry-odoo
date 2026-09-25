@@ -36,6 +36,13 @@
                 <field name="dirty_door" string="Dirty Door" optional="show"/>
                 <field name="status_label" string="Status" optional="show"/>
                 <field name="billed" string="Billed" widget="boolean_toggle" readonly="1" optional="show"/>
+                <!-- Filled in when the drop-off is billed, and emptied again
+                     if that sale is refunded. Order # is what the counter
+                     calls out and is NOT unique - it restarts each session -
+                     so Receipt # is here beside it for when one has to be
+                     found for certain. -->
+                <field name="pos_order_number" string="Order #" optional="show"/>
+                <field name="pos_order_ref" string="Receipt #" optional="show"/>
                 <field name="customer_match" string="Customer Match" widget="badge"
                        decoration-success="customer_match == 'returning'"
                        decoration-warning="customer_match == 'new'"
@@ -105,6 +112,8 @@
                         <group string="Billing">
                             <field name="billed" readonly="1"/>
                             <field name="pos_order_id" readonly="1"/>
+                            <field name="pos_order_number" readonly="1"/>
+                            <field name="pos_order_ref" readonly="1"/>
                             <field name="billed_date" readonly="1"/>
                         </group>
                         <group string="Sync">
@@ -131,6 +140,10 @@
                 <field name="phone" string="Phone"
                        filter_domain="['|', ('phone', 'ilike', self), ('phone_last10', 'ilike', self)]"/>
                 <field name="location_name" string="Location"/>
+                <!-- Both, under one box: a counter holding a receipt does not
+                     stop to work out which of the two numbers it is. -->
+                <field name="pos_order_number" string="Order / Receipt #"
+                       filter_domain="['|', ('pos_order_number', 'ilike', self), ('pos_order_ref', 'ilike', self)]"/>
                 <filter name="filter_unbilled" string="Unbilled"
                         domain="[('billed', '=', False)]"/>
                 <filter name="filter_billed" string="Billed"

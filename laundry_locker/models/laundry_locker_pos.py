@@ -4,6 +4,7 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .laundry_locker_transaction import ph_local_phone, phone_last10
+from .pos_order import VALIDATED_STATES
 
 _logger = logging.getLogger(__name__)
 
@@ -192,12 +193,59 @@ class LaundryLockerTransaction(models.Model):
             return
         partner.write({'street': self.location_name, 'street2': LOCKER_ADDRESS_LINE2})
 
-    def _mark_billed(self, pos_order=None):
+    def _mark_billed(self, pos_order=None, push=True):
         vals = {'billed': True, 'billed_date': fields.Datetime.now()}
         if pos_order:
             vals['pos_order_id'] = pos_order.id
         self.write(vals)
-        self._push_billed_to_firebase()
+        # `push` is off only where the dashboard was already told - see
+        # _laundry_adopt_billed_orders.
+        if push:
+            self._push_billed_to_firebase()
+
+    def _laundry_adopt_billed_orders(self):
+        """Ask the ORDERS whether these drop-offs were already sold.
+
+        The locker list is disposable: it is rebuilt from the feed, and rows
+        are deleted and resynced whenever the mapping changes. What is NOT
+        disposable is the order - `pos.order.laundry_locker_ref` is written at
+        the till, stored, and stays there for the life of the sale. So a row
+        arriving from the feed asks the orders about itself, instead of
+        reappearing in every till's picker for a bag that was collected weeks
+        ago.
+
+        Only for rows that arrive UNBILLED, and only on create - running this
+        over existing rows would quietly undo Mark Unbilled, which is the
+        counter's way of putting a wrongly-billed drop-off back.
+        """
+        candidates = self.filtered(lambda t: t.ref and not t.billed)
+        if not candidates:
+            return
+        orders = self.env['pos.order'].search(
+            [('laundry_locker_ref', 'in', candidates.mapped('ref')),
+             ('state', 'in', VALIDATED_STATES)],
+            order='id',
+        )
+        by_ref = {}
+        for order in orders:
+            # A refunded sale handed the drop-off back, so it is unbilled and
+            # has to stay that way - see _laundry_give_back. Refunds here are
+            # always whole-order, so one refunded line settles it.
+            if order.lines.refund_orderline_ids:
+                continue
+            by_ref.setdefault(order.laundry_locker_ref, order)  # first one wins
+        for transaction in candidates:
+            order = by_ref.get(transaction.ref)
+            if order:
+                # Nothing is pushed to Firebase: /lockerBilled already says
+                # billed from the original sale, and the feed never rebuilds
+                # that node. Re-announcing it on a full resync would be a few
+                # hundred writes saying what is already there.
+                transaction._mark_billed(order, push=False)
+                _logger.info(
+                    'Locker %s re-adopted by its existing order %s.',
+                    transaction.ref, order.pos_reference,
+                )
 
     def action_unbill(self):
         """Put a transaction back in the picker - a rescue, run by hand."""
