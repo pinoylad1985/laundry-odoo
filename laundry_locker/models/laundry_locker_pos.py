@@ -23,6 +23,18 @@ class LaundryLockerTransaction(models.Model):
         meridiem = 'AM' if local.hour < 12 else 'PM'
         return f'{local:%Y-%m-%d} {hour}:{local:%M} {meridiem}'
 
+    def _pos_schedule(self, value):
+        """A stored datetime as the New Order modal's own date + hour pair.
+
+        The modal keeps its schedule as a `YYYY-MM-DD` string and an `HH:00`
+        hour key, so handing it those directly is what lets a locker booking
+        drop into the schedule step without being re-picked.
+        """
+        if not value:
+            return {'date': '', 'hour': ''}
+        local = fields.Datetime.context_timestamp(self, value)
+        return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:00'}
+
     def _pos_row(self):
         """One transaction as the till's picker shows it."""
         self.ensure_one()
@@ -42,6 +54,14 @@ class LaundryLockerTransaction(models.Model):
             'phone_verified': self.phone_verified,
             'new_laundry_at': self._pos_datetime(self.new_laundry_at),
             'created_at': self._pos_datetime(self.created_at),
+            'pickup_datetime': self._pos_datetime(self.pickup_datetime),
+            'delivery_datetime': self._pos_datetime(self.delivery_datetime),
+            # The same two dates again, in the shape the New Order modal fills
+            # its schedule step from - the strings above are for reading.
+            'schedule': {
+                'pickup': self._pos_schedule(self.pickup_datetime),
+                'delivery': self._pos_schedule(self.delivery_datetime),
+            },
         }
 
     @api.model
@@ -131,19 +151,12 @@ class LaundryLockerTransaction(models.Model):
 
         if not self.billed:
             self._mark_billed()
-        return {
-            'id': self.id,
-            'ref': self.ref,
-            'partner_id': partner.id,
-            'partner_name': partner.name,
-            'phone': self.phone or '',
-            'customer_name': self.customer_name or '',
-            'customer_match': self.customer_match,
-            'service': self.service or '',
-            'turnaround': self.turnaround or '',
-            'dirty_door': self.dirty_door or '',
-            'location_name': self.location_name or '',
-        }
+        # The same shape a picker row has, so the modal reads one thing whether
+        # it came from the list or from a claim. The partner is pinned on top
+        # because it may have been created a few lines above.
+        result = self._pos_row()
+        result.update({'partner_id': partner.id, 'partner_name': partner.name})
+        return result
 
     def _mark_billed(self, pos_order=None):
         vals = {'billed': True, 'billed_date': fields.Datetime.now()}

@@ -31,6 +31,8 @@
                 <field name="phone" string="Phone" optional="show"/>
                 <field name="service" string="Service" optional="show"/>
                 <field name="turnaround" string="Turnaround" optional="show"/>
+                <field name="pickup_datetime" string="Pickup" optional="show"/>
+                <field name="delivery_datetime" string="Delivery" optional="show"/>
                 <field name="dirty_door" string="Dirty Door" optional="show"/>
                 <field name="status_label" string="Status" optional="show"/>
                 <field name="billed" string="Billed" widget="boolean_toggle" readonly="1" optional="show"/>
@@ -90,6 +92,10 @@
                             <field name="dirty_door" readonly="1"/>
                             <field name="service" readonly="1"/>
                             <field name="turnaround" readonly="1"/>
+                            <!-- What the customer picked at the locker; the
+                                 till carries it into the order's schedule. -->
+                            <field name="pickup_datetime" readonly="1"/>
+                            <field name="delivery_datetime" readonly="1"/>
                             <field name="status_label" readonly="1"/>
                             <field name="status_code" readonly="1"/>
                         </group>

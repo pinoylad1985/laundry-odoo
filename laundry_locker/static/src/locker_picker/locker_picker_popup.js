@@ -73,7 +73,7 @@ export class LockerPickerPopup extends Component {
             const haystack = [
                 row.ref, row.customer_name, row.phone, row.location_name,
                 row.service, row.turnaround, row.dirty_door, row.status_label,
-                row.new_laundry_at,
+                row.new_laundry_at, row.pickup_datetime, row.delivery_datetime,
             ].join(" ").toLowerCase();
             return words.every((word) => haystack.includes(word));
         });

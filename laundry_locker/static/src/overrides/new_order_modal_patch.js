@@ -106,6 +106,27 @@ patch(NewOrderModal.prototype, {
         if (this.state.selectedPartner) {
             this.state.customerType = "returning";
         }
+        this._applyLockerSchedule(result.schedule);
+    },
+
+    // The slot the customer picked at the locker is the one they were
+    // promised, so it fills the schedule step instead of being re-picked from
+    // memory. It is not locked: a cashier can still change it, and changing it
+    // re-prices the lines through the usual TAT path.
+    _applyLockerSchedule(schedule) {
+        if (!schedule) {
+            return;
+        }
+        // Locker shares pickup_delivery's state keys: the RETURN leg is
+        // pdDel*, not delivery*, which belongs to drop-off & delivery.
+        if (schedule.pickup?.date) {
+            this.state.pickupDate = schedule.pickup.date;
+            this.state.pickupHour = schedule.pickup.hour;
+        }
+        if (schedule.delivery?.date) {
+            this.state.pdDelDate = schedule.delivery.date;
+            this.state.pdDelHour = schedule.delivery.hour;
+        }
     },
 
     // The matched customer may not be one of the partners the session

@@ -3,6 +3,8 @@ import json
 import logging
 import uuid
 from datetime import datetime, timezone
+
+import pytz
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
@@ -45,6 +47,12 @@ REQUEST_TIMEOUT = 30
 LOCKER_CHANNEL = 'locker'
 LOCKER_REF_PREFIX = 'LX-'
 
+# The schedule in the feed is a wall-clock date and hour at the locker, and
+# every locker is in the Philippines - it is a property of the source, not of
+# whoever is reading it in Odoo. It is converted once, on the way in, so
+# everything downstream is an ordinary UTC-naive Odoo datetime.
+FEED_TIMEZONE = 'Asia/Manila'
+
 
 def _clean(value):
     """A feed value as a stripped string, or False for an empty one."""
@@ -63,6 +71,31 @@ def _ms_to_datetime(value):
     if ms <= 0:
         return False
     return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc).replace(tzinfo=None)
+
+
+def _feed_datetime(date_text, hour_text):
+    """A feed `YYYY-MM-DD` date plus its hour-of-day, as a UTC-naive datetime.
+
+    The hour arrives as a string ("21"), and a booking with a date but no hour
+    is real - the customer picked a day and left the time to the shop - so a
+    missing or unreadable hour falls back to midnight rather than losing the
+    date with it.
+    """
+    date_text = _clean(date_text)
+    if not date_text:
+        return False
+    try:
+        day = datetime.strptime(str(date_text)[:10], '%Y-%m-%d')
+    except ValueError:
+        return False
+    try:
+        hour = int(float(str(hour_text).strip()))
+    except (TypeError, ValueError, AttributeError):
+        hour = 0
+    if not 0 <= hour <= 23:
+        hour = 0
+    local = pytz.timezone(FEED_TIMEZONE).localize(day.replace(hour=hour))
+    return local.astimezone(pytz.utc).replace(tzinfo=None)
 
 
 class LaundryLockerTransaction(models.Model):
@@ -196,6 +229,12 @@ class LaundryLockerTransaction(models.Model):
             'source_phone': phone,
             'service': service or False,
             'turnaround': _clean(time_block.get('turnaround')),
+            'pickup_datetime': _feed_datetime(
+                time_block.get('pickupDate'), time_block.get('pickupHour')
+            ),
+            'delivery_datetime': _feed_datetime(
+                time_block.get('deliveryDate'), time_block.get('deliveryHour')
+            ),
             'dirty_door': _clean(door),
             'status_code': _clean(record.get('status')),
             'status_label': (

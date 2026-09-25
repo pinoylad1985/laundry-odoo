@@ -50,6 +50,13 @@ class LaundryLockerTransaction(models.Model):
     turnaround = fields.Char(string='Turnaround')
     dirty_door = fields.Char(string='Dirty Door')
 
+    # The slot the customer chose at the locker: pickup = the bag leaving the
+    # locker, delivery = the clean laundry coming back. Carried into the New
+    # Order modal when the drop-off is billed, so the till schedules what the
+    # customer was promised instead of a cashier re-picking it from memory.
+    pickup_datetime = fields.Datetime(string='Pickup', index=True)
+    delivery_datetime = fields.Datetime(string='Delivery', index=True)
+
     # Both written straight from the feed: /orders carries the DASHBOARD's
     # workflow state (`status` / `overallStatus`), already in words, not
     # PudoPro's numeric codes - so there is nothing left to map.
