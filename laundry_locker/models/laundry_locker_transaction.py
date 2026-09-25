@@ -3,26 +3,6 @@ import re
 from odoo import api, fields, models
 
 
-# Status codes as PudoPro sends them, mapped in the snapshot service's
-# STATUS_LABELS. They are NOT integers - 1.5 / 2.5 / 2.8 are real statuses - so
-# the code is stored as text and never arithmetic'd.
-STATUS_LABELS = {
-    '0': 'Booking Online',
-    '1': 'New Laundry',
-    '1.5': 'Looking for Rider',
-    '2': 'For Pickup',
-    '2.5': 'In Transit',
-    '2.8': 'In Process',
-    '3': 'For Release',
-    '3.5': 'Looking for Rider',
-    '4': 'Out for Delivery',
-    '5': 'Delivered',
-    '6': 'Completed',
-    '7': 'Clear Transaction',
-    '8': 'Warehouse',
-}
-
-
 def phone_last10(value):
     """The comparison key for a phone number: its last 10 digits.
 
@@ -44,7 +24,7 @@ class LaundryLockerTransaction(models.Model):
 
     # --- identity -------------------------------------------------------
     # `ref` is PudoPro's Reference_Number, which is also the Firebase key under
-    # /lockerTransactions. Every sync upserts on it, so it has to be unique.
+    # /orders. Every sync upserts on it, so it has to be unique.
     ref = fields.Char(string='Ref #', required=True, index=True, copy=False)
 
     location_code = fields.Char(string='Location Code', index=True)
@@ -70,15 +50,18 @@ class LaundryLockerTransaction(models.Model):
     turnaround = fields.Char(string='Turnaround')
     dirty_door = fields.Char(string='Dirty Door')
 
+    # Both written straight from the feed: /orders carries the DASHBOARD's
+    # workflow state (`status` / `overallStatus`), already in words, not
+    # PudoPro's numeric codes - so there is nothing left to map.
     status_code = fields.Char(string='Status Code', index=True)
-    status_label = fields.Char(string='Status', compute='_compute_status_label', store=True)
+    status_label = fields.Char(string='Status', index=True)
 
     created_at = fields.Datetime(string='Created', index=True)
     updated_at = fields.Datetime(string='Updated')
-    # When the bag actually became laundry: the first time PudoPro moved the
-    # transaction to status 1 (New Laundry). Read from the milestones, not from
-    # createdAt - for a drop-off booked online (status 0) createdAt is when the
-    # customer booked, which can be a day before they put the bag in the door.
+    # When the bag actually became laundry. /orders only gains a row once
+    # PudoPro has moved the transaction to New Laundry, so this is its
+    # createdAt - which is why an online booking made the day before shows the
+    # moment the bag went into the door, not the moment it was booked.
     new_laundry_at = fields.Datetime(string='New Laundry', index=True)
 
     # --- the customer book match ----------------------------------------
@@ -120,12 +103,6 @@ class LaundryLockerTransaction(models.Model):
     def _compute_phone_last10(self):
         for tx in self:
             tx.phone_last10 = phone_last10(tx.phone)
-
-    @api.depends('status_code')
-    def _compute_status_label(self):
-        for tx in self:
-            code = (tx.status_code or '').strip()
-            tx.status_label = STATUS_LABELS.get(code) or code or False
 
     @api.depends('phone_last10')
     def _compute_partner_id(self):

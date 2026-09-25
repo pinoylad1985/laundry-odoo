@@ -4,9 +4,9 @@
     'author': 'laundryx',
     'summary': 'PudoPro locker transactions, and billing them through the POS',
     'description': """
-Mirrors the PudoPro locker transactions that feed the Locker tab of
-dashboard.laundryx.app into Odoo, so a cashier can turn one into a POS order
-without re-typing the customer.
+Mirrors the locker drop-offs that feed the List tab of dashboard.laundryx.app
+into Odoo, so a cashier can turn one into a POS order without re-typing the
+customer.
 
 Each transaction is matched against the customer book on the LAST 10 DIGITS of
 its phone number and shown as Returning or New, and carries a Billed flag with

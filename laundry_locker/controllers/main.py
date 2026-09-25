@@ -19,11 +19,12 @@ class LaundryLockerController(http.Controller):
         csrf=False, save_session=False,
     )
     def laundry_locker_push(self, **kwargs):
-        """Accept one or more snapshot records from the locker sync service.
+        """Accept one or more order records from the locker sync service.
 
         Body: a single record, or `{"records": [...]}`, in the same shape the
-        service writes to /lockerTransactions - so the mapping is shared with
-        the pull and the two paths cannot disagree.
+        service writes to /orders - so the mapping is shared with the pull and
+        the two paths cannot disagree. Non-locker channels are ignored, which
+        means the service may push everything it writes without filtering.
         """
         model = request.env['laundry.locker.transaction'].sudo()
         token = request.httprequest.headers.get(TOKEN_HEADER, '')
@@ -43,14 +44,14 @@ class LaundryLockerController(http.Controller):
         elif isinstance(payload, dict):
             records = payload.get('records')
             if records is None:
-                records = [payload] if payload.get('ref') else []
+                records = [payload] if (payload.get('id') or payload.get('ref')) else []
         else:
             records = []
         if not records:
             return request.make_json_response({'error': 'no_records'}, status=400)
 
         try:
-            touched = model._upsert_snapshot(records)
+            touched = model._upsert_orders(records)
         except Exception:  # noqa: BLE001 - never hand a traceback to a caller
             _logger.exception('Locker push failed')
             return request.make_json_response({'error': 'server_error'}, status=500)

@@ -12,10 +12,18 @@ from odoo.exceptions import UserError
 
 _logger = logging.getLogger(__name__)
 
-# The PudoPro snapshot lives in the Firebase REALTIME DATABASE (not Firestore),
-# and every node under it is world-readable by the database rules - so a pull is
-# a plain GET with no credentials. Reads are billed on bandwidth, which is why
-# the routine pull asks for a delta and not the whole node.
+# The feed lives in the Firebase REALTIME DATABASE (not Firestore), and every
+# node under it is world-readable by the database rules - so a pull is a plain
+# GET with no credentials. Reads are billed on bandwidth, which is why the
+# routine pull asks for a delta and not the whole node.
+#
+# SOURCE: /orders - the node behind the dashboard's LIST tab, written every 5
+# minutes by pudopro_orders_sync.py. NOT /lockerTransactions, which backs the
+# LOCKER tab and is only refreshed hourly from the PudoPro API. /orders is the
+# fresher of the two and only ever gains a row once the drop-off has reached a
+# status worth billing, which is exactly the queue the till needs. Both nodes
+# key on the same LX- refs, so /lockerDoors and /lockerBilled line up with
+# either one.
 DEFAULT_FIREBASE_URL = (
     'https://pickup-delivery-c1df1-default-rtdb.asia-southeast1.firebasedatabase.app'
 )
@@ -24,62 +32,30 @@ PARAM_URL = 'laundry_locker.firebase_url'
 PARAM_TOKEN = 'laundry_locker.push_token'
 PARAM_LAST_PULL = 'laundry_locker.last_pull_ms'
 
-# The pull re-reads a little before its own watermark: the snapshot service
-# writes in batches, so a record can land with an `updatedAt` just behind the
-# moment we recorded.
+# The pull re-reads a little before its own watermark: the sync service writes
+# in batches, so a record can land with an `updatedAt` just behind the moment we
+# recorded.
 PULL_OVERLAP_MS = 15 * 60 * 1000
 REQUEST_TIMEOUT = 30
 
+# /orders holds every channel, the orders Odoo itself pushes back included.
+# Locker ones are marked, and their refs sit in their own prefix - which also
+# gives a locker-only read needing no Firebase index, since $key is always
+# indexed.
+LOCKER_CHANNEL = 'locker'
+LOCKER_REF_PREFIX = 'LX-'
+
 
 def _clean(value):
-    """A snapshot value as a stripped string, or False for an empty one."""
+    """A feed value as a stripped string, or False for an empty one."""
     if value is None or value is False:
         return False
     text = str(value).strip()
     return text or False
 
 
-def _status_text(value):
-    """Status codes are 1.5 / 2.5 / 2.8 as well as 1 / 2 - keep them as text.
-
-    JSON hands us 1 as `1` and 1.5 as `1.5`, and `str(1.0)` would be "1.0",
-    which matches nothing in STATUS_LABELS.
-    """
-    if value is None or value is False or value == '':
-        return False
-    if isinstance(value, float) and value.is_integer():
-        return str(int(value))
-    return str(value).strip() or False
-
-
-def _milestones(record):
-    """The milestone list, however Firebase handed it over.
-
-    A JSON array comes back as a list, but Firebase stores a sparse array as an
-    object keyed by index, so the same node can arrive as a dict.
-    """
-    raw = record.get('milestones')
-    if isinstance(raw, dict):
-        raw = list(raw.values())
-    return [m for m in (raw or []) if isinstance(m, dict)]
-
-
-def _milestone_time(record, status):
-    """Earliest time the record entered `status`, from its milestones.
-
-    A milestone is {"s": "<statusCode>", "t": <unix ms>}. A status can repeat -
-    PudoPro logs every transition, including a step it goes back to - so the
-    EARLIEST entry is the one that answers "when did it become this".
-    """
-    times = [
-        m['t'] for m in _milestones(record)
-        if _status_text(m.get('s')) == status and m.get('t')
-    ]
-    return _ms_to_datetime(min(times)) if times else False
-
-
 def _ms_to_datetime(value):
-    """Unix milliseconds (what the snapshot stores) to a UTC-naive datetime."""
+    """Unix milliseconds (what the feed stores) to a UTC-naive datetime."""
     try:
         ms = int(value)
     except (TypeError, ValueError):
@@ -149,10 +125,10 @@ class LaundryLockerTransaction(models.Model):
     def _push_billed_to_firebase(self):
         """Write the billed state back for the dashboard to show.
 
-        It goes to /lockerBilled/{ref}, NOT onto the transaction itself:
-        /lockerTransactions is write-false, and a full `--once` rebuild PUTs the
-        whole node, which would wipe anything we had added there. Same reason
-        /lockerFlags and /lockerDoors are their own nodes.
+        It goes to /lockerBilled/{ref}, NOT onto the order itself: the sync
+        services own the rows they write and rebuild them wholesale, so
+        anything we added inside one would be wiped on the next rebuild. Same
+        reason /lockerFlags and /lockerDoors are their own nodes.
 
         Never fatal - Odoo is the source of truth for billing; this is the copy
         the dashboard reads.
@@ -177,37 +153,60 @@ class LaundryLockerTransaction(models.Model):
     # mapping
     # ------------------------------------------------------------------
     @api.model
-    def _snapshot_to_vals(self, record, doors=None):
-        """One `/lockerTransactions/{ref}` record as field values."""
+    def _order_to_vals(self, record, doors=None):
+        """One `/orders/{ref}` record as field values.
+
+        The customer arrives as a nested block here, and there is no numeric
+        status code: /orders carries the dashboard's own workflow state, which
+        is what the LIST tab shows.
+        """
         doors = doors or {}
-        ref = str(record.get('ref') or '').strip()
-        # `doorNumber` is where the parcel is RIGHT NOW, so once the clean
-        # laundry goes back into another door it is no longer the drop-off
-        # door. `/lockerDoors/{ref}.d` is the latched dirty door and wins.
-        door = (doors.get(ref) or {}).get('d') or record.get('doorNumber')
-        name = _clean(record.get('name'))
-        phone = _clean(record.get('phone'))
+        ref = str(record.get('id') or record.get('ref') or '').strip()
+        customer = record.get('customer')
+        customer = customer if isinstance(customer, dict) else {}
+        time_block = record.get('time')
+        time_block = time_block if isinstance(time_block, dict) else {}
+
+        services = record.get('services')
+        if isinstance(services, dict):
+            services = list(services.values())
+        if isinstance(services, (list, tuple)):
+            service = ', '.join(str(s).strip() for s in services if s)
+        else:
+            service = _clean(services)
+
+        # /orders carries no door of its own, so the latched drop-off door from
+        # /lockerDoors is the only source for it. (The locker's live
+        # `doorNumber` would be wrong anyway - once the clean laundry goes back
+        # into another door it is no longer the drop-off door.)
+        door = (doors.get(ref) or {}).get('d')
+        name = _clean(customer.get('name'))
+        phone = _clean(customer.get('contact'))
         return {
             'ref': ref,
             'location_code': _clean(record.get('locationCode')),
-            'location_name': _clean(record.get('locationName')),
+            # Older locker rows carry no location of their own; the customer
+            # block's building is the same place under another name.
+            'location_name': (
+                _clean(record.get('locationName')) or _clean(customer.get('building'))
+            ),
             'customer_name': name,
             'source_name': name,
             'phone': phone,
             'source_phone': phone,
-            'service': _clean(record.get('service')) or _clean(record.get('serviceType')),
-            'turnaround': _clean(record.get('turnaround')),
+            'service': service or False,
+            'turnaround': _clean(time_block.get('turnaround')),
             'dirty_door': _clean(door),
-            'status_code': _status_text(record.get('statusCode')),
-            'created_at': _ms_to_datetime(record.get('createdAt')),
-            # Falls back to createdAt: a drop-off made at the locker enters
-            # status 1 in the same millisecond it is created, and an older
-            # record may predate the milestone log entirely.
-            'new_laundry_at': (
-                _milestone_time(record, '1')
-                or _ms_to_datetime(record.get('createdAt'))
+            'status_code': _clean(record.get('status')),
+            'status_label': (
+                _clean(record.get('overallStatus')) or _clean(record.get('status'))
             ),
+            'created_at': _ms_to_datetime(record.get('createdAt')),
             'updated_at': _ms_to_datetime(record.get('updatedAt')),
+            # One and the same instant on this feed: a row is only written once
+            # PudoPro has moved the transaction to New Laundry, and its
+            # createdAt matches that milestone exactly.
+            'new_laundry_at': _ms_to_datetime(record.get('createdAt')),
         }
 
     def _sync_writes(self, vals):
@@ -228,22 +227,50 @@ class LaundryLockerTransaction(models.Model):
         return {k: v for k, v in writes.items() if (self[k] or False) != (v or False)}
 
     @api.model
-    def _upsert_snapshot(self, records, doors=None):
-        """Create or update transactions from snapshot records, keyed on `ref`.
+    def _locker_orders(self, records):
+        """The locker rows out of an /orders payload, each carrying its ref.
+
+        Firebase hands a node back as an object keyed by ref, so the key is
+        injected as `id` wherever the record does not already carry one.
+        Everything that is not a locker drop-off is dropped here: /orders holds
+        every channel, the dropoff/delivery orders Odoo itself pushes included.
+        """
+        if isinstance(records, dict):
+            records = [
+                dict(record, id=record.get('id') or key)
+                for key, record in records.items()
+                if isinstance(record, dict)
+            ]
+        rows = []
+        for record in (records or []):
+            if not isinstance(record, dict):
+                continue
+            ref = str(record.get('id') or record.get('ref') or '').strip()
+            if not ref:
+                continue
+            # The prefix is the belt to the channel's braces: the oldest locker
+            # rows predate the channel marker, and only lockers use LX-.
+            if _clean(record.get('channel')) == LOCKER_CHANNEL or ref.startswith(
+                LOCKER_REF_PREFIX
+            ):
+                rows.append(record)
+        return rows
+
+    @api.model
+    def _upsert_orders(self, records, doors=None):
+        """Create or update transactions from /orders rows, keyed on `ref`.
 
         Shared by both inbound paths - the locker service's push and the hourly
         pull - so they cannot drift apart.
         """
-        if isinstance(records, dict):
-            records = list(records.values())
-        records = [r for r in (records or []) if isinstance(r, dict) and r.get('ref')]
+        records = self._locker_orders(records)
         if not records:
             return self.browse()
 
         # A ref can appear twice in one payload; the last one wins.
         by_ref = {}
         for record in records:
-            vals = self._snapshot_to_vals(record, doors)
+            vals = self._order_to_vals(record, doors)
             if vals['ref']:
                 by_ref[vals['ref']] = vals
 
@@ -286,25 +313,30 @@ class LaundryLockerTransaction(models.Model):
             # Firebase wants the key quoted inside the query value.
             query = {'orderBy': '"updatedAt"', 'startAt': int(since_ms)}
         try:
-            records = self._firebase_get('lockerTransactions', query)
+            records = self._firebase_get('orders', query)
         except HTTPError as err:
-            # The delta query needs `".indexOn": ["updatedAt"]` on
-            # /lockerTransactions in the Firebase rules. Without it Firebase
-            # 400s - fall back to the whole node rather than sync nothing, and
-            # say so, because that fallback is the expensive read.
+            # The delta query needs `".indexOn": ["updatedAt"]` on /orders in
+            # the Firebase rules. Without it Firebase 400s - fall back to a
+            # read by key, which needs no index at all ($key is always indexed)
+            # and still reads only the locker range rather than every order.
             if query and err.code == 400:
                 _logger.warning(
                     'Locker sync: indexed delta read refused (%s). Falling back to a '
-                    'full read - add ".indexOn": ["updatedAt"] to /lockerTransactions.',
+                    'read of the whole LX- range - add ".indexOn": ["updatedAt"] '
+                    'to /orders.',
                     err,
                 )
-                records = self._firebase_get('lockerTransactions')
+                records = self._firebase_get('orders', {
+                    'orderBy': '"$key"',
+                    'startAt': json.dumps(LOCKER_REF_PREFIX),
+                    # \uf8ff is above every character Firebase will sort, so
+                    # this ends the range at the last LX- key.
+                    'endAt': json.dumps(LOCKER_REF_PREFIX + '\uf8ff'),
+                })
             else:
                 raise
 
-        if isinstance(records, dict):
-            records = list(records.values())
-        records = [r for r in (records or []) if isinstance(r, dict)]
+        records = self._locker_orders(records)
         if not records:
             icp.set_param(PARAM_LAST_PULL, str(self._now_ms()))
             return self.browse()
@@ -315,10 +347,12 @@ class LaundryLockerTransaction(models.Model):
         except Exception:  # noqa: BLE001 - the door latch is an overlay, not the data
             _logger.warning('Locker sync: could not read /lockerDoors', exc_info=True)
 
-        touched = self._upsert_snapshot(records, doors if isinstance(doors, dict) else {})
+        touched = self._upsert_orders(records, doors if isinstance(doors, dict) else {})
 
         # Watermark from the data, not the clock: a record written while this
-        # pull was running is then still in range of the next one.
+        # pull was running is then still in range of the next one. It counts
+        # only locker rows, so a busy shop's other orders can never carry the
+        # mark past a drop-off we have not read.
         seen = [r.get('updatedAt') for r in records]
         highest = max((int(v) for v in seen if isinstance(v, (int, float))), default=0)
         icp.set_param(PARAM_LAST_PULL, str(highest or self._now_ms()))
