@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <!--
-        The locker reference as a column on the POS Orders list. optional="show"
-        so it is available in Studio and can be repositioned there (a hidden
-        optional column never appears in Studio at all).
+        The locker reference and door as columns on the POS Orders list.
+        optional="show" so they are available in Studio and can be repositioned
+        there (a hidden optional column never appears in Studio at all).
     -->
     <record id="view_pos_order_tree_locker" model="ir.ui.view">
         <field name="name">pos.order.list.locker</field>
@@ -12,6 +12,7 @@
         <field name="arch" type="xml">
             <xpath expr="//list" position="inside">
                 <field name="laundry_locker_ref" optional="show"/>
+                <field name="laundry_locker_door" optional="show"/>
             </xpath>
         </field>
     </record>

@@ -4,9 +4,10 @@ import { Component, onWillStart, useState } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
 
-// The unbilled locker queue, shown when LOCKER is picked in the New Order modal.
-// Picking a row hands its customer back to the modal; the row is marked billed
-// server-side at that moment so a second till can't take the same drop-off.
+// The unbilled locker queue, shown when LOCKER is picked in the New Order
+// modal. Picking a row hands its customer back to the modal and RESERVES
+// NOTHING - the drop-off is billed against whichever order is validated first
+// (see pos.order._sync_laundry_locker).
 //
 // The customer is SHOWN here, not typed. Locker customers key their own number
 // into the PudoPro screen and do get it wrong, so a correction has to be
@@ -24,9 +25,6 @@ export class LockerPickerPopup extends Component {
     static props = {
         close: Function,
         getPayload: Function,
-        // Set to re-open on a transaction this till already took, to correct
-        // the number. The list step is skipped and the billed guard is waived.
-        transactionId: { type: Number, optional: true },
     };
 
     setup() {
@@ -52,20 +50,7 @@ export class LockerPickerPopup extends Component {
         onWillStart(() => this.loadRows());
     }
 
-    get isRecheck() {
-        return !!this.props.transactionId;
-    }
-
     async loadRows() {
-        if (this.isRecheck) {
-            this.state.rows = await this.orm.call(
-                "laundry.locker.transaction", "get_rows_for_pos", [[this.props.transactionId]]
-            );
-            if (this.state.rows.length) {
-                this.selectRow(this.state.rows[0]);
-            }
-            return;
-        }
         this.state.rows = await this.orm.call(
             "laundry.locker.transaction", "get_unbilled_for_pos", []
         );
@@ -99,20 +84,13 @@ export class LockerPickerPopup extends Component {
         this.state.match = row.customer_match || "new";
         this.state.partnerName = row.partner_name || "";
         this.state.verified = !!row.phone_verified;
-        // A recheck opens straight into the correction: the cashier got here
-        // by pressing "Correct number", which says the same thing as the wrong
-        // -number button. Claiming the row already created its contact, so it
-        // would otherwise read as a settled match and lock them out of the one
-        // screen they opened to fix.
-        this.state.editing = this.isRecheck;
+        // Every row opens closed. The fields have one way in: declaring the
+        // number wrong on a drop-off that matched nobody.
+        this.state.editing = false;
         this.state.error = "";
     }
 
     back() {
-        if (this.isRecheck) {
-            this.props.close();
-            return;
-        }
         this.state.selectedId = null;
         this.state.error = "";
     }

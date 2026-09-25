@@ -19,6 +19,13 @@ class PosOrder(models.Model):
         string='Locker Ref #', copy=False, index=True,
         help="PudoPro reference of the locker drop-off this order bills.",
     )
+    # Copied onto the order rather than read back off the transaction: the
+    # receipt is reprinted from order history, on tills that never loaded the
+    # locker queue, and long after the door has been let to someone else.
+    laundry_locker_door = fields.Char(
+        string='Locker Door', copy=False,
+        help="Door the laundry was dropped into, as it was at drop-off.",
+    )
 
     def _sync_laundry_locker(self):
         """Settle locker drop-offs against the orders that actually took them.

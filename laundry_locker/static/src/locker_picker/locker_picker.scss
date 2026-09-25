@@ -1,9 +1,33 @@
+// The dialog is sized by its TABLE, not the other way round. Twelve columns
+// do not fit a stock `xl` modal, and a cashier matching paper to a bag reads
+// ACROSS the row - a sideways scroll hides exactly the columns being compared.
+// `:has` is on `.modal-dialog` because our class lands on `.modal-content`
+// (Dialog's contentClass), which cannot widen its own parent.
+.modal-dialog:has(> .laundry-locker-picker) {
+    width: fit-content;
+    max-width: 98vw;
+}
+
 // The picker is a full table on a touchscreen: rows are tap targets, so they
 // carry the same 44px floor as the rest of our dialogs (.laundry-touch).
 .laundry-locker-picker {
     .laundry-locker-rows {
         max-height: 55vh;
         overflow: auto;
+
+        // Bootstrap pins `.table` to width:100%, which would fold the columns
+        // straight back into the dialog this is widening. The min-width keeps
+        // a narrow list filling the dialog instead of huddling on the left.
+        > .table {
+            width: max-content;
+            min-width: 100%;
+        }
+
+        // Headers nowrap for the same reason the cells do - "Customer Match"
+        // breaking in two makes every row taller than its data warrants.
+        th {
+            white-space: nowrap;
+        }
     }
 
     .laundry-locker-row {

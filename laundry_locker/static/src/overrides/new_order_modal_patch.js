@@ -21,7 +21,7 @@ patch(NewOrderModal.prototype, {
         const ref = this.pos.getOrder()?.laundry_locker_ref;
         if (ref) {
             this.lockerState.claim = {
-                ref, partner_name: "", phone: "", id: null, phone_verified: false,
+                ref, partner_name: "", phone: "", dirty_door: "", id: null,
             };
             this._loadLockerClaim(ref);
         }
@@ -31,7 +31,7 @@ patch(NewOrderModal.prototype, {
         const rows = await this.lockerOrm.searchRead(
             "laundry.locker.transaction",
             [["ref", "=", ref]],
-            ["id", "ref", "phone", "customer_name", "partner_id", "phone_verified"],
+            ["id", "ref", "phone", "customer_name", "partner_id", "dirty_door"],
             { limit: 1 }
         );
         const row = rows[0];
@@ -44,9 +44,7 @@ patch(NewOrderModal.prototype, {
             phone: row.phone || "",
             customer_name: row.customer_name || "",
             partner_name: row.partner_id ? row.partner_id[1] : "",
-            // Whether the number was taken on a cashier's word rather than
-            // matched - which is the only case Correct number is for.
-            phone_verified: !!row.phone_verified,
+            dirty_door: row.dirty_door || "",
         };
     },
 
@@ -55,7 +53,7 @@ patch(NewOrderModal.prototype, {
         super.selectServiceType(...arguments);
         if (code === "locker") {
             if (!this.lockerState.claim) {
-                this.openLockerPicker(false);
+                this.openLockerPicker();
             }
         } else if (previous === "locker") {
             this.releaseLockerClaim();
@@ -71,18 +69,12 @@ patch(NewOrderModal.prototype, {
         const order = this.pos.getOrder();
         if (order) {
             order.laundry_locker_ref = false;
+            order.laundry_locker_door = false;
         }
     },
 
-    /**
-     * @param {boolean} recheck - reopen on the transaction already taken (to
-     *   correct the number) instead of showing the queue.
-     */
-    async openLockerPicker(recheck = false) {
-        const previous = this.lockerState.claim;
-        const result = await makeAwaitable(this.dialog, LockerPickerPopup, {
-            transactionId: recheck && previous?.id ? previous.id : undefined,
-        });
+    async openLockerPicker() {
+        const result = await makeAwaitable(this.dialog, LockerPickerPopup, {});
         if (!result) {
             return;
         }
@@ -93,6 +85,9 @@ patch(NewOrderModal.prototype, {
         const order = this.pos.getOrder();
         if (order) {
             order.laundry_locker_ref = result.ref;
+            // Copied ONTO the order so the receipt can print it: a reprint
+            // from order history runs on tills that never loaded the queue.
+            order.laundry_locker_door = result.dirty_door || false;
         }
         // Always "returning" in the modal's terms: a claim always ends with a
         // real contact (created there and then for a new number), so the

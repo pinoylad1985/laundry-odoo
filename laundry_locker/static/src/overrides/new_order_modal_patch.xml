@@ -13,27 +13,27 @@
                             <t t-esc="lockerState.claim.partner_name"/>
                         </span>
                         <span class="text-muted" t-esc="lockerState.claim.phone"/>
+                        <span t-if="lockerState.claim.dirty_door" class="text-muted">
+                            door <t t-esc="lockerState.claim.dirty_door"/>
+                        </span>
                         <span class="flex-grow-1"/>
-                        <!-- Only for a contact CREATED from this drop-off's
-                             number, which exists on a cashier's word that it
-                             rang. A number that matched an existing customer
-                             has nothing to correct, and re-opening the picker
-                             on it would only invite the till to retype a known
-                             customer. -->
-                        <button t-if="lockerState.claim.phone_verified"
-                                type="button" class="btn btn-secondary"
-                                t-on-click="() => this.openLockerPicker(true)">
-                            Correct number
-                        </button>
+                        <!-- There is deliberately no way back in to retype
+                             this customer. A claimed drop-off always HAS a
+                             contact, so any correction offered here would be a
+                             correction to a KNOWN customer - the one thing the
+                             picker exists to prevent. A number is corrected
+                             while it is still in question: in the picker,
+                             before Confirm. After that it is a job for the
+                             contact record. -->
                         <button type="button" class="btn btn-secondary"
-                                t-on-click="() => this.openLockerPicker(false)">
+                                t-on-click="() => this.openLockerPicker()">
                             Pick another
                         </button>
                     </div>
                 </t>
                 <t t-else="">
                     <button type="button" class="btn btn-primary"
-                            t-on-click="() => this.openLockerPicker(false)">
+                            t-on-click="() => this.openLockerPicker()">
                         Choose locker drop-off
                     </button>
                 </t>

@@ -9,4 +9,9 @@ patch(ReceiptHeader.prototype, {
     get laundryLockerRef() {
         return this.props.order?.laundry_locker_ref || "";
     },
+
+    // The door it came out of - the other half of finding the bag again.
+    get laundryLockerDoor() {
+        return this.props.order?.laundry_locker_door || "";
+    },
 });
