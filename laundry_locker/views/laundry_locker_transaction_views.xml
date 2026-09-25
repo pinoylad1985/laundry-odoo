@@ -19,9 +19,14 @@
                 <header>
                     <button name="action_sync_now" type="object" string="Sync now"
                             display="always" class="btn-secondary"/>
+                    <!-- Re-reads everything: for backfilling a field added to
+                         the mapping after the rows were already imported. -->
+                    <button name="action_full_resync" type="object" string="Full resync"
+                            display="always" class="btn-secondary"/>
                 </header>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
+                <field name="new_laundry_at" string="New Laundry" optional="show"/>
                 <field name="customer_name" string="Customer" optional="show"/>
                 <field name="phone" string="Phone" optional="show"/>
                 <field name="service" string="Service" optional="show"/>
@@ -94,6 +99,7 @@
                             <field name="billed_date" readonly="1"/>
                         </group>
                         <group string="Sync">
+                            <field name="new_laundry_at" readonly="1"/>
                             <field name="created_at" readonly="1"/>
                             <field name="updated_at" readonly="1"/>
                             <field name="synced_at" readonly="1"/>

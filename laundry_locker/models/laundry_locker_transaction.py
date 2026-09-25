@@ -75,6 +75,11 @@ class LaundryLockerTransaction(models.Model):
 
     created_at = fields.Datetime(string='Created', index=True)
     updated_at = fields.Datetime(string='Updated')
+    # When the bag actually became laundry: the first time PudoPro moved the
+    # transaction to status 1 (New Laundry). Read from the milestones, not from
+    # createdAt - for a drop-off booked online (status 0) createdAt is when the
+    # customer booked, which can be a day before they put the bag in the door.
+    new_laundry_at = fields.Datetime(string='New Laundry', index=True)
 
     # --- the customer book match ----------------------------------------
     partner_id = fields.Many2one(

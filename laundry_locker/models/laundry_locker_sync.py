@@ -52,6 +52,32 @@ def _status_text(value):
     return str(value).strip() or False
 
 
+def _milestones(record):
+    """The milestone list, however Firebase handed it over.
+
+    A JSON array comes back as a list, but Firebase stores a sparse array as an
+    object keyed by index, so the same node can arrive as a dict.
+    """
+    raw = record.get('milestones')
+    if isinstance(raw, dict):
+        raw = list(raw.values())
+    return [m for m in (raw or []) if isinstance(m, dict)]
+
+
+def _milestone_time(record, status):
+    """Earliest time the record entered `status`, from its milestones.
+
+    A milestone is {"s": "<statusCode>", "t": <unix ms>}. A status can repeat -
+    PudoPro logs every transition, including a step it goes back to - so the
+    EARLIEST entry is the one that answers "when did it become this".
+    """
+    times = [
+        m['t'] for m in _milestones(record)
+        if _status_text(m.get('s')) == status and m.get('t')
+    ]
+    return _ms_to_datetime(min(times)) if times else False
+
+
 def _ms_to_datetime(value):
     """Unix milliseconds (what the snapshot stores) to a UTC-naive datetime."""
     try:
@@ -174,6 +200,13 @@ class LaundryLockerTransaction(models.Model):
             'dirty_door': _clean(door),
             'status_code': _status_text(record.get('statusCode')),
             'created_at': _ms_to_datetime(record.get('createdAt')),
+            # Falls back to createdAt: a drop-off made at the locker enters
+            # status 1 in the same millisecond it is created, and an older
+            # record may predate the milestone log entirely.
+            'new_laundry_at': (
+                _milestone_time(record, '1')
+                or _ms_to_datetime(record.get('createdAt'))
+            ),
             'updated_at': _ms_to_datetime(record.get('updatedAt')),
         }
 
@@ -301,9 +334,19 @@ class LaundryLockerTransaction(models.Model):
         while Odoo was down, and every later status change."""
         self._sync_pull()
 
-    def action_sync_now(self):
+    def action_full_resync(self):
+        """Re-read the WHOLE feed, ignoring the delta watermark.
+
+        The routine pull only asks for what changed since it last ran, so a
+        field added to the mapping after a record was imported stays empty on
+        that record forever. This is how those get filled in. It is the
+        expensive read - a button, not a cron.
+        """
+        return self.action_sync_now(full=True)
+
+    def action_sync_now(self, full=False):
         try:
-            touched = self._sync_pull()
+            touched = self._sync_pull(full=full)
         except Exception as err:  # noqa: BLE001 - shown to the cashier, not swallowed
             _logger.exception('Locker sync failed')
             raise UserError(_('Could not reach the locker feed:\n%s') % err) from err

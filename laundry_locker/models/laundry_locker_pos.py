@@ -10,6 +10,19 @@ class LaundryLockerTransaction(models.Model):
     # ------------------------------------------------------------------
     # what the POS picker reads
     # ------------------------------------------------------------------
+    def _pos_datetime(self, value):
+        """A datetime as the till should read it: local time, 12-hour.
+
+        Datetimes are stored UTC-naive, and the POS shows PH time - printing
+        the stored value would be 8 hours out.
+        """
+        if not value:
+            return ''
+        local = fields.Datetime.context_timestamp(self, value)
+        hour = local.hour % 12 or 12
+        meridiem = 'AM' if local.hour < 12 else 'PM'
+        return f'{local:%Y-%m-%d} {hour}:{local:%M} {meridiem}'
+
     def _pos_row(self):
         """One transaction as the till's picker shows it."""
         self.ensure_one()
@@ -27,7 +40,8 @@ class LaundryLockerTransaction(models.Model):
             'partner_id': self.partner_id.id or False,
             'partner_name': self.partner_id.name or '',
             'phone_verified': self.phone_verified,
-            'created_at': fields.Datetime.to_string(self.created_at) if self.created_at else '',
+            'new_laundry_at': self._pos_datetime(self.new_laundry_at),
+            'created_at': self._pos_datetime(self.created_at),
         }
 
     @api.model
