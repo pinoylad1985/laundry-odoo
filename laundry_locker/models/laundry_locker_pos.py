@@ -214,9 +214,11 @@ class LaundryLockerTransaction(models.Model):
         reappearing in every till's picker for a bag that was collected weeks
         ago.
 
-        Only for rows that arrive UNBILLED, and only on create - running this
-        over existing rows would quietly undo Mark Unbilled, which is the
-        counter's way of putting a wrongly-billed drop-off back.
+        Runs over every row a sync touches, not only the new ones. Nothing
+        unbills a drop-off by hand any more - a wrongly-billed one is refunded,
+        and a refunded sale is skipped below - so an unbilled row that a paid
+        order is holding is not somebody's decision, it is drift, and drift
+        should heal itself.
         """
         candidates = self.filtered(lambda t: t.ref and not t.billed)
         if not candidates:
@@ -247,8 +249,12 @@ class LaundryLockerTransaction(models.Model):
                     transaction.ref, order.pos_reference,
                 )
 
-    def action_unbill(self):
-        """Put a transaction back in the picker - a rescue, run by hand."""
+    def _laundry_unbill(self):
+        """Put a transaction back in the picker.
+
+        Internal, not a button: the only thing that unbills a drop-off is a
+        refund of the sale that took it - see _laundry_give_back.
+        """
         self.write({'billed': False, 'billed_date': False, 'pos_order_id': False})
         self._push_billed_to_firebase()
 
@@ -285,4 +291,4 @@ class LaundryLockerTransaction(models.Model):
         and can be billed again, by a rebooking most often.
         """
         for transaction in self.filtered('billed'):
-            transaction.action_unbill()
+            transaction._laundry_unbill()

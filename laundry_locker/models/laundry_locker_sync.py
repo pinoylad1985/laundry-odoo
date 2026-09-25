@@ -387,11 +387,11 @@ class LaundryLockerTransaction(models.Model):
             else:
                 to_create.append(vals)
         if to_create:
-            created = self.create(to_create)
-            # A row that has just come back from the feed asks the orders
-            # whether it was already sold - see _laundry_adopt_billed_orders.
-            created._laundry_adopt_billed_orders()
-            touched |= created
+            touched |= self.create(to_create)
+        # Every row the feed touched asks the orders whether it was already
+        # sold - see _laundry_adopt_billed_orders. It is what makes a deleted
+        # and rebuilt list come back knowing what it had sold.
+        touched._laundry_adopt_billed_orders()
         return touched
 
     # ------------------------------------------------------------------
