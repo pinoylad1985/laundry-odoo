@@ -1,0 +1,3 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_laundry_locker_transaction_pos_user,laundry.locker.transaction.pos.user,model_laundry_locker_transaction,point_of_sale.group_pos_user,1,1,0,0
+access_laundry_locker_transaction_pos_manager,laundry.locker.transaction.pos.manager,model_laundry_locker_transaction,point_of_sale.group_pos_manager,1,1,1,1

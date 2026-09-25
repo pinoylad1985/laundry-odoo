@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!--
+        The locker list mirrors the LIST (locker) tab of dashboard.laundryx.app,
+        trimmed to the columns the counter actually works from, plus the two
+        Odoo adds: Billed, and whether the phone number matches a customer we
+        already have.
+    -->
+    <record id="laundry_locker_transaction_view_list" model="ir.ui.view">
+        <field name="name">laundry.locker.transaction.list</field>
+        <field name="model">laundry.locker.transaction</field>
+        <field name="arch" type="xml">
+            <list string="Locker Transactions"
+                  decoration-muted="billed"
+                  decoration-warning="not billed and customer_match == 'new'"
+                  create="0">
+                <field name="location_name" string="Location" optional="show"/>
+                <field name="ref" string="Ref #" optional="show"/>
+                <field name="customer_name" string="Customer" optional="show"/>
+                <field name="phone" string="Phone" optional="show"/>
+                <field name="service" string="Service" optional="show"/>
+                <field name="turnaround" string="Turnaround" optional="show"/>
+                <field name="dirty_door" string="Dirty Door" optional="show"/>
+                <field name="status_label" string="Status" optional="show"/>
+                <field name="billed" string="Billed" widget="boolean_toggle" readonly="1" optional="show"/>
+                <field name="customer_match" string="Customer Match" widget="badge"
+                       decoration-success="customer_match == 'returning'"
+                       decoration-warning="customer_match == 'new'"
+                       optional="show"/>
+                <field name="partner_id" optional="hide"/>
+                <field name="phone_verified" optional="hide"/>
+                <field name="pos_order_id" optional="hide"/>
+                <field name="created_at" optional="hide"/>
+                <field name="status_code" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="laundry_locker_transaction_view_form" model="ir.ui.view">
+        <field name="name">laundry.locker.transaction.form</field>
+        <field name="model">laundry.locker.transaction</field>
+        <field name="arch" type="xml">
+            <form string="Locker Transaction" create="0">
+                <header>
+                    <button name="action_mark_verified" type="object" class="btn-primary"
+                            string="Number Verified"
+                            invisible="phone_verified"
+                            help="Tick this only after calling the number and hearing it ring."/>
+                    <button name="action_rematch_partner" type="object"
+                            string="Re-check Customer"
+                            help="Re-run the phone lookup after correcting the number."/>
+                </header>
+                <sheet>
+                    <div class="oe_title">
+                        <label for="ref" string="Ref #"/>
+                        <h1><field name="ref" readonly="1"/></h1>
+                    </div>
+                    <group>
+                        <group string="Customer">
+                            <field name="customer_name"/>
+                            <!-- Editable on purpose: a locker customer keys in their
+                                 own number and sometimes mistypes it. Correcting it
+                                 re-runs the Returning/New lookup. -->
+                            <field name="phone"/>
+                            <field name="phone_last10" readonly="1"/>
+                            <field name="customer_match" widget="badge" readonly="1"/>
+                            <field name="partner_id"/>
+                            <field name="phone_verified"/>
+                        </group>
+                        <group string="Locker">
+                            <field name="location_name" readonly="1"/>
+                            <field name="location_code" readonly="1"/>
+                            <field name="dirty_door" readonly="1"/>
+                            <field name="service" readonly="1"/>
+                            <field name="turnaround" readonly="1"/>
+                            <field name="status_label" readonly="1"/>
+                            <field name="status_code" readonly="1"/>
+                        </group>
+                        <group string="Billing">
+                            <field name="billed" readonly="1"/>
+                            <field name="pos_order_id" readonly="1"/>
+                            <field name="billed_date" readonly="1"/>
+                        </group>
+                        <group string="Sync">
+                            <field name="created_at" readonly="1"/>
+                            <field name="updated_at" readonly="1"/>
+                            <field name="synced_at" readonly="1"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="laundry_locker_transaction_view_search" model="ir.ui.view">
+        <field name="name">laundry.locker.transaction.search</field>
+        <field name="model">laundry.locker.transaction</field>
+        <field name="arch" type="xml">
+            <search string="Locker Transactions">
+                <field name="ref" string="Ref #"/>
+                <field name="customer_name" string="Customer"/>
+                <!-- Search the raw number OR the last-10 form, so 0917... and
+                     917... both find the row. -->
+                <field name="phone" string="Phone"
+                       filter_domain="['|', ('phone', 'ilike', self), ('phone_last10', 'ilike', self)]"/>
+                <field name="location_name" string="Location"/>
+                <filter name="filter_unbilled" string="Unbilled"
+                        domain="[('billed', '=', False)]"/>
+                <filter name="filter_billed" string="Billed"
+                        domain="[('billed', '=', True)]"/>
+                <separator/>
+                <filter name="filter_returning" string="Returning"
+                        domain="[('customer_match', '=', 'returning')]"/>
+                <filter name="filter_new" string="New"
+                        domain="[('customer_match', '=', 'new')]"/>
+                <separator/>
+                <filter name="filter_unverified" string="Number Not Verified"
+                        domain="[('phone_verified', '=', False)]"/>
+                <group expand="0" string="Group By">
+                    <filter name="group_location" string="Location"
+                            context="{'group_by': 'location_name'}"/>
+                    <filter name="group_status" string="Status"
+                            context="{'group_by': 'status_label'}"/>
+                    <filter name="group_match" string="Customer Match"
+                            context="{'group_by': 'customer_match'}"/>
+                    <filter name="group_billed" string="Billed"
+                            context="{'group_by': 'billed'}"/>
+                </group>
+            </search>
+        </field>
+    </record>
+
+    <record id="laundry_locker_transaction_action" model="ir.actions.act_window">
+        <field name="name">Locker Transactions</field>
+        <field name="res_model">laundry.locker.transaction</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="laundry_locker_transaction_view_search"/>
+        <!-- Opens on what the counter needs: the ones still to be billed. -->
+        <field name="context">{'search_default_filter_unbilled': 1}</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No locker transactions yet</p>
+            <p>Transactions arrive from the PudoPro lockers — they are not created by hand.</p>
+        </field>
+    </record>
+</odoo>
