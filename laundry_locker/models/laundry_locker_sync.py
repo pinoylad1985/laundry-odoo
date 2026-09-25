@@ -1,13 +1,14 @@
 import hmac
 import json
 import logging
+import re
 import uuid
 from datetime import datetime, timezone
-
-import pytz
 from urllib.error import HTTPError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
+
+import pytz
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -53,6 +54,20 @@ LOCKER_REF_PREFIX = 'LX-'
 # everything downstream is an ordinary UTC-naive Odoo datetime.
 FEED_TIMEZONE = 'Asia/Manila'
 
+# The locker sites, by code. The feed's own locationName cannot be trusted to
+# name a site consistently - the rows written before it existed carry none at
+# all, and the building text they fall back on reads "The Rise Makati" where a
+# newer row for the SAME locker reads "RISE" - so the code decides, and the
+# Location column groups by site instead of by spelling.
+LOCATION_NAMES = {
+    'LX-0001': 'RISE',
+    'LX-0002': 'AIR',
+}
+
+# Last resort for a row with no code at all: the building in the customer's
+# address block. Matched on whole words, so "Fairview" is not read as AIR.
+LOCATION_ALIASES = ('RISE', 'AIR')
+
 
 def _clean(value):
     """A feed value as a stripped string, or False for an empty one."""
@@ -71,6 +86,36 @@ def _ms_to_datetime(value):
     if ms <= 0:
         return False
     return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc).replace(tzinfo=None)
+
+
+def _location_code(value):
+    """The feed's location code in the one shape we store.
+
+    It arrives as `lx_0001`; the codes are written LX-0001 everywhere else,
+    including in LOCATION_NAMES.
+    """
+    text = re.sub(r'[^A-Za-z0-9]+', '', str(value or '')).upper()
+    match = re.fullmatch(r'LX0*(\d+)', text)
+    if match:
+        return 'LX-%04d' % int(match.group(1))
+    return text or False
+
+
+def _location_name(code, feed_name, building):
+    """The site's name, decided by its code wherever there is one.
+
+    A code we have not been told about yet falls through to whatever the feed
+    calls it - a nudge to add it to LOCATION_NAMES, rather than a blank column.
+    """
+    if code and code in LOCATION_NAMES:
+        return LOCATION_NAMES[code]
+    name = _clean(feed_name)
+    if name:
+        return name
+    for alias in LOCATION_ALIASES:
+        if re.search(r'\b%s\b' % alias, str(building or ''), re.IGNORECASE):
+            return alias
+    return _clean(building)
 
 
 def _feed_datetime(date_text, hour_text):
@@ -215,13 +260,12 @@ class LaundryLockerTransaction(models.Model):
         door = (doors.get(ref) or {}).get('d')
         name = _clean(customer.get('name'))
         phone = _clean(customer.get('contact'))
+        code = _location_code(record.get('locationCode'))
         return {
             'ref': ref,
-            'location_code': _clean(record.get('locationCode')),
-            # Older locker rows carry no location of their own; the customer
-            # block's building is the same place under another name.
-            'location_name': (
-                _clean(record.get('locationName')) or _clean(customer.get('building'))
+            'location_code': code,
+            'location_name': _location_name(
+                code, record.get('locationName'), customer.get('building')
             ),
             'customer_name': name,
             'source_name': name,
