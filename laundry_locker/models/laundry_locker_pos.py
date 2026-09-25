@@ -83,6 +83,11 @@ class LaundryLockerTransaction(models.Model):
         return [tx._pos_row() for tx in transactions]
 
     @api.model
+    def get_rows_for_pos(self, transaction_ids):
+        """Specific rows, billed or not - for re-opening one already taken."""
+        return [tx._pos_row() for tx in self.browse(transaction_ids).exists()]
+
+    @api.model
     def pos_check_phone(self, phone):
         """Re-run the Returning/New lookup for a number typed at the till."""
         key = phone_last10(phone)

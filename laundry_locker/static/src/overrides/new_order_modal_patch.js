@@ -21,7 +21,8 @@ patch(NewOrderModal.prototype, {
         const ref = this.pos.getOrder()?.laundry_locker_ref;
         if (ref) {
             this.lockerState.claim = {
-                ref, partner_name: "", phone: "", dirty_door: "", id: null,
+                ref, partner_name: "", phone: "", dirty_door: "",
+                id: null, phone_verified: false,
             };
             this._loadLockerClaim(ref);
         }
@@ -31,7 +32,8 @@ patch(NewOrderModal.prototype, {
         const rows = await this.lockerOrm.searchRead(
             "laundry.locker.transaction",
             [["ref", "=", ref]],
-            ["id", "ref", "phone", "customer_name", "partner_id", "dirty_door"],
+            ["id", "ref", "phone", "customer_name", "partner_id",
+             "phone_verified", "dirty_door"],
             { limit: 1 }
         );
         const row = rows[0];
@@ -45,6 +47,9 @@ patch(NewOrderModal.prototype, {
             customer_name: row.customer_name || "",
             partner_name: row.partner_id ? row.partner_id[1] : "",
             dirty_door: row.dirty_door || "",
+            // Whether the number was taken on a cashier's word rather than
+            // matched - which is the only case Correct number is for.
+            phone_verified: !!row.phone_verified,
         };
     },
 
@@ -53,7 +58,7 @@ patch(NewOrderModal.prototype, {
         super.selectServiceType(...arguments);
         if (code === "locker") {
             if (!this.lockerState.claim) {
-                this.openLockerPicker();
+                this.openLockerPicker(false);
             }
         } else if (previous === "locker") {
             this.releaseLockerClaim();
@@ -73,8 +78,15 @@ patch(NewOrderModal.prototype, {
         }
     },
 
-    async openLockerPicker() {
-        const result = await makeAwaitable(this.dialog, LockerPickerPopup, {});
+    /**
+     * @param {boolean} recheck - reopen on the transaction already taken (to
+     *   correct the number) instead of showing the queue.
+     */
+    async openLockerPicker(recheck = false) {
+        const previous = this.lockerState.claim;
+        const result = await makeAwaitable(this.dialog, LockerPickerPopup, {
+            transactionId: recheck && previous?.id ? previous.id : undefined,
+        });
         if (!result) {
             return;
         }
