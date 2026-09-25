@@ -7,7 +7,7 @@ import { usePos } from "@point_of_sale/app/hooks/pos_hook";
 import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_instructions";
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
-import { DateWheel } from "@laundry_pos/new_order_modal/date_wheel";
+import { DateWheel, fmtDateLabel } from "@laundry_pos/new_order_modal/date_wheel";
 
 // Buttons are styled like the POS numpad (core's `.numpad-button`): every unselected
 // key is plain grey and the SELECTED one goes solid primary, so colour carries one
@@ -308,6 +308,30 @@ export class NewOrderModal extends Component {
 
     get pmHours() {
         return this.hours.slice(12);
+    }
+
+    // Whether the schedule belongs to a booking made outside the till, so the
+    // pickers give way to a plain reading of it. Nothing here fixes one;
+    // laundry_locker does, for a slot the locker customer already chose.
+    get scheduleLocked() {
+        return false;
+    }
+
+    // One line saying WHY it cannot be changed - a locked field with no reason
+    // on it just reads as broken.
+    get scheduleLockedNote() {
+        return "";
+    }
+
+    // A picked date and hour as one line, for a schedule being shown rather
+    // than chosen: "Sep 27, 3 PM".
+    fmtSchedule(dateVal, hourVal) {
+        const date = fmtDateLabel(dateVal);
+        if (!date) {
+            return "\u2014";
+        }
+        const hour = this.hours.find((h) => h.value === hourVal);
+        return hour ? `${date}, ${hour.label}` : date;
     }
 
     setDate(field, value) {

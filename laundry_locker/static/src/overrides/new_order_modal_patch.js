@@ -105,10 +105,26 @@ patch(NewOrderModal.prototype, {
         this._applyLockerSchedule(result.schedule);
     },
 
-    // The slot the customer picked at the locker is the one they were
-    // promised, so it fills the schedule step instead of being re-picked from
-    // memory. It is not locked: a cashier can still change it, and changing it
-    // re-prices the lines through the usual TAT path.
+    // The slot the customer picked at the locker is the one they were promised,
+    // so the till reads it rather than re-picking it. Locked only when the
+    // booking actually carried both slots - a drop-off made without them would
+    // otherwise leave the cashier with two empty fields they cannot fill.
+    get scheduleLocked() {
+        return (
+            this.state.serviceType === "locker" &&
+            !!this.lockerState.claim &&
+            !!this.state.pickupDate &&
+            !!this.state.pdDelDate
+        );
+    },
+
+    get scheduleLockedNote() {
+        if (!this.scheduleLocked) {
+            return super.scheduleLockedNote;
+        }
+        return "Set by the locker booking - this is the slot the customer was promised.";
+    },
+
     _applyLockerSchedule(schedule) {
         if (!schedule) {
             return;
@@ -125,23 +141,23 @@ patch(NewOrderModal.prototype, {
         }
     },
 
-    // The matched customer may not be one of the partners the session
-    // pre-loaded, so fetch it the same way the modal's own server search does.
+    // Fetched from the server EVERY time, the same way the modal's own search
+    // does. Not just because the matched customer may not be one of the
+    // partners the session pre-loaded: claiming may have just written the
+    // locker address onto a customer the session loaded long ago, and a stale
+    // copy would print a blank address on this order's receipt.
     async _selectLockerPartner(partnerId) {
         if (!partnerId) {
             return;
         }
-        const find = () =>
-            (this.pos.models["res.partner"]?.getAll() ?? []).find((p) => p.id === partnerId);
-        let partner = find();
-        if (!partner) {
-            await this.pos.data.callRelated("res.partner", "get_new_partner", [
-                this.pos.config.id,
-                [["id", "=", partnerId]],
-                0,
-            ]);
-            partner = find();
-        }
+        await this.pos.data.callRelated("res.partner", "get_new_partner", [
+            this.pos.config.id,
+            [["id", "=", partnerId]],
+            0,
+        ]);
+        const partner = (this.pos.models["res.partner"]?.getAll() ?? []).find(
+            (p) => p.id === partnerId
+        );
         if (partner) {
             this.pickPartner(partner);
         }

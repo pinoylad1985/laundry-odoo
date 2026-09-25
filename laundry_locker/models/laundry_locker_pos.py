@@ -7,6 +7,9 @@ from .laundry_locker_transaction import phone_last10
 
 _logger = logging.getLogger(__name__)
 
+# The second address line every locker customer gets, under the site name.
+LOCKER_ADDRESS_LINE2 = 'LOCKER'
+
 
 class LaundryLockerTransaction(models.Model):
     _inherit = 'laundry.locker.transaction'
@@ -158,12 +161,31 @@ class LaundryLockerTransaction(models.Model):
             })
             self.partner_id = partner
 
+        self._apply_locker_address(partner)
         # The same shape a picker row has, so the modal reads one thing whether
         # it came from the list or from a claim. The partner is pinned on top
         # because it may have been created a few lines above.
         result = self._pos_row()
         result.update({'partner_id': partner.id, 'partner_name': partner.name})
         return result
+
+    def _apply_locker_address(self, partner):
+        """Give a locker customer the locker as their address.
+
+        The site on one line and LOCKER on the next, so the receipt says where
+        the bag came from and a rider reading it knows it is not a house call.
+
+        Only onto an EMPTY address block. A locker customer who has never given
+        one has nothing to lose; a customer who already has an address is
+        someone the shop knows by it, and a drop-off is no reason to overwrite
+        where they live.
+        """
+        self.ensure_one()
+        if not partner or partner.street or partner.street2:
+            return
+        if not self.location_name:
+            return
+        partner.write({'street': self.location_name, 'street2': LOCKER_ADDRESS_LINE2})
 
     def _mark_billed(self, pos_order=None):
         vals = {'billed': True, 'billed_date': fields.Datetime.now()}

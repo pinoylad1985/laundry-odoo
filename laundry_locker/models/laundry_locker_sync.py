@@ -60,13 +60,19 @@ FEED_TIMEZONE = 'Asia/Manila'
 # newer row for the SAME locker reads "RISE" - so the code decides, and the
 # Location column groups by site instead of by spelling.
 LOCATION_NAMES = {
-    'LX-0001': 'RISE',
+    'LX-0001': 'THE RISE',
     'LX-0002': 'AIR',
 }
 
-# Last resort for a row with no code at all: the building in the customer's
-# address block. Matched on whole words, so "Fairview" is not read as AIR.
-LOCATION_ALIASES = ('RISE', 'AIR')
+# Last resort for a row with no code at all: a word in the building text of the
+# customer's address block, mapped to the site it names. Matched on whole
+# words, so "Fairview" is not read as AIR - and it yields the SAME name the
+# code would have, or a site would be spelled two ways depending on which row
+# it came in on.
+LOCATION_ALIASES = {
+    'RISE': 'THE RISE',
+    'AIR': 'AIR',
+}
 
 
 def _clean(value):
@@ -112,9 +118,9 @@ def _location_name(code, feed_name, building):
     name = _clean(feed_name)
     if name:
         return name
-    for alias in LOCATION_ALIASES:
+    for alias, site in LOCATION_ALIASES.items():
         if re.search(r'\b%s\b' % alias, str(building or ''), re.IGNORECASE):
-            return alias
+            return site
     return _clean(building)
 
 
