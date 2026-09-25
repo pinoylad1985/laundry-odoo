@@ -13,6 +13,8 @@ import pytz
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from .laundry_locker_transaction import ph_local_phone
+
 _logger = logging.getLogger(__name__)
 
 # The feed lives in the Firebase REALTIME DATABASE (not Firestore), and every
@@ -265,7 +267,12 @@ class LaundryLockerTransaction(models.Model):
         # into another door it is no longer the drop-off door.)
         door = (doors.get(ref) or {}).get('d')
         name = _clean(customer.get('name'))
-        phone = _clean(customer.get('contact'))
+        # Normalised HERE, at the feed boundary, so every reader of the
+        # record - the picker list, the receipt, the contact created from it -
+        # sees the one spelling. `source_phone` takes the same value, or the
+        # cashier-correction guard in _sync_writes would read the added 0 as a
+        # correction on every single row.
+        phone = ph_local_phone(_clean(customer.get('contact')))
         code = _location_code(record.get('locationCode'))
         return {
             'ref': ref,

@@ -3,7 +3,7 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from .laundry_locker_transaction import phone_last10
+from .laundry_locker_transaction import ph_local_phone, phone_last10
 
 _logger = logging.getLogger(__name__)
 
@@ -50,7 +50,9 @@ class LaundryLockerTransaction(models.Model):
             'ref': self.ref or '',
             'location_name': self.location_name or '',
             'customer_name': self.customer_name or '',
-            'phone': self.phone or '',
+            # Normalised on the way out as well as on the way in, so a row
+            # that predates the trunk-0 rule still reads right in the picker.
+            'phone': ph_local_phone(self.phone) or '',
             'service': self.service or '',
             'turnaround': self.turnaround or '',
             'dirty_door': self.dirty_door or '',
@@ -133,7 +135,10 @@ class LaundryLockerTransaction(models.Model):
             raise UserError(_('Ref %s has already been billed.') % self.ref)
 
         corrections = {}
-        if phone is not None and (phone or '').strip() != (self.phone or ''):
+        # A number typed at the till gets the same trunk 0 the feed's does, so
+        # a correction cannot be the one contact spelled without it.
+        phone = ph_local_phone(phone) if phone is not None else None
+        if phone is not None and (phone or '').strip() != (ph_local_phone(self.phone) or ''):
             corrections['phone'] = (phone or '').strip() or False
         if customer_name is not None and (customer_name or '').strip() != (self.customer_name or ''):
             corrections['customer_name'] = (customer_name or '').strip() or False
@@ -157,7 +162,7 @@ class LaundryLockerTransaction(models.Model):
                 raise UserError(_('A phone number is needed to create the customer.'))
             partner = self.env['res.partner'].create({
                 'name': self.customer_name or self.ref,
-                'phone': self.phone,
+                'phone': ph_local_phone(self.phone),
             })
             self.partner_id = partner
 

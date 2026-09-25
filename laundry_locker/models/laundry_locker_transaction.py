@@ -16,6 +16,26 @@ def phone_last10(value):
     return digits[-10:] if len(digits) >= 10 else ''
 
 
+def ph_local_phone(value):
+    """A phone number written the way the shop writes it: 09xx xxx xxxx.
+
+    PudoPro hands back the subscriber number on its own - `9171234567` - and a
+    number with no leading 0 does not read as a phone number to anyone here,
+    on a receipt or on a contact. The trunk 0 is put back.
+
+    ONLY on a 10-digit mobile. A number that already has its 0, one in +63
+    form, and a landline are all left exactly as they came: guessing at
+    anything else would mangle numbers that were never broken.
+    """
+    text = (value or '').strip()
+    if not text:
+        return value
+    digits = re.sub(r'\D', '', text)
+    if len(digits) == 10 and digits.startswith('9'):
+        return '0' + digits
+    return value
+
+
 class LaundryLockerTransaction(models.Model):
     _name = 'laundry.locker.transaction'
     _description = 'Locker Transaction'
