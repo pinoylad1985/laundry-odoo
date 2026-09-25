@@ -180,20 +180,26 @@
 
                 <!-- Pickup &amp; Delivery / Locker: Pickup + Delivery -->
                 <t t-if="state.serviceType === 'pickup_delivery' || state.serviceType === 'locker'">
-                    <!-- A schedule the customer was already promised elsewhere is
-                         READ here, not re-picked: the two slots are shown as text
-                         and the pickers are not rendered at all. Nothing in this
-                         module locks one - laundry_locker does, for a booking made
-                         at the locker. -->
-                    <div t-if="scheduleLocked" class="mb-3 p-3 border rounded-3 bg-light">
-                        <div class="fw-semibold small text-muted">Pickup Date &amp; Time</div>
-                        <div class="fs-4 fw-bold" t-esc="fmtSchedule(state.pickupDate, state.pickupHour)"/>
-                        <div class="fw-semibold small text-muted mt-3">Delivery Date &amp; Time</div>
-                        <div class="fs-4 fw-bold" t-esc="fmtSchedule(state.pdDelDate, state.pdDelHour)"/>
+                    <!-- A slot the customer was already promised elsewhere is READ
+                         here, not re-picked: it is shown as text and its pickers are
+                         not rendered at all. Each leg is locked on its own, so a
+                         booking that carried only one still fixes that one. Nothing
+                         in this module locks either - laundry_locker does, for a
+                         booking made at the locker. -->
+                    <div t-if="pickupLocked or pdDelLocked" class="mb-3 p-3 border rounded-3 bg-light">
+                        <t t-if="pickupLocked">
+                            <div class="fw-semibold small text-muted">Pickup Date &amp; Time</div>
+                            <div class="fs-4 fw-bold" t-esc="fmtSchedule(state.pickupDate, state.pickupHour)"/>
+                        </t>
+                        <t t-if="pdDelLocked">
+                            <div class="fw-semibold small text-muted"
+                                 t-att-class="pickupLocked ? 'mt-3' : ''">Delivery Date &amp; Time</div>
+                            <div class="fs-4 fw-bold" t-esc="fmtSchedule(state.pdDelDate, state.pdDelHour)"/>
+                        </t>
                         <small t-if="scheduleLockedNote" class="text-muted d-block mt-2"
                                t-esc="scheduleLockedNote"/>
                     </div>
-                    <div t-if="!scheduleLocked" class="mb-3">
+                    <div t-if="!pickupLocked" class="mb-3">
                         <label class="form-label fw-semibold small"
                                    t-att-class="isMissing('pickupDate') or isMissing('pickupHour') ? 'text-danger' : 'text-muted'">
                                 Pickup Date &amp; Time <span class="text-danger">*</span>
@@ -209,7 +215,7 @@
                             <t t-set="dateVal" t-value="state.pickupDate"/>
                         </t>
                     </div>
-                    <div t-if="!scheduleLocked" class="mb-3">
+                    <div t-if="!pdDelLocked" class="mb-3">
                         <label class="form-label fw-semibold small"
                                    t-att-class="isMissing('pdDelDate') or isMissing('pdDelHour') ? 'text-danger' : 'text-muted'">
                                 Delivery Date &amp; Time <span class="text-danger">*</span>

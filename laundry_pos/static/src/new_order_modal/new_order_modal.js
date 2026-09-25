@@ -310,10 +310,17 @@ export class NewOrderModal extends Component {
         return this.hours.slice(12);
     }
 
-    // Whether the schedule belongs to a booking made outside the till, so the
-    // pickers give way to a plain reading of it. Nothing here fixes one;
+    // Whether a leg of the schedule belongs to a booking made outside the
+    // till, so its pickers give way to a plain reading of it. Locked PER LEG,
+    // not for the pair: a booking that carried only one of them still fixes
+    // that one, and leaves the cashier able to fill the other rather than
+    // dead-ending an order nobody can confirm. Nothing here locks anything;
     // laundry_locker does, for a slot the locker customer already chose.
-    get scheduleLocked() {
+    get pickupLocked() {
+        return false;
+    }
+
+    get pdDelLocked() {
         return false;
     }
 

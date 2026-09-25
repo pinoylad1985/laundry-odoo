@@ -113,20 +113,28 @@ patch(NewOrderModal.prototype, {
     },
 
     // The slot the customer picked at the locker is the one they were promised,
-    // so the till reads it rather than re-picking it. Locked only when the
-    // booking actually carried both slots - a drop-off made without them would
-    // otherwise leave the cashier with two empty fields they cannot fill.
-    get scheduleLocked() {
+    // so the till READS it and cannot re-pick it. Each leg is judged on its
+    // own: a booking that carried only a pickup fixes the pickup and still
+    // lets the cashier choose the delivery, rather than dead-ending an order
+    // that could never be confirmed.
+    get pickupLocked() {
+        return this._lockerSlotLocked(this.state.pickupDate);
+    },
+
+    get pdDelLocked() {
+        return this._lockerSlotLocked(this.state.pdDelDate);
+    },
+
+    _lockerSlotLocked(value) {
         return (
             this.state.serviceType === "locker" &&
             !!this.lockerState.claim &&
-            !!this.state.pickupDate &&
-            !!this.state.pdDelDate
+            !!value
         );
     },
 
     get scheduleLockedNote() {
-        if (!this.scheduleLocked) {
+        if (!this.pickupLocked && !this.pdDelLocked) {
             return super.scheduleLockedNote;
         }
         return "Set by the locker booking - this is the slot the customer was promised.";
