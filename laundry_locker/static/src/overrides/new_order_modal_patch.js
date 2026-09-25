@@ -7,13 +7,51 @@ import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { NewOrderModal } from "@laundry_pos/new_order_modal/new_order_modal";
 import { LockerPickerPopup } from "@laundry_locker/locker_picker/locker_picker_popup";
 
+// What the customer paid for at the locker, in the feed's own words
+// ("Wash, Dry & Fold", "Dry Clean, Press"), mapped onto the modal's own
+// service codes. Keyed on the MOST specific wording first: "dry clean" has to
+// win before "wash-dry-fold" is tried, or a dry clean reads as a fold.
+const LOCKER_SERVICE_KEYWORDS = [
+    ["shoe", ["shoe"]],
+    ["cap", ["cap"]],
+    ["press", ["press", "iron"]],
+    ["dwc", ["dry/wet", "dry clean", "wet clean", "dry cleaning", "dwc"]],
+    ["wdf", ["wash-dry-fold", "wash dry fold", "wash/dry/fold", "wdf", "wash"]],
+];
+
+function lockerServiceCodes(service) {
+    const text = (service || "").toLowerCase();
+    if (!text) {
+        return [];
+    }
+    const codes = [];
+    // Each listed service is read on its own, so a booking for two of them
+    // pre-fills both.
+    for (const part of text.split(/[,;+]/)) {
+        const piece = part.trim();
+        if (!piece) {
+            continue;
+        }
+        for (const [code, keywords] of LOCKER_SERVICE_KEYWORDS) {
+            if (keywords.some((keyword) => piece.includes(keyword))) {
+                if (!codes.includes(code)) {
+                    codes.push(code);
+                }
+                break;
+            }
+        }
+    }
+    return codes;
+}
+
 // Picking LOCKER as the service type opens the unbilled locker queue: the
 // drop-off already happened, so the customer is looked up rather than typed.
 patch(NewOrderModal.prototype, {
     setup() {
         super.setup(...arguments);
         this.lockerOrm = useService("orm");
-        this.lockerState = useState({ claim: null });
+        this.notification = useService("notification");
+        this.lockerState = useState({ claim: null, requiredServices: [] });
 
         // A Locker order being edited (Change, or after a reload) carries its
         // ref on the order, so the block shows what was already taken instead
@@ -33,7 +71,7 @@ patch(NewOrderModal.prototype, {
             "laundry.locker.transaction",
             [["ref", "=", ref]],
             ["id", "ref", "phone", "customer_name", "partner_id",
-             "phone_verified", "dirty_door"],
+             "phone_verified", "dirty_door", "service"],
             { limit: 1 }
         );
         const row = rows[0];
@@ -51,6 +89,9 @@ patch(NewOrderModal.prototype, {
             // matched - which is the only case Correct number is for.
             phone_verified: !!row.phone_verified,
         };
+        // Re-arms the guard on an order being edited. Only ADDS what is
+        // missing, so reopening a set-up order changes nothing.
+        this._applyLockerServices(row.service);
     },
 
     selectServiceType(code) {
@@ -71,6 +112,7 @@ patch(NewOrderModal.prototype, {
     // have meanwhile sold.
     releaseLockerClaim() {
         this.lockerState.claim = null;
+        this.lockerState.requiredServices = [];
         const order = this.pos.getOrder();
         if (order) {
             order.laundry_locker_ref = false;
@@ -110,6 +152,36 @@ patch(NewOrderModal.prototype, {
             this.state.customerType = "returning";
         }
         this._applyLockerSchedule(result.schedule);
+        this._applyLockerServices(result.service);
+    },
+
+    // The booking is the till's instruction, not a suggestion: the services it
+    // was made for go on the order at one each, and the last one of each
+    // cannot be taken back off. A cashier who needs more presses adds them;
+    // one who thinks the customer did not book a fold is reading the booking
+    // wrong, and the fix for that is a different drop-off, not a smaller sale.
+    _applyLockerServices(service) {
+        const codes = lockerServiceCodes(service);
+        this.lockerState.requiredServices = codes;
+        for (const code of codes) {
+            if (!this.serviceCount(code)) {
+                this.addService(code);
+            }
+        }
+    },
+
+    removeService(code) {
+        if (
+            this.lockerState.requiredServices.includes(code) &&
+            this.serviceCount(code) <= 1
+        ) {
+            this.notification.add(
+                "This service came with the locker booking and cannot be removed.",
+                { type: "warning" }
+            );
+            return;
+        }
+        super.removeService(...arguments);
     },
 
     // The slot the customer picked at the locker is the one they were promised,
@@ -131,13 +203,6 @@ patch(NewOrderModal.prototype, {
             !!this.lockerState.claim &&
             !!value
         );
-    },
-
-    get scheduleLockedNote() {
-        if (!this.pickupLocked && !this.pdDelLocked) {
-            return super.scheduleLockedNote;
-        }
-        return "Set by the locker booking - this is the slot the customer was promised.";
     },
 
     _applyLockerSchedule(schedule) {

@@ -324,12 +324,6 @@ export class NewOrderModal extends Component {
         return false;
     }
 
-    // One line saying WHY it cannot be changed - a locked field with no reason
-    // on it just reads as broken.
-    get scheduleLockedNote() {
-        return "";
-    }
-
     // A picked date and hour as one line, for a schedule being shown rather
     // than chosen: "Sep 27, 3 PM".
     fmtSchedule(dateVal, hourVal) {

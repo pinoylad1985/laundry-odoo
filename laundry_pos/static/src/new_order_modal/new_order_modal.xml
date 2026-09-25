@@ -196,8 +196,6 @@
                                  t-att-class="pickupLocked ? 'mt-3' : ''">Delivery Date &amp; Time</div>
                             <div class="fs-4 fw-bold" t-esc="fmtSchedule(state.pdDelDate, state.pdDelHour)"/>
                         </t>
-                        <small t-if="scheduleLockedNote" class="text-muted d-block mt-2"
-                               t-esc="scheduleLockedNote"/>
                     </div>
                     <div t-if="!pickupLocked" class="mb-3">
                         <label class="form-label fw-semibold small"
