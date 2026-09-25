@@ -179,11 +179,13 @@ class LaundryLockerTransaction(models.Model):
         for tx in self:
             tx.customer_match = 'returning' if tx.partner_id else 'new'
 
-    # --- actions ---------------------------------------------------------
-    def action_mark_verified(self):
-        self.write({'phone_verified': True})
+    def _laundry_rematch_partner(self):
+        """Re-run the phone match against the customer book.
 
-    def action_rematch_partner(self):
-        """Re-run the phone match - for after a number is corrected by hand."""
+        Internal, not a button: a number corrected on this form recomputes the
+        match by itself (partner_id depends on it). This is for the other
+        direction - res_partner's hook, when the CUSTOMER turns up after the
+        transaction did.
+        """
         self._compute_partner_id()
         self._compute_customer_match()

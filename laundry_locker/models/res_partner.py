@@ -37,7 +37,7 @@ class ResPartner(models.Model):
             ('phone_last10', 'in', keys),
         ])
         if pending:
-            pending.action_rematch_partner()
+            pending._laundry_rematch_partner()
 
     @api.model_create_multi
     def create(self, vals_list):

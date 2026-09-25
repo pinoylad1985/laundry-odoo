@@ -60,21 +60,13 @@
         <field name="name">laundry.locker.transaction.form</field>
         <field name="model">laundry.locker.transaction</field>
         <field name="arch" type="xml">
+            <!-- No header, on purpose. Everything a counter decides about a
+                 drop-off is decided while the order is being taken: the number
+                 is confirmed in the locker picker, the customer is matched
+                 there or created there, and a drop-off is freed by REFUNDING
+                 the sale that took it. A button here would be a second place
+                 to do one of those, out of sight of the order it belongs to. -->
             <form string="Locker Transaction" create="0">
-                <header>
-                    <button name="action_mark_verified" type="object" class="btn-primary"
-                            string="Number Verified"
-                            invisible="phone_verified"
-                            help="Tick this only after calling the number and hearing it ring."/>
-                    <button name="action_rematch_partner" type="object"
-                            string="Re-check Customer"
-                            help="Re-run the phone lookup after correcting the number."/>
-                    <!-- There is deliberately NO way to unbill by hand. A
-                         drop-off billed on the wrong sale is a wrong SALE, and
-                         freeing the row would leave the money sitting on it.
-                         Refund the order instead: that reverses both, and
-                         hands the drop-off back to the picker by itself. -->
-                </header>
                 <sheet>
                     <div class="oe_title">
                         <label for="ref" string="Ref #"/>
@@ -90,7 +82,9 @@
                             <field name="phone_last10" readonly="1"/>
                             <field name="customer_match" widget="badge" readonly="1"/>
                             <field name="partner_id"/>
-                            <field name="phone_verified"/>
+                            <!-- Set at the till, when a contact is created
+                                 from this number - not tickable here. -->
+                            <field name="phone_verified" readonly="1"/>
                         </group>
                         <group string="Locker">
                             <field name="location_name" readonly="1"/>
