@@ -128,16 +128,18 @@
                 <separator/>
                 <filter name="filter_unverified" string="Number Not Verified"
                         domain="[('phone_verified', '=', False)]"/>
-                <group expand="0" string="Group By">
-                    <filter name="group_location" string="Location"
-                            context="{'group_by': 'location_name'}"/>
-                    <filter name="group_status" string="Status"
-                            context="{'group_by': 'status_label'}"/>
-                    <filter name="group_match" string="Customer Match"
-                            context="{'group_by': 'customer_match'}"/>
-                    <filter name="group_billed" string="Billed"
-                            context="{'group_by': 'billed'}"/>
-                </group>
+                <separator/>
+                <!-- Odoo 19 dropped the <group expand=...> wrapper from search
+                     views; a group_by filter stands on its own and the UI still
+                     files it under Group By. -->
+                <filter name="group_location" string="Location"
+                        context="{'group_by': 'location_name'}"/>
+                <filter name="group_status" string="Status"
+                        context="{'group_by': 'status_label'}"/>
+                <filter name="group_match" string="Customer Match"
+                        context="{'group_by': 'customer_match'}"/>
+                <filter name="group_billed" string="Billed"
+                        context="{'group_by': 'billed'}"/>
             </search>
         </field>
     </record>

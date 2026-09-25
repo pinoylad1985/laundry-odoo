@@ -104,9 +104,12 @@ class LaundryLockerTransaction(models.Model):
 
     synced_at = fields.Datetime(string='Last Synced')
 
-    _sql_constraints = [
-        ('ref_uniq', 'unique(ref)', 'A locker transaction with this Ref # already exists.'),
-    ]
+    # Odoo 19: _sql_constraints is ignored (it only logs a warning), so the
+    # uniqueness the sync upsert relies on has to be declared this way.
+    _ref_uniq = models.Constraint(
+        'unique(ref)',
+        'A locker transaction with this Ref # already exists.',
+    )
 
     @api.depends('phone')
     def _compute_phone_last10(self):
