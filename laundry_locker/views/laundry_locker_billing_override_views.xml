@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!--
+        Standing decisions about single refs, re-applied on every sync. See
+        the model docstring for why they exist: a one-off write does not
+        survive the list being rebuilt, and rebuilding it is routine.
+    -->
+    <record id="laundry_locker_billing_override_view_list" model="ir.ui.view">
+        <field name="name">laundry.locker.billing.override.list</field>
+        <field name="model">laundry.locker.billing.override</field>
+        <field name="arch" type="xml">
+            <list string="Billing Overrides" editable="top"
+                  decoration-warning="treatment == 'hold'"
+                  decoration-muted="not transaction_id">
+                <field name="ref" string="Ref #"/>
+                <field name="treatment" string="Treatment"/>
+                <field name="reason" string="Reason"/>
+                <!-- Greyed when empty, which is how a typo shows itself:
+                     the ref matches nothing in the list. Not an error - a
+                     decision may legitimately be made before the row
+                     arrives - so it is shown, not refused. -->
+                <field name="transaction_id" string="In the list" readonly="1"/>
+                <field name="transaction_billed" string="Billed now"
+                       widget="boolean_toggle" readonly="1"/>
+                <field name="active" column_invisible="1"/>
+            </list>
+        </field>
+    </record>
+
+    <record id="laundry_locker_billing_override_view_form" model="ir.ui.view">
+        <field name="name">laundry.locker.billing.override.form</field>
+        <field name="model">laundry.locker.billing.override</field>
+        <field name="arch" type="xml">
+            <form string="Billing Override">
+                <sheet>
+                    <widget name="web_ribbon" title="Archived" bg_color="text-bg-danger"
+                            invisible="active"/>
+                    <div class="oe_title">
+                        <label for="ref" string="Ref #"/>
+                        <h1><field name="ref" placeholder="LX-9nXDX"/></h1>
+                    </div>
+                    <group>
+                        <group string="Decision">
+                            <field name="treatment"/>
+                            <field name="reason"
+                                   placeholder="e.g. settled in cash at the counter before Odoo"/>
+                            <field name="active"/>
+                        </group>
+                        <group string="Right now">
+                            <field name="transaction_id"/>
+                            <field name="transaction_billed"/>
+                        </group>
+                    </group>
+                </sheet>
+            </form>
+        </field>
+    </record>
+
+    <record id="laundry_locker_billing_override_view_search" model="ir.ui.view">
+        <field name="name">laundry.locker.billing.override.search</field>
+        <field name="model">laundry.locker.billing.override</field>
+        <field name="arch" type="xml">
+            <search string="Billing Overrides">
+                <field name="ref" string="Ref #"/>
+                <field name="reason" string="Reason"/>
+                <filter name="filter_billed" string="Sold"
+                        domain="[('treatment', '=', 'billed')]"/>
+                <filter name="filter_hold" string="Not sold"
+                        domain="[('treatment', '=', 'hold')]"/>
+                <separator/>
+                <!-- The ones worth looking at: a decision whose ref is not in
+                     the list is usually a mistyped ref. -->
+                <filter name="filter_unmatched" string="Not in the list"
+                        domain="[('transaction_id', '=', False)]"/>
+                <separator/>
+                <filter name="filter_archived" string="Archived"
+                        domain="[('active', '=', False)]"/>
+                <filter name="group_treatment" string="Treatment"
+                        context="{'group_by': 'treatment'}"/>
+            </search>
+        </field>
+    </record>
+
+    <record id="laundry_locker_billing_override_action" model="ir.actions.act_window">
+        <field name="name">Billing Overrides</field>
+        <field name="res_model">laundry.locker.billing.override</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="laundry_locker_billing_override_view_search"/>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">No billing overrides</p>
+            <p>
+                A drop-off is normally billed by selling it at the till, and that
+                survives the locker list being rebuilt on its own — the order
+                remembers which locker transaction it was for.
+            </p>
+            <p>
+                Add a row here for the ones that cannot work that way: a drop-off
+                settled outside Odoo, which no order will ever account for, or one
+                that is still genuinely waiting to be sold even though it is older
+                than the cutoff date. Each is re-applied every time the list syncs.
+            </p>
+            <p>
+                The cutoff date itself is the system parameter
+                <b>laundry_locker.billed_before</b>, under Settings → Technical →
+                System Parameters. Everything that reached the lockers before it is
+                treated as already sold. Write it in shop time —
+                <b>2026-09-26 00:00:00</b> — so that it lines up with the New
+                Laundry column exactly as that column reads. A bare date means
+                midnight that morning.
+            </p>
+        </field>
+    </record>
+</odoo>
