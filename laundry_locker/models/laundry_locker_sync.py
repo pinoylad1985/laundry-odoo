@@ -261,11 +261,23 @@ class LaundryLockerTransaction(models.Model):
         else:
             service = _clean(services)
 
-        # /orders carries no door of its own, so the latched drop-off door from
-        # /lockerDoors is the only source for it. (The locker's live
-        # `doorNumber` would be wrong anyway - once the clean laundry goes back
-        # into another door it is no longer the drop-off door.)
-        door = (doors.get(ref) or {}).get('d')
+        # The latched drop-off door in /lockerDoors is authoritative: it is
+        # recorded the first time that leg is seen and is never re-pointed at
+        # the door the clean laundry goes back into.
+        #
+        # But it is latched by the dashboard's LOCKER tab, off an HOURLY
+        # snapshot, and only while somebody has that tab open - so for the
+        # first hours of a drop-off there is usually nothing there at all.
+        # That is why a door used to appear in this list long after the bag
+        # did. /orders has carried the booked door the whole time, at
+        # customer.unit, and /orders is what this sync already reads.
+        #
+        # Taken as a FALLBACK only, and only into an empty door (enforced in
+        # _sync_writes): it is Door_Details[0] of the live booking, so it can
+        # in principle be re-pointed once the order moves on, and a latched
+        # door must never be overwritten by it.
+        latched = _clean((doors.get(ref) or {}).get('d'))
+        door = latched or _clean(customer.get('unit'))
         name = _clean(customer.get('name'))
         # Normalised HERE, at the feed boundary, so every reader of the
         # record - the picker list, the receipt, the contact created from it -
@@ -292,7 +304,9 @@ class LaundryLockerTransaction(models.Model):
             'delivery_datetime': _feed_datetime(
                 time_block.get('deliveryDate'), time_block.get('deliveryHour')
             ),
-            'dirty_door': _clean(door),
+            'dirty_door': door,
+            # Provenance, not a field: _upsert_orders pops it back off.
+            '_door_from_feed': bool(door and not latched),
             'status_code': _clean(record.get('status')),
             'status_label': (
                 _clean(record.get('overallStatus')) or _clean(record.get('status'))
@@ -305,12 +319,12 @@ class LaundryLockerTransaction(models.Model):
             'new_laundry_at': _ms_to_datetime(record.get('createdAt')),
         }
 
-    def _sync_writes(self, vals):
+    def _sync_writes(self, vals, door_from_feed=False):
         """Narrow incoming values to what this record should actually take.
 
         Three things the sync must not undo: a phone number (or name) a cashier
         corrected, because putting the customer's typo back is the whole failure
-        this feature exists to stop; a drop-off door already latched; and
+        this feature exists to stop; a drop-off door already recorded; and
         anything Odoo owns - billed, pos_order_id, phone_verified and a
         hand-set partner_id are never in `vals` to begin with.
         """
@@ -320,14 +334,22 @@ class LaundryLockerTransaction(models.Model):
             writes.pop('phone', None)
         if self.source_name and self.customer_name != self.source_name:
             writes.pop('customer_name', None)
-        # The door is a latch, not a field of the order. /orders carries no
-        # door, so a payload without one means "this caller does not know" -
-        # never "no door". Only /lockerDoors can say, and only by naming one.
-        # The push reads no Firebase at all by design, so EVERY push arrives
-        # blank here; without this guard each one blanked a door the hourly
-        # pull had latched, and the counter saw no door for a bag that had one
-        # until the next pull put it back.
-        if not writes.get('dirty_door') and self.dirty_door:
+        # The door is a latch, not a field of the order: once this row names
+        # one, only a better-sourced door may replace it.
+        #
+        # A blank never can. A payload without a door means "this caller does
+        # not know" - never "no door"; without this guard a record that had
+        # not been given one blanked a door an earlier sync had recorded, and
+        # the counter saw no door for a bag that had one until the next sync
+        # put it back.
+        #
+        # Nor may a door the feed guessed at (customer.unit - see
+        # _order_to_vals). It is only there to fill the gap before
+        # /lockerDoors latches one, and it reads the live booking, so once a
+        # door is recorded it can only disagree by having moved on.
+        # /lockerDoors itself is not blocked here: it is latched at the
+        # drop-off and is the one source allowed to correct this.
+        if self.dirty_door and (door_from_feed or not writes.get('dirty_door')):
             writes.pop('dirty_door', None)
         return {k: v for k, v in writes.items() if (self[k] or False) != (v or False)}
 
@@ -387,9 +409,12 @@ class LaundryLockerTransaction(models.Model):
         to_create = []
         for ref, vals in by_ref.items():
             vals['synced_at'] = now
+            # Where the door came from - see _order_to_vals. Popped before it
+            # can reach create() or write(), which would reject it as a field.
+            door_from_feed = vals.pop('_door_from_feed', False)
             tx = existing.get(ref)
             if tx:
-                writes = tx._sync_writes(vals)
+                writes = tx._sync_writes(vals, door_from_feed=door_from_feed)
                 if writes:
                     tx.write(writes)
                 touched |= tx
