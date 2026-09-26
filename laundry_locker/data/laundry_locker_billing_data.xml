@@ -17,10 +17,15 @@
             Individual refs on either side of this line - one sold later
             outside Odoo, one still genuinely waiting despite being older -
             are exceptions, and go under Lockers > Billing Overrides.
+
+            SHOP TIME, not UTC: this is compared against the New Laundry
+            column, and that column is read off the screen in shop time. A
+            bare date means midnight that morning, so everything dated
+            Sep 26 2026 onwards is still the counter's work.
         -->
         <record id="param_laundry_locker_billed_before" model="ir.config_parameter">
             <field name="key">laundry_locker.billed_before</field>
-            <field name="value">2026-09-26 00:46:00</field>
+            <field name="value">2026-09-26</field>
         </record>
     </data>
 </odoo>

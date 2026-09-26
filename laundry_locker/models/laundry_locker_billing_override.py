@@ -1,5 +1,17 @@
+from datetime import datetime
+
+import pytz
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
+# The shop's own clock. Imported rather than repeated: it is the same place
+# the feed's times are in, and two spellings of one timezone would drift.
+from .laundry_locker_sync import FEED_TIMEZONE
+
+# The shapes the cutoff may be written in, longest first. A bare date is the
+# one to reach for - it is the whole point that this reads like a date.
+CUTOFF_FORMATS = ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d')
 
 # The date before which every locker drop-off was already sold at the till.
 #
@@ -8,6 +20,11 @@ from odoo.exceptions import ValidationError
 # once, in Settings > Technical > System Parameters, as
 # `laundry_locker.billed_before`. A screen would invite it to be adjusted,
 # and moving it re-decides hundreds of rows at a stroke.
+#
+# Written as `YYYY-MM-DD` in SHOP time, not UTC. It is compared against the
+# New Laundry column, and that column is read off the screen in shop time -
+# a cutoff that quietly meant 8am would put a day's drop-offs on the wrong
+# side of the line it was supposed to draw.
 PARAM_BILLED_BEFORE = 'laundry_locker.billed_before'
 
 
@@ -120,20 +137,30 @@ class LaundryLockerBillingOverride(models.Model):
     # ------------------------------------------------------------------
     @api.model
     def _laundry_billed_before(self):
-        """The cutoff, or None if none is set.
+        """The cutoff as a UTC-naive datetime, or None if none is set.
 
         Unset is the safe state - no cutoff means nothing is billed for being
-        old, and the list behaves exactly as it did before this existed.
+        old, and the list behaves exactly as it did before this existed. So is
+        unreadable: a mistyped parameter leaves drop-offs in the queue, where
+        somebody will notice them, rather than billing a sweep of them on a
+        date nobody meant.
+
+        The value is read as SHOP time and converted here, so that what is
+        written in the parameter is what the New Laundry column shows. A bare
+        date means midnight that morning.
         """
-        raw = self.env['ir.config_parameter'].sudo().get_param(PARAM_BILLED_BEFORE)
+        raw = (self.env['ir.config_parameter'].sudo()
+               .get_param(PARAM_BILLED_BEFORE) or '').strip()
         if not raw:
             return None
-        try:
-            # Accepts a bare date as well as a full datetime, so whoever sets
-            # the parameter does not have to know which one is wanted.
-            return fields.Datetime.to_datetime(raw.strip())
-        except (ValueError, TypeError):
-            return None
+        for pattern in CUTOFF_FORMATS:
+            try:
+                local = datetime.strptime(raw, pattern)
+            except ValueError:
+                continue
+            return pytz.timezone(FEED_TIMEZONE).localize(local).astimezone(
+                pytz.utc).replace(tzinfo=None)
+        return None
 
     @api.model
     def _laundry_rules(self):
