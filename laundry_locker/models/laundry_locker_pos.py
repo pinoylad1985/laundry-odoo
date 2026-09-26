@@ -256,6 +256,7 @@ class LaundryLockerTransaction(models.Model):
         overrides = self.env['laundry.locker.billing.override']
         rules = overrides._laundry_rules()
         cutoff = overrides._laundry_billed_before()
+        predating = 0
 
         for transaction in candidates:
             order = by_ref.get(transaction.ref)
@@ -265,6 +266,10 @@ class LaundryLockerTransaction(models.Model):
                 # that node. Re-announcing it on a full resync would be a few
                 # hundred writes saying what is already there.
                 transaction._mark_billed(order, push=False)
+                _logger.info(
+                    'Locker %s re-adopted by its existing order %s.',
+                    transaction.ref, order.pos_reference,
+                )
                 continue
 
             rule = rules.get((transaction.ref or '').strip().lower())
@@ -284,10 +289,15 @@ class LaundryLockerTransaction(models.Model):
                 # dashboard draws the same line for itself rather than being
                 # told about each one.
                 transaction._mark_billed(push=False)
-                _logger.info(
-                    'Locker %s re-adopted by its existing order %s.',
-                    transaction.ref, order.pos_reference,
-                )
+                predating += 1
+
+        if predating:
+            # Counted rather than logged one by one: on a full resync this is
+            # every drop-off the shop ever took before Odoo was billing them,
+            # and a line each would bury everything else in the log.
+            _logger.info(
+                '%d locker drop-offs billed as predating %s.', predating, cutoff,
+            )
 
     def _laundry_unbill(self):
         """Put a transaction back in the picker.
