@@ -58,6 +58,14 @@
                 <field name="pos_order_id" optional="hide"/>
                 <field name="created_at" optional="hide"/>
                 <field name="status_code" column_invisible="1"/>
+                <!-- Reads PU, DL, both, or nothing at all. Placed just
+                     before the two buttons that fill it in, so pressing one
+                     and seeing the mark appear is a single glance. Blank is
+                     the state that needs doing. -->
+                <field name="google_calendar_set" string="Calendar" widget="badge"
+                       decoration-success="google_calendar_set == 'PU DL'"
+                       decoration-warning="google_calendar_set and google_calendar_set != 'PU DL'"
+                       optional="show"/>
                 <!-- Per row, not in the header: this is about ONE drop-off's
                      own times, and the counter presses it while looking at
                      that row. Distinct icons rather than labels because the
@@ -149,6 +157,7 @@
                                         icon="fa-truck" string="Delivery"
                                         title="Put this drop-off's delivery on the shop's Google calendar."/>
                             </div>
+                            <field name="google_calendar_set" readonly="1"/>
                             <field name="google_pickup_event_id" readonly="1"/>
                             <field name="google_delivery_event_id" readonly="1"/>
                         </group>

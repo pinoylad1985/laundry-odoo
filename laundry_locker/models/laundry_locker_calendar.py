@@ -44,7 +44,7 @@ import pytz
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 
-from odoo import _, fields, models
+from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .laundry_locker_sync import FEED_TIMEZONE, REQUEST_TIMEOUT
@@ -119,6 +119,32 @@ class LaundryLockerTransaction(models.Model):
              'Set when the event is created; pressing the button again '
              'updates that event rather than creating a second one.',
     )
+
+    # A column the counter can run an eye down, rather than two event ids
+    # that only say yes by being long. It reads 'PU DL' when both are on the
+    # calendar, one of them when only one is, and is empty when neither is -
+    # so a row that still needs doing is blank, which is what a list of things
+    # to do should look like.
+    #
+    # Not stored: it says nothing the two ids do not already say, and a stored
+    # copy is one more thing that can disagree with them.
+    google_calendar_set = fields.Char(
+        string='Calendar', compute='_compute_google_calendar_set',
+        help="Which of this drop-off's times are on the shop calendar: PU for "
+             'the pickup, DL for the delivery. Empty means neither has been '
+             'put on it yet.',
+    )
+
+    @api.depends('google_pickup_event_id', 'google_delivery_event_id')
+    def _compute_google_calendar_set(self):
+        for transaction in self:
+            marks = [
+                spec['suffix'] for spec in EVENT_KINDS.values()
+                if transaction[spec['event_field']]
+            ]
+            # False and not '' so the cell is genuinely empty rather than an
+            # empty badge sitting there looking like a lost label.
+            transaction.google_calendar_set = ' '.join(marks) or False
 
     # ------------------------------------------------------------------
     # credentials
