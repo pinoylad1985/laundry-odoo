@@ -5,7 +5,8 @@
              it is about is on screen right above it. -->
         <xpath expr="//div[hasclass('laundry-grid-types')]" position="after">
             <div t-if="state.serviceType === 'locker'"
-                 class="laundry-locker-claim mt-2 p-2 border rounded-3">
+                 class="laundry-locker-claim mt-2 p-2 border rounded-3"
+                 t-att-class="{ 'laundry-invalid': missingLockerClaim }">
                 <t t-if="lockerState.claim">
                     <div class="d-flex flex-wrap align-items-center gap-2">
                         <b>Ref <t t-esc="lockerState.claim.ref"/></b>
