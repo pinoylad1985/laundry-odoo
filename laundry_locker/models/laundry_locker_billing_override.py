@@ -80,7 +80,7 @@ class LaundryLockerBillingOverride(models.Model):
     )
     transaction_id = fields.Many2one(
         'laundry.locker.transaction', string='In the list',
-        compute='_compute_transaction_id',
+        compute='_compute_transaction_id', search='_search_transaction_id',
         help='The locker transaction this ref currently matches. Empty means '
              'no such row is in the list right now - which is not a problem: '
              'the decision simply waits, and applies if the ref turns up.',
@@ -96,6 +96,32 @@ class LaundryLockerBillingOverride(models.Model):
             rule.transaction_id = transactions.search(
                 [('ref', '=ilike', rule.ref)], limit=1,
             ) if rule.ref else transactions
+
+    def _search_transaction_id(self, operator, value):
+        """Make the computed link filterable - the search view needs it.
+
+        Without this the 'Not in the list' filter cannot be validated and the
+        whole view fails to load, taking the module install with it.
+
+        The match is a case-folded ref, which is not a join SQL can express
+        from here, so the rows are resolved in Python and handed back as a
+        list of ids. That is affordable only because this table is tens of
+        rows: it is a list of deliberate exceptions, not a ledger. If it ever
+        grows to thousands, store the link instead of computing it.
+        """
+        if operator in ('=', '!='):
+            wanted = {value}
+        elif operator in ('in', 'not in'):
+            wanted = set(value or [])
+        else:
+            raise NotImplementedError(
+                _('Cannot filter locker billing overrides with %s.', operator))
+
+        rows = self.with_context(active_test=False).sudo().search([])
+        hit = rows.filtered(lambda rule: rule.transaction_id.id in wanted)
+        if operator in ('!=', 'not in'):
+            hit = rows - hit
+        return [('id', 'in', hit.ids)]
 
     @api.model_create_multi
     def create(self, vals_list):
