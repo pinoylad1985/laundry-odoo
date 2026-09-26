@@ -9,10 +9,17 @@
 
             Seeded so that a database installing this module for the first
             time does not pull in years of long-collected bags and hand the
-            counter a queue of them. noupdate, so it is stated once and then
-            belongs to the database: changing it here will not move it on an
-            install that already has it (Settings > Technical > System
-            Parameters does that), and an upgrade will never move it back.
+            counter a queue of them. Once it exists it belongs to the
+            database: change it in Settings > Technical > System Parameters,
+            not here.
+
+            Written through a method rather than as a <record> on
+            ir.config_parameter, because a record INSERTs and the key is
+            unique - installing into a database where the cutoff had already
+            been set by hand aborted the install on a duplicate key. The
+            method declines to touch a cutoff that is already set, so it is
+            safe whether or not the parameter is there, and safe to run
+            twice.
 
             Individual refs on either side of this line - one sold later
             outside Odoo, one still genuinely waiting despite being older -
@@ -27,9 +34,8 @@
             draws decides a thousand rows, and it should not need anyone to
             know which end of the day it falls on.
         -->
-        <record id="param_laundry_locker_billed_before" model="ir.config_parameter">
-            <field name="key">laundry_locker.billed_before</field>
-            <field name="value">2026-09-26 00:00:00</field>
-        </record>
+        <function model="laundry.locker.billing.override"
+                  name="_laundry_seed_billed_before"
+                  eval="('2026-09-26 00:00:00',)"/>
     </data>
 </odoo>

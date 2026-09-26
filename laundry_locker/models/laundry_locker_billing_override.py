@@ -176,3 +176,22 @@ class LaundryLockerBillingOverride(models.Model):
             if key:
                 rules[key] = rule.treatment
         return rules
+
+    @api.model
+    def _laundry_seed_billed_before(self, value):
+        """Write the shipped cutoff, but ONLY into a database that has none.
+
+        Called from the module's data file on install. It has to be a method
+        and not an XML <record> on ir.config_parameter: a record INSERTs, and
+        the key is unique, so installing into a database where somebody had
+        already set the cutoff by hand aborted the whole install on a
+        duplicate-key error. Nor can it be a plain set_param, which would
+        overwrite that hand-set value with the shipped one.
+
+        So: state the default for a database that has never heard of this,
+        and stand aside everywhere else. The parameter belongs to the
+        database once it exists.
+        """
+        params = self.env['ir.config_parameter'].sudo()
+        if not (params.get_param(PARAM_BILLED_BEFORE) or '').strip():
+            params.set_param(PARAM_BILLED_BEFORE, value)
