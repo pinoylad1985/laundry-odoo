@@ -9,4 +9,12 @@
               parent="menu_laundry_locker_root"
               action="laundry_locker_transaction_action"
               sequence="10"/>
+
+    <!-- Below the list, not beside it: it is read far less often than the
+         list, and it only makes sense once you have seen one. -->
+    <menuitem id="menu_laundry_locker_billing_overrides"
+              name="Billing Overrides"
+              parent="menu_laundry_locker_root"
+              action="laundry_locker_billing_override_action"
+              sequence="20"/>
 </odoo>

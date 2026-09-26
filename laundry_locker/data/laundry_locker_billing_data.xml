@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <data noupdate="1">
+        <!--
+            When this shop started billing locker drop-offs through Odoo.
+            Anything that reached the lockers before it was settled some other
+            way, and is treated as sold the moment it syncs in - see
+            laundry.locker.billing.override.
+
+            Seeded so that a database installing this module for the first
+            time does not pull in years of long-collected bags and hand the
+            counter a queue of them. noupdate, so it is stated once and then
+            belongs to the database: changing it here will not move it on an
+            install that already has it (Settings > Technical > System
+            Parameters does that), and an upgrade will never move it back.
+
+            Individual refs on either side of this line - one sold later
+            outside Odoo, one still genuinely waiting despite being older -
+            are exceptions, and go under Lockers > Billing Overrides.
+        -->
+        <record id="param_laundry_locker_billed_before" model="ir.config_parameter">
+            <field name="key">laundry_locker.billed_before</field>
+            <field name="value">2026-09-26 00:46:00</field>
+        </record>
+    </data>
+</odoo>

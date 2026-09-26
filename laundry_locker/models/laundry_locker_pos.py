@@ -204,7 +204,7 @@ class LaundryLockerTransaction(models.Model):
             self._push_billed_to_firebase()
 
     def _laundry_adopt_billed_orders(self):
-        """Ask the ORDERS whether these drop-offs were already sold.
+        """Work out, from scratch, which of these drop-offs are already sold.
 
         The locker list is disposable: it is rebuilt from the feed, and rows
         are deleted and resynced whenever the mapping changes. What is NOT
@@ -214,11 +214,28 @@ class LaundryLockerTransaction(models.Model):
         reappearing in every till's picker for a bag that was collected weeks
         ago.
 
+        An order is the best answer but not the only one, because not every
+        locker drop-off was ever sold through Odoo. Everything from before
+        this shop billed lockers here has no order to be found, and marking
+        those billed by hand lasted only until the next rebuild put them all
+        back in the queue. So two standing statements are consulted after the
+        orders, both re-applied on every sync:
+
+          * the cutoff date - `laundry_locker.billed_before` - under which a
+            drop-off predates Odoo and was therefore settled some other way;
+          * `laundry.locker.billing.override`, the per-ref exceptions in both
+            directions (Lockers > Billing Overrides).
+
+        Order of precedence is the order of confidence. A real paid order
+        outranks anything anyone typed; a typed decision about one ref
+        outranks a date rule covering thousands.
+
         Runs over every row a sync touches, not only the new ones. Nothing
         unbills a drop-off by hand any more - a wrongly-billed one is refunded,
         and a refunded sale is skipped below - so an unbilled row that a paid
         order is holding is not somebody's decision, it is drift, and drift
-        should heal itself.
+        should heal itself. For the same reason this only ever BILLS: a `hold`
+        override does not unbill a row, it declines to bill one.
         """
         candidates = self.filtered(lambda t: t.ref and not t.billed)
         if not candidates:
@@ -236,6 +253,10 @@ class LaundryLockerTransaction(models.Model):
             if order.lines.refund_orderline_ids:
                 continue
             by_ref.setdefault(order.laundry_locker_ref, order)  # first one wins
+        overrides = self.env['laundry.locker.billing.override']
+        rules = overrides._laundry_rules()
+        cutoff = overrides._laundry_billed_before()
+
         for transaction in candidates:
             order = by_ref.get(transaction.ref)
             if order:
@@ -244,6 +265,25 @@ class LaundryLockerTransaction(models.Model):
                 # that node. Re-announcing it on a full resync would be a few
                 # hundred writes saying what is already there.
                 transaction._mark_billed(order, push=False)
+                continue
+
+            rule = rules.get((transaction.ref or '').strip().lower())
+            if rule == 'hold':
+                # Named as still to be sold. Nothing below may bill it.
+                continue
+            if rule == 'billed':
+                # Somebody stated this one specifically - a sale Odoo has no
+                # record of. That IS news to the dashboard, unlike the two
+                # cases either side of it, so it is pushed. The push only
+                # warns if it is refused; billing does not depend on it.
+                transaction._mark_billed(push=True)
+                continue
+            if cutoff and transaction.new_laundry_at and transaction.new_laundry_at < cutoff:
+                # Predates Odoo billing lockers at all. No order to name, and
+                # no push: this is hundreds of rows on a full resync, and the
+                # dashboard draws the same line for itself rather than being
+                # told about each one.
+                transaction._mark_billed(push=False)
                 _logger.info(
                     'Locker %s re-adopted by its existing order %s.',
                     transaction.ref, order.pos_reference,

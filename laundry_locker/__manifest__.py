@@ -17,7 +17,9 @@ a link to the POS order it was billed on.
     'data': [
         'security/ir.model.access.csv',
         'data/laundry_locker_cron.xml',
+        'data/laundry_locker_billing_data.xml',
         'views/laundry_locker_transaction_views.xml',
+        'views/laundry_locker_billing_override_views.xml',
         'views/laundry_locker_menus.xml',
         'views/pos_order_views.xml',
     ],
