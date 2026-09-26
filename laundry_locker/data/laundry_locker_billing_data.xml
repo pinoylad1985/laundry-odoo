@@ -27,15 +27,16 @@
 
             SHOP TIME, not UTC: this is compared against the New Laundry
             column, and that column is read off the screen in shop time.
-            Everything dated Sep 26 2026 onwards is still the counter's work.
+            Everything from 4am on Sep 26 2026 is still the counter's work.
 
-            The midnight is written out rather than left implied. A bare
-            `2026-09-26` means exactly the same thing, but the line this
-            draws decides a thousand rows, and it should not need anyone to
-            know which end of the day it falls on.
+            4am rather than midnight because the small hours of the 26th
+            were still being settled the old way - the line falls where the
+            shop's practice changed, not where the date does. The time is
+            written out in full: this decides a thousand rows, and it should
+            not need anyone to know which end of the day it falls on.
         -->
         <function model="laundry.locker.billing.override"
                   name="_laundry_seed_billed_before"
-                  eval="('2026-09-26 00:00:00',)"/>
+                  eval="('2026-09-26 04:00:00',)"/>
     </data>
 </odoo>
