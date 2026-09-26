@@ -34,11 +34,31 @@ const ACCOUNT_GATED_LABELS = {
 };
 const ACCOUNT_GATED_LABEL_LIST = ACCOUNT_GATED_SERVICE_TYPES.map((t) => ACCOUNT_GATED_LABELS[t]);
 
+// Service types that are ALWAYS on account, with no choice of tender. A Locker
+// customer put the bag in a door and walked away - there is nobody at the till
+// to hand over cash, and the sale is settled later (Settle Order). So the
+// on-account line is put on for the cashier and held there: any other method
+// would be recording money the shop never took.
+//
+// The mirror image of ACCOUNT_GATED_SERVICE_TYPES above, and deliberately
+// disjoint from it - a type either cannot use Customer Account without a
+// manager, or can use nothing else.
+const ACCOUNT_ONLY_SERVICE_TYPES = ["locker"];
+const ACCOUNT_ONLY_MESSAGE =
+    "A Locker order is always paid on Customer Account - the tender cannot be changed.";
+// The numpad calls updateSelectedPaymentline on every keypress, so the refusal
+// is throttled: one explanation, not one per digit.
+const ACCOUNT_ONLY_NOTIFY_MS = 4000;
+
 patch(PaymentScreen.prototype, {
     setup() {
         super.setup(...arguments);
         this.dialog = useService("dialog");
-        onMounted(() => this._laundryMirrorRefundPayments());
+        this.laundryNotification = useService("notification");
+        onMounted(() => {
+            this._laundryMirrorRefundPayments();
+            this._laundryTenderAccountOnly();
+        });
     },
 
     get _laundryLockedPayments() {
@@ -80,11 +100,84 @@ patch(PaymentScreen.prototype, {
         }
     },
 
+    // ---- Account-only service types (Locker): the tender is put on and held. ----
+    // The pay-later method this config offers, if it offers one.
+    get _laundryAccountMethod() {
+        return (this.payment_methods_from_config || []).find(
+            (m) => m.type === "pay_later"
+        ) || null;
+    },
+
+    // The on-account line an account-only order is held to, or null when this
+    // is not such an order - INCLUDING when the tender could not be put on at
+    // all (no pay-later method in this config, or core refused it for want of
+    // a customer). Nothing is locked in that case: a cashier who cannot be
+    // given the one right method has to be left able to take the money some
+    // other way, rather than handed a screen that refuses everything.
+    get _laundryAccountOnlyTender() {
+        const order = this.currentOrder;
+        if (!order || !ACCOUNT_ONLY_SERVICE_TYPES.includes(order.laundry_service_type)) {
+            return null;
+        }
+        const method = this._laundryAccountMethod;
+        const lines = order.payment_ids || [];
+        if (!method || lines.length !== 1) {
+            return null;
+        }
+        return lines[0].payment_method_id?.id === method.id ? lines[0] : null;
+    },
+
+    _laundryTenderAccountOnly() {
+        const order = this.currentOrder;
+        // A refund mirrors the ORIGINAL tender, whatever it was, and owns this
+        // screen - see _laundryMirrorRefundPayments.
+        if (!order || this._laundryLockedPayments) {
+            return;
+        }
+        if (!ACCOUNT_ONLY_SERVICE_TYPES.includes(order.laundry_service_type)) {
+            return;
+        }
+        const method = this._laundryAccountMethod;
+        if (!method) {
+            return;
+        }
+        try {
+            // Rebuilt, not topped up, on every mount of the screen: the total
+            // can have moved while the cashier was back on the product screen
+            // (a WDF re-bill), and addPaymentline amounts the new line to
+            // whatever is due NOW. Same method, same amount - invisible.
+            for (const line of [...order.payment_ids]) {
+                order.removePaymentline(line);
+            }
+            const result = order.addPaymentline(method);
+            if (!result || !result.status) {
+                console.warn("laundry_pos: on-account tender refused", result?.data);
+            }
+        } catch (e) {
+            // Never break the payment screen over this - fall back to a manual
+            // tender, which the lock above then leaves alone.
+            console.warn("laundry_pos: on-account tender failed", e);
+        }
+    },
+
+    _laundryAccountOnlyRefused() {
+        const now = Date.now();
+        if (now - (this._laundryAccountOnlyNotifiedAt || 0) < ACCOUNT_ONLY_NOTIFY_MS) {
+            return;
+        }
+        this._laundryAccountOnlyNotifiedAt = now;
+        this.laundryNotification.add(ACCOUNT_ONLY_MESSAGE, { type: "warning" });
+    },
+
     // ---- Lock: block manual add / delete / amount edits on a locked refund. ----
     // The mirror above uses order-level methods, so it doesn't pass through these.
     addNewPaymentLine(paymentMethod) {
         if (this._laundryLockedPayments) {
             return false; // locked — the mirrored tender is already set
+        }
+        if (this._laundryAccountOnlyTender) {
+            this._laundryAccountOnlyRefused();
+            return false;
         }
         // Customer Account (pay-later) tender on a Drop-off / Drop-off & Delivery order needs
         // a manager PIN. Block the add and open the gate; once a manager approves THIS order
@@ -127,12 +220,23 @@ patch(PaymentScreen.prototype, {
         if (this._laundryLockedPayments) {
             return; // locked — can't remove the mirrored tender
         }
+        if (this._laundryAccountOnlyTender) {
+            this._laundryAccountOnlyRefused();
+            return;
+        }
         return super.deletePaymentLine(...arguments);
     },
 
     updateSelectedPaymentline(amount) {
         if (this._laundryLockedPayments) {
             return; // locked — amount is fixed to the original
+        }
+        // Fixed to the full amount due. Letting it be lowered would leave a
+        // balance the cashier then cannot tender, since every other method is
+        // refused above - a dead end, not a partial payment.
+        if (this._laundryAccountOnlyTender) {
+            this._laundryAccountOnlyRefused();
+            return;
         }
         return super.updateSelectedPaymentline(...arguments);
     },

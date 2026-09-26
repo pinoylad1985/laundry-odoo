@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="point_of_sale.ReceiptHeader" t-inherit-mode="extension">
+
+        <!-- "Service Type: Locker | door 10, 9 | LX-000123" - appended INSIDE
+             laundry_pos's own service-type line, so the drop-off's details
+             keep the one piece of context that makes sense of them, and never
+             print on an order that has none. -->
+        <xpath expr="//div[hasclass('laundry-service-type')]" position="inside">
+            <t t-if="laundryLockerDoor">
+                <span> | door <t t-esc="laundryLockerDoor"/></span>
+            </t>
+            <t t-if="laundryLockerRef">
+                <span> | </span>
+                <span class="laundry-detail-ref" t-esc="laundryLockerRef"/>
+            </t>
+        </xpath>
+
+    </t>
+</templates>

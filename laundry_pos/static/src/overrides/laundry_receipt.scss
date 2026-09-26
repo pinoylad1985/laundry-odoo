@@ -39,6 +39,19 @@
     }
 }
 
+// A reference printed beside the service type - the locker drop-off's ref.
+// Two steps up the receipt's scale from the 24px detail lines it sits in, so
+// the number can be read off the paper at arm's length while matching bags.
+.pos-receipt .laundry-detail-ref {
+    font-size: 33.6px;
+    font-weight: bold;
+}
+@media print {
+    .render-container-parent .render-container .pos-receipt .laundry-detail-ref {
+        font-size: 33.6px !important;
+    }
+}
+
 // Reduced-size receipt bits (rate, small text).
 .pos-receipt .info-list,
 .pos-receipt small {

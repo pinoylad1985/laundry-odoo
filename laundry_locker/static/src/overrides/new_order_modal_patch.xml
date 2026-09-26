@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-inherit="laundry_pos.NewOrderModal" t-inherit-mode="extension">
+        <!-- Sits directly under the service-type keys, so the locker drop-off
+             it is about is on screen right above it. -->
+        <xpath expr="//div[hasclass('laundry-grid-types')]" position="after">
+            <div t-if="state.serviceType === 'locker'"
+                 class="laundry-locker-claim mt-2 p-2 border rounded-3">
+                <t t-if="lockerState.claim">
+                    <div class="d-flex flex-wrap align-items-center gap-2">
+                        <b>Ref <t t-esc="lockerState.claim.ref"/></b>
+                        <span t-if="lockerState.claim.partner_name">
+                            <t t-esc="lockerState.claim.partner_name"/>
+                        </span>
+                        <span class="text-muted" t-esc="lockerState.claim.phone"/>
+                        <span t-if="lockerState.claim.dirty_door" class="text-muted">
+                            door <t t-esc="lockerState.claim.dirty_door"/>
+                        </span>
+                        <span class="flex-grow-1"/>
+                        <!-- Only for a contact CREATED from this drop-off's
+                             number, which exists on a cashier's word that it
+                             rang. A number that matched an existing customer
+                             has nothing to correct, and re-opening the picker
+                             on it would only invite the till to retype a known
+                             customer. -->
+                        <button t-if="lockerState.claim.phone_verified"
+                                type="button" class="btn btn-secondary"
+                                t-on-click="() => this.openLockerPicker(true)">
+                            Correct number
+                        </button>
+                        <button type="button" class="btn btn-secondary"
+                                t-on-click="() => this.openLockerPicker(false)">
+                            Pick another
+                        </button>
+                    </div>
+                </t>
+                <t t-else="">
+                    <button type="button" class="btn btn-primary"
+                            t-on-click="() => this.openLockerPicker(false)">
+                        Choose locker drop-off
+                    </button>
+                </t>
+            </div>
+        </xpath>
+    </t>
+</templates>

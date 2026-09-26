@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_locker.LockerPickerPopup">
+        <Dialog title="'Locker Drop-offs'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
+            <!-- Step 1: pick the drop-off -->
+            <div t-if="!selectedRow">
+                <input type="text" class="form-control form-control-lg mb-2"
+                       placeholder="Search ref, customer, phone, location…"
+                       t-att-value="state.query"
+                       t-on-input="(ev) => this.state.query = ev.target.value"/>
+                <div t-if="!state.rows.length" class="text-muted p-3 text-center">
+                    No unbilled locker transactions.
+                </div>
+                <div t-else="" class="laundry-locker-rows">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Location</th>
+                                <th>Ref #</th>
+                                <th>New Laundry</th>
+                                <th>Customer</th>
+                                <th>Phone</th>
+                                <th>Service</th>
+                                <th>Turnaround</th>
+                                <th>Pickup</th>
+                                <th>Delivery</th>
+                                <th>Dirty Door</th>
+                                <th>Status</th>
+                                <th>Customer Match</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr t-foreach="filteredRows" t-as="row" t-key="row.id"
+                                class="laundry-locker-row"
+                                t-on-click="() => this.selectRow(row)">
+                                <td><t t-esc="row.location_name"/></td>
+                                <td class="fw-bold"><t t-esc="row.ref"/></td>
+                                <td class="text-nowrap"><t t-esc="row.new_laundry_at"/></td>
+                                <td><t t-esc="row.customer_name"/></td>
+                                <td><t t-esc="row.phone"/></td>
+                                <td><t t-esc="row.service"/></td>
+                                <td><t t-esc="row.turnaround"/></td>
+                                <td class="text-nowrap"><t t-esc="row.pickup_datetime"/></td>
+                                <td class="text-nowrap"><t t-esc="row.delivery_datetime"/></td>
+                                <td><t t-esc="row.dirty_door"/></td>
+                                <td><t t-esc="row.status_label"/></td>
+                                <td>
+                                    <span class="badge" t-att-class="matchClass(row)">
+                                        <t t-esc="matchLabel(row)"/>
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <div t-if="!filteredRows.length" class="text-muted p-3 text-center">
+                        Nothing matches that search.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: confirm the customer on the chosen drop-off -->
+            <div t-else="" class="laundry-locker-detail">
+                <div class="d-flex flex-wrap gap-3 mb-3">
+                    <div><small class="text-muted d-block">Ref #</small>
+                         <b><t t-esc="selectedRow.ref"/></b></div>
+                    <div><small class="text-muted d-block">New Laundry</small>
+                         <t t-esc="selectedRow.new_laundry_at"/></div>
+                    <div><small class="text-muted d-block">Location</small>
+                         <t t-esc="selectedRow.location_name"/></div>
+                    <div><small class="text-muted d-block">Service</small>
+                         <t t-esc="selectedRow.service"/></div>
+                    <div><small class="text-muted d-block">Turnaround</small>
+                         <t t-esc="selectedRow.turnaround"/></div>
+                    <div><small class="text-muted d-block">Pickup</small>
+                         <t t-esc="selectedRow.pickup_datetime"/></div>
+                    <div><small class="text-muted d-block">Delivery</small>
+                         <t t-esc="selectedRow.delivery_datetime"/></div>
+                    <div><small class="text-muted d-block">Dirty Door</small>
+                         <t t-esc="selectedRow.dirty_door"/></div>
+                    <div><small class="text-muted d-block">Status</small>
+                         <t t-esc="selectedRow.status_label"/></div>
+                </div>
+
+                <!-- One block, three states: correcting, matched, unmatched.
+                     The fields exist only in the first, which is reachable only
+                     by declaring the number wrong. -->
+                <div class="p-3 border rounded-3 laundry-locker-customer">
+                    <t t-if="canEditCustomer">
+                        <div class="mb-2">
+                            <label class="form-label mb-1">Customer name</label>
+                            <input type="text" class="form-control form-control-lg"
+                                   t-att-value="state.customerName"
+                                   t-on-input="(ev) => this.state.customerName = ev.target.value"/>
+                        </div>
+                        <div>
+                            <label class="form-label mb-1">Phone number</label>
+                            <div class="d-flex gap-2">
+                                <input type="tel" inputmode="tel"
+                                       class="form-control form-control-lg"
+                                       t-att-value="state.phone"
+                                       t-on-input="onPhoneInput"/>
+                                <button class="btn btn-primary" t-on-click="checkPhone"
+                                        t-att-disabled="state.checking">Check</button>
+                            </div>
+                            <small class="text-muted">
+                                Put in the number the customer actually answers on,
+                                then press Check.
+                            </small>
+                        </div>
+                    </t>
+
+                    <t t-elif="isReturning">
+                        <span class="badge text-bg-success">Returning</span>
+                        <div class="fs-4 fw-bold mt-1"><t t-esc="state.partnerName"/></div>
+                        <div class="text-muted"><t t-esc="state.phone"/></div>
+                        <small class="text-muted d-block mt-1">
+                            Matched on the last 10 digits — the drop-off was keyed in
+                            as “<t t-esc="state.customerName"/>”.
+                        </small>
+                    </t>
+
+                    <t t-else="">
+                        <span class="badge text-bg-warning">New</span>
+                        <div class="fs-4 fw-bold mt-1"><t t-esc="state.customerName"/></div>
+                        <div class="text-muted"><t t-esc="state.phone"/></div>
+                        <small class="text-muted d-block mt-1">
+                            No customer has this number yet — a contact will be created.
+                        </small>
+
+                        <!-- The gate on creating a contact: a number nobody
+                             answered would be saved against the customer
+                             permanently. Buttons, not a tickbox, because the
+                             second outcome is what opens the fields. -->
+                        <div class="d-flex gap-2 mt-3">
+                            <button class="btn flex-fill"
+                                    t-att-class="state.verified ? 'btn-success' : 'btn-outline-success'"
+                                    t-on-click="onPhoneRang">
+                                <i class="fa fa-phone me-1"/>I called it and it rang
+                            </button>
+                            <button class="btn btn-outline-danger flex-fill"
+                                    t-on-click="onPhoneWrong">
+                                Wrong number — correct it
+                            </button>
+                        </div>
+                    </t>
+                </div>
+
+                <div t-if="state.error" class="text-danger mt-2"><t t-esc="state.error"/></div>
+            </div>
+
+            <t t-set-slot="footer">
+                <button t-if="selectedRow" class="btn btn-primary"
+                        t-att-disabled="confirmDisabled" t-on-click="confirm">Confirm</button>
+                <button t-if="selectedRow" class="btn btn-secondary" t-on-click="back">Back</button>
+                <button t-if="!selectedRow" class="btn btn-secondary"
+                        t-on-click="() => this.props.close()">Cancel</button>
+            </t>
+        </Dialog>
+    </t>
+</templates>
