@@ -61,10 +61,14 @@
                 <!-- Reads PU, DL, both, or nothing at all. Placed just
                      before the two buttons that fill it in, so pressing one
                      and seeing the mark appear is a single glance. Blank is
-                     the state that needs doing. -->
-                <field name="google_calendar_set" string="Calendar" widget="badge"
-                       decoration-success="google_calendar_set == 'PU DL'"
-                       decoration-warning="google_calendar_set and google_calendar_set != 'PU DL'"
+                     the state that needs doing.
+
+                     It says only that a task was MADE, not that it was ticked
+                     off: whether it is done lives in Google, and asking on
+                     every list render would be a request per row. -->
+                <field name="google_task_set" string="Calendar" widget="badge"
+                       decoration-success="google_task_set == 'PU DL'"
+                       decoration-warning="google_task_set and google_task_set != 'PU DL'"
                        optional="show"/>
                 <!-- Per row, not in the header: this is about ONE drop-off's
                      own times, and the counter presses it while looking at
@@ -77,14 +81,14 @@
                      would have to test is an optional column that stops being
                      loaded the moment somebody hides it. Pressing it on a
                      drop-off with no such time says so instead. -->
-                <button name="action_google_calendar_pickup" type="object"
+                <button name="action_google_task_pickup" type="object"
                         icon="fa-calendar-plus-o"
-                        title="Put this drop-off's PICKUP on the shop's Google calendar. Pressing it again updates the same event - it will not make a second one."/>
-                <button name="action_google_calendar_delivery" type="object"
+                        title="Add this drop-off's PICKUP to Google Tasks, to be ticked off when it is done. It shows in the day's Tasks row in Google Calendar, as the half hour ENDING at the time the customer was promised. Pressing it again updates the same task - it will not make a second one. The promised time is also the first line of the task's notes, in case Google keeps only the date."/>
+                <button name="action_google_task_delivery" type="object"
                         icon="fa-truck"
-                        title="Put this drop-off's DELIVERY on the shop's Google calendar. Pressing it again updates the same event - it will not make a second one."/>
-                <field name="google_pickup_event_id" optional="hide"/>
-                <field name="google_delivery_event_id" optional="hide"/>
+                        title="Add this drop-off's DELIVERY to Google Tasks, to be ticked off when it is done. It shows in the day's Tasks row in Google Calendar, as the half hour ENDING at the time the customer was promised. Pressing it again updates the same task - it will not make a second one. The promised time is also the first line of the task's notes, in case Google keeps only the date."/>
+                <field name="google_pickup_task_id" optional="hide"/>
+                <field name="google_delivery_task_id" optional="hide"/>
             </list>
         </field>
     </record>
@@ -140,26 +144,25 @@
                             <field name="billed_date" readonly="1"/>
                         </group>
                         <!-- Buttons here despite the note above, because
-                             putting a time on the calendar decides nothing
-                             about the drop-off: it copies out a schedule the
-                             feed already gave, and pressing it twice changes
-                             the same event. The event refs sit with them so it
-                             is visible whether this row has been put on the
-                             calendar at all. -->
-                        <group string="Calendar">
+                             making a task decides nothing about the drop-off:
+                             it copies out a schedule the feed already gave, and
+                             pressing it twice changes the same task. The task
+                             refs sit with them so it is visible whether this
+                             row has been put on the list at all. -->
+                        <group string="Google Tasks">
                             <div colspan="2" class="mb-2">
-                                <button name="action_google_calendar_pickup"
+                                <button name="action_google_task_pickup"
                                         type="object" class="btn-secondary me-2"
                                         icon="fa-calendar-plus-o" string="Pickup"
-                                        title="Put this drop-off's pickup on the shop's Google calendar."/>
-                                <button name="action_google_calendar_delivery"
+                                        title="Add this drop-off's pickup to Google Tasks."/>
+                                <button name="action_google_task_delivery"
                                         type="object" class="btn-secondary"
                                         icon="fa-truck" string="Delivery"
-                                        title="Put this drop-off's delivery on the shop's Google calendar."/>
+                                        title="Add this drop-off's delivery to Google Tasks."/>
                             </div>
-                            <field name="google_calendar_set" readonly="1"/>
-                            <field name="google_pickup_event_id" readonly="1"/>
-                            <field name="google_delivery_event_id" readonly="1"/>
+                            <field name="google_task_set" readonly="1"/>
+                            <field name="google_pickup_task_id" readonly="1"/>
+                            <field name="google_delivery_task_id" readonly="1"/>
                         </group>
                         <group string="Sync">
                             <field name="new_laundry_at" readonly="1"/>
@@ -202,12 +205,12 @@
                 <filter name="filter_unverified" string="Number Not Verified"
                         domain="[('phone_verified', '=', False)]"/>
                 <separator/>
-                <!-- Either one missing counts: a drop-off with its pickup on
-                     the calendar and not its delivery is exactly the one worth
+                <!-- Either one missing counts: a drop-off whose pickup is on
+                     the list and whose delivery is not is exactly the one worth
                      finding again. -->
                 <filter name="filter_not_on_calendar" string="Not On Calendar"
-                        domain="['|', ('google_pickup_event_id', '=', False),
-                                      ('google_delivery_event_id', '=', False)]"/>
+                        domain="['|', ('google_pickup_task_id', '=', False),
+                                      ('google_delivery_task_id', '=', False)]"/>
                 <separator/>
                 <!-- Odoo 19 dropped the <group expand=...> wrapper from search
                      views; a group_by filter stands on its own and the UI still
