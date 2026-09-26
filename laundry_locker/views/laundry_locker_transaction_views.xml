@@ -58,6 +58,25 @@
                 <field name="pos_order_id" optional="hide"/>
                 <field name="created_at" optional="hide"/>
                 <field name="status_code" column_invisible="1"/>
+                <!-- Per row, not in the header: this is about ONE drop-off's
+                     own times, and the counter presses it while looking at
+                     that row. Distinct icons rather than labels because the
+                     row is already wide - a calendar page for the pickup, a
+                     van for the delivery.
+
+                     Deliberately NOT hidden when the time is missing: a
+                     hidden button reads as a broken one, and the field it
+                     would have to test is an optional column that stops being
+                     loaded the moment somebody hides it. Pressing it on a
+                     drop-off with no such time says so instead. -->
+                <button name="action_google_calendar_pickup" type="object"
+                        icon="fa-calendar-plus-o"
+                        title="Put this drop-off's PICKUP on the shop's Google calendar. Pressing it again updates the same event - it will not make a second one."/>
+                <button name="action_google_calendar_delivery" type="object"
+                        icon="fa-truck"
+                        title="Put this drop-off's DELIVERY on the shop's Google calendar. Pressing it again updates the same event - it will not make a second one."/>
+                <field name="google_pickup_event_id" optional="hide"/>
+                <field name="google_delivery_event_id" optional="hide"/>
             </list>
         </field>
     </record>
@@ -112,6 +131,27 @@
                             <field name="pos_order_ref" readonly="1"/>
                             <field name="billed_date" readonly="1"/>
                         </group>
+                        <!-- Buttons here despite the note above, because
+                             putting a time on the calendar decides nothing
+                             about the drop-off: it copies out a schedule the
+                             feed already gave, and pressing it twice changes
+                             the same event. The event refs sit with them so it
+                             is visible whether this row has been put on the
+                             calendar at all. -->
+                        <group string="Calendar">
+                            <div colspan="2" class="mb-2">
+                                <button name="action_google_calendar_pickup"
+                                        type="object" class="btn-secondary me-2"
+                                        icon="fa-calendar-plus-o" string="Pickup"
+                                        title="Put this drop-off's pickup on the shop's Google calendar."/>
+                                <button name="action_google_calendar_delivery"
+                                        type="object" class="btn-secondary"
+                                        icon="fa-truck" string="Delivery"
+                                        title="Put this drop-off's delivery on the shop's Google calendar."/>
+                            </div>
+                            <field name="google_pickup_event_id" readonly="1"/>
+                            <field name="google_delivery_event_id" readonly="1"/>
+                        </group>
                         <group string="Sync">
                             <field name="new_laundry_at" readonly="1"/>
                             <field name="created_at" readonly="1"/>
@@ -152,6 +192,13 @@
                 <separator/>
                 <filter name="filter_unverified" string="Number Not Verified"
                         domain="[('phone_verified', '=', False)]"/>
+                <separator/>
+                <!-- Either one missing counts: a drop-off with its pickup on
+                     the calendar and not its delivery is exactly the one worth
+                     finding again. -->
+                <filter name="filter_not_on_calendar" string="Not On Calendar"
+                        domain="['|', ('google_pickup_event_id', '=', False),
+                                      ('google_delivery_event_id', '=', False)]"/>
                 <separator/>
                 <!-- Odoo 19 dropped the <group expand=...> wrapper from search
                      views; a group_by filter stands on its own and the UI still
