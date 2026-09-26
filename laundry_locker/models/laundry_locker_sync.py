@@ -308,11 +308,11 @@ class LaundryLockerTransaction(models.Model):
     def _sync_writes(self, vals):
         """Narrow incoming values to what this record should actually take.
 
-        Two things the sync must not undo: a phone number (or name) a cashier
+        Three things the sync must not undo: a phone number (or name) a cashier
         corrected, because putting the customer's typo back is the whole failure
-        this feature exists to stop; and anything Odoo owns - billed,
-        pos_order_id, phone_verified and a hand-set partner_id are never in
-        `vals` to begin with.
+        this feature exists to stop; a drop-off door already latched; and
+        anything Odoo owns - billed, pos_order_id, phone_verified and a
+        hand-set partner_id are never in `vals` to begin with.
         """
         self.ensure_one()
         writes = dict(vals)
@@ -320,6 +320,15 @@ class LaundryLockerTransaction(models.Model):
             writes.pop('phone', None)
         if self.source_name and self.customer_name != self.source_name:
             writes.pop('customer_name', None)
+        # The door is a latch, not a field of the order. /orders carries no
+        # door, so a payload without one means "this caller does not know" -
+        # never "no door". Only /lockerDoors can say, and only by naming one.
+        # The push reads no Firebase at all by design, so EVERY push arrives
+        # blank here; without this guard each one blanked a door the hourly
+        # pull had latched, and the counter saw no door for a bag that had one
+        # until the next pull put it back.
+        if not writes.get('dirty_door') and self.dirty_door:
+            writes.pop('dirty_door', None)
         return {k: v for k, v in writes.items() if (self[k] or False) != (v or False)}
 
     @api.model
