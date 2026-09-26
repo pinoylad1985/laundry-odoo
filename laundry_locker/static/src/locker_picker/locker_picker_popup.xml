@@ -152,8 +152,13 @@
                 <button t-if="selectedRow" class="btn btn-primary"
                         t-att-disabled="confirmDisabled" t-on-click="confirm">Confirm</button>
                 <button t-if="selectedRow" class="btn btn-secondary" t-on-click="back">Back</button>
+                <!-- The only way out of the queue, and it is not a way past
+                     it: leaving without a drop-off puts the service type back
+                     to what it was, so a Locker order is always one that came
+                     off a row here. Named for where it lands the cashier,
+                     because "Cancel" read like cancelling the order. -->
                 <button t-if="!selectedRow" class="btn btn-secondary"
-                        t-on-click="() => this.props.close()">Cancel</button>
+                        t-on-click="() => this.props.close()">Back to service type</button>
             </t>
         </Dialog>
     </t>

@@ -11,6 +11,20 @@
 // The picker is a full table on a touchscreen: rows are tap targets, so they
 // carry the same 44px floor as the rest of our dialogs (.laundry-touch).
 .laundry-locker-picker {
+    // No X on the queue. The drop-off IS the order - its ref, its door, its
+    // customer and the slot the customer was promised all come off the row,
+    // and none of that can be keyed in at the till from memory - so closing
+    // the picker must never be a way INTO a Locker order without one. The way
+    // out is the footer button, which says where it lands you and puts the
+    // service type back (see new_order_modal_patch).
+    //
+    // Hidden rather than switched off at the source: core Dialog gates this
+    // button on a prop that also decides how the modal is styled, so turning
+    // it off would change more than the one button we are after.
+    .modal-header .btn-close {
+        display: none;
+    }
+
     .laundry-locker-rows {
         max-height: 55vh;
         overflow: auto;
