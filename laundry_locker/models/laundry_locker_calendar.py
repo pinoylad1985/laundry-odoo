@@ -33,6 +33,7 @@ The calendar must be shared with the service account's own address, with
 import base64
 import json
 import logging
+import re
 import time
 from datetime import timedelta
 from urllib.error import HTTPError
@@ -64,23 +65,38 @@ SCOPE = 'https://www.googleapis.com/auth/calendar.events'
 # Google caps a service-account assertion at an hour.
 TOKEN_LIFETIME = 3600
 
-# The feed gives a moment, not a span. Half an hour is long enough to read as
-# an appointment in a day view rather than a hairline at the top of the hour.
+# The feed gives a moment, not a span, and that moment is the DEADLINE - when
+# the customer is promised the bag. So the event runs for the half hour
+# BEFORE it: long enough to read as an appointment in a day view rather than
+# a hairline at the top of the hour, and placed where the work is.
 EVENT_MINUTES = 30
 
-# Which datetime each button means, and what the event is called. Keyed by the
-# `kind` the buttons pass, so the two paths differ in this table and nowhere
-# else.
+# How many digits of the phone and characters of the ref the title carries.
+# Five of each: the ref's random part is exactly five characters after the LX-
+# prefix, and five digits of a phone number separate two customers on a day's
+# calendar without putting a whole number on a shared screen.
+TITLE_DIGITS = 5
+
+# Stands in for a half of the title that is not there, so every title keeps the
+# same 5-5 shape and a missing phone is visible rather than a title that has
+# quietly shifted along.
+TITLE_MISSING = '?????'
+
+# Which datetime each button means, what the event is called, and the two
+# letters its title ends with. Keyed by the `kind` the buttons pass, so the two
+# paths differ in this table and nowhere else.
 EVENT_KINDS = {
     'pickup': {
         'field': 'pickup_datetime',
         'event_field': 'google_pickup_event_id',
         'label': 'Pickup',
+        'suffix': 'PU',
     },
     'delivery': {
         'field': 'delivery_datetime',
         'event_field': 'google_delivery_event_id',
         'label': 'Delivery',
+        'suffix': 'DL',
     },
 }
 
@@ -252,12 +268,42 @@ class LaundryLockerTransaction(models.Model):
         with urlopen(request, timeout=REQUEST_TIMEOUT) as response:
             return json.loads(response.read().decode('utf-8'))
 
-    def _google_event_body(self, kind):
-        """What the event says. Written to be read on a phone, in a list.
+    def _google_event_title(self, kind):
+        """`34567-9nXDX PU` - five of the phone, five of the ref, then which.
 
-        The summary carries the ref and the customer because that is all a day
-        view shows; everything else a driver might want is in the description,
-        which opens with one tap.
+        A shared calendar is read at a glance, on a phone, where a day view
+        gives a title perhaps twenty characters before it truncates. So the
+        title is only what tells two drop-offs apart, in a fixed shape that can
+        be scanned down a column: the customer's number, the locker's ref, and
+        PU or DL. Everything a driver actually needs is in the description, one
+        tap away.
+
+        Five digits and not the whole number because this calendar is shared
+        with whoever is driving, and a full phone number does not need to be on
+        it to say which of today's bags this is. Five of the ref because the
+        random part of an LX- ref is exactly that long.
+
+        The digits come from phone_last10 where there is one - that is the same
+        normalised form the search box matches, so a title and a search agree
+        about what a number is - and from the raw phone stripped to its digits
+        otherwise.
+        """
+        self.ensure_one()
+        digits = self.phone_last10 or re.sub(r'\D', '', self.phone or '')
+        ref = (self.ref or '').strip()
+        return '%s-%s %s' % (
+            digits[-TITLE_DIGITS:] or TITLE_MISSING,
+            ref[-TITLE_DIGITS:] or TITLE_MISSING,
+            EVENT_KINDS[kind]['suffix'],
+        )
+
+
+    def _google_event_body(self, kind):
+        """What the event says: a terse title, and every detail beneath it.
+
+        The description is the same for both events, because whoever opens
+        one wants the whole drop-off in front of them, not the half of it
+        that matches the button that happened to be pressed.
         """
         self.ensure_one()
         spec = EVENT_KINDS[kind]
@@ -281,18 +327,23 @@ class LaundryLockerTransaction(models.Model):
             lines.append(_('Status: %s', self.status_label))
 
         return {
-            'summary': _(
-                'Locker %(kind)s - %(ref)s (%(who)s)',
-                kind=spec['label'].lower(), ref=self.ref or '?', who=who,
-            ),
+            # Not translated: it is an identifier read off a screen, and
+            # the two letters mean the same in every language the shop
+            # speaks.
+            'summary': self._google_event_title(kind),
             'description': '\n'.join(lines),
             'location': self.location_name or '',
+            # The picked time is when the customer is promised the bag, so
+            # it is the END of the half hour: the block sits in front of
+            # the deadline, which is the time that has to be worked back
+            # from. An event starting at the promised minute would say the
+            # opposite - that there is half an hour left after it.
             'start': {
-                'dateTime': local.isoformat(),
+                'dateTime': (local - timedelta(minutes=EVENT_MINUTES)).isoformat(),
                 'timeZone': FEED_TIMEZONE,
             },
             'end': {
-                'dateTime': (local + timedelta(minutes=EVENT_MINUTES)).isoformat(),
+                'dateTime': local.isoformat(),
                 'timeZone': FEED_TIMEZONE,
             },
         }
