@@ -14,15 +14,21 @@
                   decoration-muted="billed"
                   decoration-warning="not billed and customer_match == 'new'"
                   create="0">
-                <!-- The hourly cron is the routine path; this is for when the
-                     counter is waiting on a drop-off that just happened. -->
+                <!-- The cron is the routine path; these are for when the
+                     counter is waiting on a drop-off that just happened, or
+                     when the sync has been taught a field the rows predate.
+                     Both tooltipped, because which one to press is not
+                     guessable from the labels and pressing the wrong one
+                     looks like the sync is broken. -->
                 <header>
                     <button name="action_sync_now" type="object" string="Sync now"
-                            display="always" class="btn-secondary"/>
+                            display="always" class="btn-secondary"
+                            title="Reads only what has changed since the last sync, so it is quick. Use it when you are waiting on a drop-off that has just happened. This is what runs automatically every few minutes."/>
                     <!-- Re-reads everything: for backfilling a field added to
                          the mapping after the rows were already imported. -->
                     <button name="action_full_resync" type="object" string="Full resync"
-                            display="always" class="btn-secondary"/>
+                            display="always" class="btn-secondary"
+                            title="Re-reads every locker transaction instead of only the recent ones, so it is slower. Use it after the sync has been taught something new - a drop-off door, say - to fill that in on rows that are already listed. Sync now will never revisit those on its own, because nothing has changed at the locker end. It is safe to run: it cannot overwrite a door already recorded, and it never touches Billed, the order it was sold on, or a phone number corrected at the till."/>
                 </header>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
