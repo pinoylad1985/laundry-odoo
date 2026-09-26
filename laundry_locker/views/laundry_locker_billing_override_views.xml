@@ -103,9 +103,10 @@
                 The cutoff date itself is the system parameter
                 <b>laundry_locker.billed_before</b>, under Settings → Technical →
                 System Parameters. Everything that reached the lockers before it is
-                treated as already sold. Write it as a plain date —
-                <b>2026-09-26</b> — in shop time: it is compared against the
-                New Laundry column exactly as that column reads.
+                treated as already sold. Write it in shop time —
+                <b>2026-09-26 00:00:00</b> — so that it lines up with the New
+                Laundry column exactly as that column reads. A bare date means
+                midnight that morning.
             </p>
         </field>
     </record>
