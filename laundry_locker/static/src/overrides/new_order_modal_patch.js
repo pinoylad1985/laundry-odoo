@@ -66,29 +66,21 @@ patch(NewOrderModal.prototype, {
         }
     },
 
+    // Read through the server's own _pos_row, so the claim an order being
+    // edited puts back is the SAME shape the picker hands over - the phone
+    // written the way the shop writes it, the matched customer's name, and the
+    // deposit hour the turnaround is measured from. Assembling a claim from a
+    // field list here instead is what let a reopened order be missing something
+    // a fresh one had, and the schedule below is the one thing NOT taken from
+    // it: the order's own stored slots have already been restored by then.
     async _loadLockerClaim(ref) {
-        const rows = await this.lockerOrm.searchRead(
-            "laundry.locker.transaction",
-            [["ref", "=", ref]],
-            ["id", "ref", "phone", "customer_name", "partner_id",
-             "phone_verified", "dirty_door", "service"],
-            { limit: 1 }
+        const row = await this.lockerOrm.call(
+            "laundry.locker.transaction", "get_row_for_pos_ref", [ref]
         );
-        const row = rows[0];
         if (!row) {
             return;
         }
-        this.lockerState.claim = {
-            id: row.id,
-            ref: row.ref,
-            phone: row.phone || "",
-            customer_name: row.customer_name || "",
-            partner_name: row.partner_id ? row.partner_id[1] : "",
-            dirty_door: row.dirty_door || "",
-            // Whether the number was taken on a cashier's word rather than
-            // matched - which is the only case Correct number is for.
-            phone_verified: !!row.phone_verified,
-        };
+        this.lockerState.claim = row;
         // Re-arms the guard on an order being edited. Only ADDS what is
         // missing, so reopening a set-up order changes nothing.
         this._applyLockerServices(row.service);
@@ -254,6 +246,47 @@ patch(NewOrderModal.prototype, {
             !!this.lockerState.claim &&
             !!value
         );
+    },
+
+    // The hour the bag became laundry, as the summary box reads it. Blank off a
+    // Locker order, and blank until the claim has been read back, so the box
+    // does not flash an empty line while that is in flight.
+    get lockerDeposit() {
+        if (this.state.serviceType !== "locker") {
+            return "";
+        }
+        const deposit = this.lockerState.claim?.schedule?.deposit;
+        return deposit?.date ? this.fmtSchedule(deposit.date, deposit.hour) : "";
+    },
+
+    // A drop-off with no pickup slot still has a deposit time to show, so the
+    // box has to come up for that line on its own.
+    get lockedSlots() {
+        return super.lockedSlots || !!this.lockerDeposit;
+    },
+
+    // A Locker order's turnaround runs from the DEPOSIT, not from the pickup.
+    // The customer has been waiting since the bag went into the door - the van
+    // collecting it hours later is the shop's own scheduling and is not the
+    // customer's wait - so measuring from the pickup quoted a shorter
+    // turnaround than the one actually being delivered, and charged express for
+    // it. The deposit hour is rounded up on the way here (_pos_schedule), so
+    // both ends of this are whole hours and the figure shown in the summary box
+    // is the figure this counts from.
+    //
+    // Falls back to the pickup->delivery reading only when there is no deposit
+    // time at all, which would be a drop-off the feed never dated.
+    get diffHours() {
+        if (this.state.serviceType !== "locker") {
+            return super.diffHours;
+        }
+        const deposit = this.lockerState.claim?.schedule?.deposit;
+        const from = this._ms(deposit?.date, deposit?.hour);
+        if (!from) {
+            return super.diffHours;
+        }
+        const back = this._ms(this.state.pdDelDate, this.state.pdDelHour);
+        return back ? Math.round((back - from) / 3_600_000) : null;
     },
 
     _applyLockerSchedule(schedule) {

@@ -43,5 +43,18 @@
                 </t>
             </div>
         </xpath>
+
+        <!-- The deposit goes ABOVE the pickup, because that is the order the two
+             happened in: the bag went into the door, then the van came for it.
+             The hour shown is the deposit rounded up to the hour, which is also
+             the hour the turnaround below counts from - so a cashier can read
+             Express or Regular off the two lines in this box and get the same
+             answer the pills give. -->
+        <xpath expr="//div[hasclass('laundry-locked-slots')]/div[1]" position="before">
+            <div t-if="lockerDeposit">
+                <div class="fw-semibold small text-muted">Locker Deposit Date Time</div>
+                <div class="fs-4 fw-bold" t-esc="lockerDeposit"/>
+            </div>
+        </xpath>
     </t>
 </templates>

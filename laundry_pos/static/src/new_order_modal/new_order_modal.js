@@ -324,6 +324,15 @@ export class NewOrderModal extends Component {
         return false;
     }
 
+    // Whether the read-only summary of slots chosen elsewhere is on screen at
+    // all. Its own answer is just the two legs above, but it is a getter so a
+    // module that adds a THIRD line to that box can extend it and have the box
+    // appear for that line alone - laundry_locker does, for the deposit time,
+    // which is there even on a booking that carried no pickup slot.
+    get lockedSlots() {
+        return this.pickupLocked || this.pdDelLocked;
+    }
+
     // A picked date and hour as one line, for a schedule being shown rather
     // than chosen: "Sep 27, 3 PM".
     fmtSchedule(dateVal, hourVal) {
