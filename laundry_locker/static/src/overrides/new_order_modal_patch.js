@@ -99,7 +99,13 @@ patch(NewOrderModal.prototype, {
         super.selectServiceType(...arguments);
         if (code === "locker") {
             if (!this.lockerState.claim) {
-                this.openLockerPicker(false);
+                // Deliberately not awaited - selectServiceType is called from
+                // the template and the modal stays usable behind the picker.
+                this.openLockerPicker(false).then((taken) => {
+                    if (!taken) {
+                        this._revertLockerServiceType(previous);
+                    }
+                });
             }
         } else if (previous === "locker") {
             this.releaseLockerClaim();
@@ -120,9 +126,53 @@ patch(NewOrderModal.prototype, {
         }
     },
 
+    // Closing the queue without taking a drop-off is not a way INTO a Locker
+    // order. Everything that makes one is on the row - the ref, the dirty
+    // door, the customer the locker screen was keyed with, and the slot that
+    // customer was promised - and none of it can be typed in at the till from
+    // memory. Left alone, dismissing the picker used to leave the order set to
+    // Locker with all of that blank, and the cashier keyed it in by hand.
+    //
+    // So the tap that opened the picker is undone and the service type goes
+    // back to what it was. The schedule stays cleared: selectServiceType wiped
+    // it on the way in and there is no copy of it to put back.
+    _revertLockerServiceType(previous) {
+        // Only ever undoes ITS OWN tap: a claim taken meanwhile, or a service
+        // type since changed, is the cashier's and stands.
+        if (this.lockerState.claim || this.state.serviceType !== "locker") {
+            return;
+        }
+        this.state.serviceType = previous;
+        this.notification.add(
+            "A Locker order has to be taken from the drop-off queue.",
+            { type: "warning" }
+        );
+    },
+
+    // A Locker order IS a drop-off, so Continue does not accept one without.
+    // The picker is now the only way into a fresh Locker order, but an order
+    // reopened from history can still arrive here as Locker with its ref lost,
+    // and there the rule still has to hold - so it is stated where it is
+    // enforced rather than left to the door orders usually come through.
+    get canConfirm() {
+        if (this.state.serviceType === "locker" && !this.lockerState.claim) {
+            return false;
+        }
+        return super.canConfirm;
+    },
+
+    get missingLockerClaim() {
+        return (
+            this.state.showErrors &&
+            this.state.serviceType === "locker" &&
+            !this.lockerState.claim
+        );
+    },
+
     /**
      * @param {boolean} recheck - reopen on the transaction already taken (to
      *   correct the number) instead of showing the queue.
+     * @returns {Promise<boolean>} whether a drop-off was taken.
      */
     async openLockerPicker(recheck = false) {
         const previous = this.lockerState.claim;
@@ -130,7 +180,7 @@ patch(NewOrderModal.prototype, {
             transactionId: recheck && previous?.id ? previous.id : undefined,
         });
         if (!result) {
-            return;
+            return false;
         }
         // Swapping to another drop-off needs no release either - see
         // releaseLockerClaim.
@@ -153,6 +203,7 @@ patch(NewOrderModal.prototype, {
         }
         this._applyLockerSchedule(result.schedule);
         this._applyLockerServices(result.service);
+        return true;
     },
 
     // The booking is the till's instruction, not a suggestion: the services it
