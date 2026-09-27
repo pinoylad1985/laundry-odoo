@@ -2,7 +2,7 @@
 <templates xml:space="preserve">
     <t t-inherit="point_of_sale.ReceiptHeader" t-inherit-mode="extension">
 
-        <!-- "Service Type: Locker | THE RISE | 000123" - appended INSIDE
+        <!-- "Service Type: Locker | RISE | 000123" - appended INSIDE
              laundry_pos's own service-type line, so the drop-off's details
              keep the one piece of context that makes sense of them, and never
              print on an order that has none.
