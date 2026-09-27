@@ -33,24 +33,12 @@
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
-                <!-- One customer cell, drawn the way the POS Orders list
-                     draws its own: contact name, then phone, then address.
-                     Customer Match sits right after it, because the badge is
-                     what says whether that name is a contact we already had or
-                     the one the customer keyed into the locker. -->
-                <field name="customer_block" string="Customer" optional="show"
-                       widget="laundry_customer_block"/>
-                <field name="customer_match" string="Customer Match" widget="badge"
-                       decoration-success="customer_match == 'returning'"
-                       decoration-warning="customer_match == 'new'"
-                       optional="show"/>
-                <!-- Both folded into the cell above and hidden rather than
-                     dropped: the keyed-in name is not always the contact's
-                     name, and that difference is the whole reason Correct
-                     number exists. Turn them back on from the column menu when
-                     the two need comparing. -->
-                <field name="customer_name" string="Customer (as keyed)" optional="hide"/>
-                <field name="phone" string="Phone" optional="hide"/>
+                <!-- The customer as the LOCKER recorded them: what the
+                     customer keyed into the PudoPro screen. This pair is the
+                     row's own, and is what every drop-off has - matched or
+                     not - so it stays where the counter reads it. -->
+                <field name="customer_name" string="Customer" optional="show"/>
+                <field name="phone" string="Phone" optional="show"/>
                 <field name="service" string="Service" optional="show"/>
                 <field name="turnaround" string="Turnaround" optional="show"/>
                 <field name="pickup_datetime" string="Pickup" optional="show"/>
@@ -58,6 +46,28 @@
                 <field name="dirty_door" string="Dirty Door" optional="show"/>
                 <field name="status_label" string="Status" optional="show"/>
                 <field name="billed" string="Billed" widget="boolean_toggle" readonly="1" optional="show"/>
+                <!-- Everything from here on is what Odoo knows and the locker
+                     does not: who the drop-off turned out to belong to, and
+                     the sale it was rung up on.
+
+                     The contact it was matched to, drawn the way the POS
+                     Orders list draws its customer - name, then phone, then
+                     address. RETURNING ROWS ONLY: a number with no contact
+                     behind it has none of that to read, and the Customer /
+                     Phone columns above already carry what the customer keyed
+                     in. Customer Match, next along, is what says which of the
+                     two a row has.
+
+                     "Customer Details", not "Customer", for the same reason
+                     the POS Orders list calls it that: the column above is
+                     Customer, and two of them under one name is unreadable in
+                     the column menu. -->
+                <field name="customer_block" string="Customer Details" optional="show"
+                       widget="laundry_customer_block"/>
+                <field name="customer_match" string="Customer Match" widget="badge"
+                       decoration-success="customer_match == 'returning'"
+                       decoration-warning="customer_match == 'new'"
+                       optional="show"/>
                 <!-- Filled in when the drop-off is billed, and emptied again
                      if that sale is refunded. Order # is what the counter
                      calls out and is NOT unique - it restarts each session -

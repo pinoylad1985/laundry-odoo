@@ -14,16 +14,7 @@ export class CustomerBlockField extends Component {
 
     get name() {
         const p = this.props.record.data.partner_id;
-        if (p) {
-            return p.display_name;
-        }
-        // No contact on the record: fall back to the field's OWN value, which
-        // is where a model that knows the customer by another name puts it - a
-        // locker drop-off carries the name keyed in at the locker, and would
-        // otherwise show a bare phone number until the match is made. A POS
-        // order with no customer computes an empty block, so this reads the
-        // same blank there as it always did.
-        return this.props.record.data[this.props.name] || "";
+        return p ? p.display_name : "";
     }
     get phone() {
         return this.props.record.data.laundry_customer_phone || "";
