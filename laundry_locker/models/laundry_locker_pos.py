@@ -31,17 +31,26 @@ class LaundryLockerTransaction(models.Model):
         meridiem = 'AM' if local.hour < 12 else 'PM'
         return f'{local:%Y-%m-%d} {hour}:{local:%M} {meridiem}'
 
-    def _pos_schedule(self, value):
+    def _pos_schedule(self, value, exact=False):
         """A stored datetime as the New Order modal's own date + hour pair.
 
         The modal keeps its schedule as a `YYYY-MM-DD` string and an `HH:00`
         hour key, so handing it those directly is what lets a locker booking
         drop into the schedule step without being re-picked.
+
+        A slot CHOSEN at the locker is one of those keys and its minutes are
+        always 00. `exact` is for the one datetime that is not a chosen slot -
+        the moment the bag became laundry, which carries real minutes and is
+        NOT rounded to an hour, because a turnaround measured from it would
+        then be off by as much as an hour. The minutes ride along in the same
+        `hour` string as `HH:MM`, which the modal parses without any special
+        case (it builds `<date>T<hour>:00`).
         """
         if not value:
             return {'date': '', 'hour': ''}
         local = fields.Datetime.context_timestamp(self, value)
-        return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:00'}
+        minutes = f'{local:%M}' if exact else '00'
+        return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
     def _pos_row(self):
         """One transaction as the till's picker shows it."""
@@ -66,9 +75,14 @@ class LaundryLockerTransaction(models.Model):
             'created_at': self._pos_datetime(self.created_at),
             'pickup_datetime': self._pos_datetime(self.pickup_datetime),
             'delivery_datetime': self._pos_datetime(self.delivery_datetime),
-            # The same two dates again, in the shape the New Order modal fills
-            # its schedule step from - the strings above are for reading.
+            # The same dates again, in the shape the New Order modal fills its
+            # schedule step from - the strings above are for reading. The
+            # deposit is not a slot anyone picked and the modal never fills a
+            # picker from it; it is here because a Locker order's turnaround is
+            # measured FROM it (see the modal's own diffHours), which needs it
+            # in the same comparable shape as the two slots.
             'schedule': {
+                'deposit': self._pos_schedule(self.new_laundry_at, exact=True),
                 'pickup': self._pos_schedule(self.pickup_datetime),
                 'delivery': self._pos_schedule(self.delivery_datetime),
             },
@@ -89,6 +103,22 @@ class LaundryLockerTransaction(models.Model):
     def get_rows_for_pos(self, transaction_ids):
         """Specific rows, billed or not - for re-opening one already taken."""
         return [tx._pos_row() for tx in self.browse(transaction_ids).exists()]
+
+    @api.model
+    def get_row_for_pos_ref(self, ref):
+        """The row behind a ref an order is already carrying.
+
+        For a Locker order being edited or reopened after a reload: the order
+        remembers the ref and nothing else about the drop-off. Reading it back
+        through _pos_row - rather than a field list of its own - is what keeps
+        the modal reading ONE shape whether the drop-off arrived from the queue,
+        from a claim, or from an order it was already on. A field the modal
+        needs then cannot be present on one path and missing on another, which
+        is how the turnaround came to be measured differently on a reopened
+        order than on a fresh one.
+        """
+        transaction = self.search([('ref', '=', ref)], limit=1)
+        return transaction._pos_row() if transaction else False
 
     @api.model
     def pos_check_phone(self, phone):

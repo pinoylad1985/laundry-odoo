@@ -186,7 +186,12 @@
   <p><strong>One long line makes the whole order long:</strong> a WDF + Shoe Clean order is judged at the 24-hour
      minimum and the 72-hour threshold, not at 6/24.</p>
   <p>The modal computes hours between now (or pickup) and claim/delivery, then labels the order <strong>Express</strong>
-     (below threshold) or <strong>Regular</strong>. Below the minimum lead time it shows a validation error and blocks
+     (below threshold) or <strong>Regular</strong>. <strong>A Locker order counts from the locker deposit</strong>
+     (<code>laundry_locker</code> overrides <code>diffHours</code>): the customer has been waiting since the bag went
+     into the door, so the van collecting it hours later is the shop's own scheduling and not part of the wait. The
+     deposit is used <em>to the minute</em> &mdash; not rounded to an hour, which could move the figure across a
+     threshold on its own &mdash; and is shown in the modal's read-only schedule box as <strong>Locker Deposit Date
+     Time</strong>, above the pickup, so Express/Regular can be read off the lines on screen. Below the minimum lead time it shows a validation error and blocks
      confirm. <strong>Skip for now</strong> still saves whatever was selected.</p>
 
   <h2 id="hub">5. Navbar hub buttons, mutual exclusivity, Settle &amp; Order List <span class="file">navbar_patch.js/.xml, product_screen_patch.js, settle_modal/, ticket_screen_patch.*</span></h2>
