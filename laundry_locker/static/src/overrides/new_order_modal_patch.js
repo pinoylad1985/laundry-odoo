@@ -248,9 +248,11 @@ patch(NewOrderModal.prototype, {
         );
     },
 
-    // The hour the bag became laundry, as the summary box reads it. Blank off a
-    // Locker order, and blank until the claim has been read back, so the box
-    // does not flash an empty line while that is in flight.
+    // The moment the bag became laundry, as the summary box reads it - to the
+    // minute, because that is what the turnaround is measured from and the line
+    // on screen has to be the same figure. Blank off a Locker order, and blank
+    // until the claim has been read back, so the box does not flash an empty
+    // line while that is in flight.
     get lockerDeposit() {
         if (this.state.serviceType !== "locker") {
             return "";
@@ -270,9 +272,14 @@ patch(NewOrderModal.prototype, {
     // collecting it hours later is the shop's own scheduling and is not the
     // customer's wait - so measuring from the pickup quoted a shorter
     // turnaround than the one actually being delivered, and charged express for
-    // it. The deposit hour is rounded up on the way here (_pos_schedule), so
-    // both ends of this are whole hours and the figure shown in the summary box
-    // is the figure this counts from.
+    // it.
+    //
+    // The deposit is used to the MINUTE, not rounded to an hour: rounding moves
+    // the figure by up to an hour, which is enough to cross a 24-hour threshold
+    // on its own and bill the order the other way. Only this end carries
+    // minutes - the delivery is an hour key - so the hours here are fractional
+    // and Math.round settles the label, the same rounding every other service
+    // type already gets from super.
     //
     // Falls back to the pickup->delivery reading only when there is no deposit
     // time at all, which would be a drop-off the feed never dated.

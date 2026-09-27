@@ -13,6 +13,27 @@ import { DateWheel, fmtDateLabel } from "@laundry_pos/new_order_modal/date_wheel
 // key is plain grey and the SELECTED one goes solid primary, so colour carries one
 // meaning only. The +/− steppers are the exception — red/green there is the control,
 // not decoration.
+// "3 PM", or "9:20 AM" when there are minutes. For a time that did not come
+// from the hour keys - see fmtSchedule.
+function fmtTimeLabel(value) {
+    // An HH:MM is the only thing this reads. Anything else - a blank hour above
+    // all - gets nothing back, so fmtSchedule falls through to the bare date
+    // rather than calling a missing time midnight.
+    const parts = String(value || "").split(":");
+    if (parts.length < 2) {
+        return "";
+    }
+    const [hours, minutes] = parts.map(Number);
+    if (!Number.isInteger(hours) || hours < 0 || hours > 23) {
+        return "";
+    }
+    const meridiem = hours < 12 ? "AM" : "PM";
+    const hour12 = hours % 12 || 12;
+    return minutes
+        ? `${hour12}:${String(minutes).padStart(2, "0")} ${meridiem}`
+        : `${hour12} ${meridiem}`;
+}
+
 const CUSTOMER_TYPES = [
     { code: "new",       label: "New Customer" },
     { code: "returning", label: "Returning Customer" },
@@ -341,7 +362,15 @@ export class NewOrderModal extends Component {
             return "\u2014";
         }
         const hour = this.hours.find((h) => h.value === hourVal);
-        return hour ? `${date}, ${hour.label}` : date;
+        if (hour) {
+            return `${date}, ${hour.label}`;
+        }
+        // A time that is NOT one of the pickable hours, so it has no label to
+        // borrow: a moment recorded elsewhere and carrying minutes, like the
+        // locker deposit. Written out from the HH:MM rather than dropped, which
+        // is what an unmatched hour used to be.
+        const time = fmtTimeLabel(hourVal);
+        return time ? `${date}, ${time}` : date;
     }
 
     setDate(field, value) {

@@ -1,5 +1,4 @@
 import logging
-from datetime import timedelta
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -32,27 +31,26 @@ class LaundryLockerTransaction(models.Model):
         meridiem = 'AM' if local.hour < 12 else 'PM'
         return f'{local:%Y-%m-%d} {hour}:{local:%M} {meridiem}'
 
-    def _pos_schedule(self, value, round_up=False):
+    def _pos_schedule(self, value, exact=False):
         """A stored datetime as the New Order modal's own date + hour pair.
 
         The modal keeps its schedule as a `YYYY-MM-DD` string and an `HH:00`
         hour key, so handing it those directly is what lets a locker booking
         drop into the schedule step without being re-picked.
 
-        A slot CHOSEN at the locker already sits on the hour, so there is
-        nothing to decide. `round_up` is for the one datetime that is not a
-        chosen slot - the moment the bag became laundry, which carries real
-        minutes. It advances to the NEXT hour rather than dropping the minutes,
-        so the clock a turnaround is measured on starts at the hour after the
-        bag went in and never before it. A datetime already exactly on the hour
-        stays where it is.
+        A slot CHOSEN at the locker is one of those keys and its minutes are
+        always 00. `exact` is for the one datetime that is not a chosen slot -
+        the moment the bag became laundry, which carries real minutes and is
+        NOT rounded to an hour, because a turnaround measured from it would
+        then be off by as much as an hour. The minutes ride along in the same
+        `hour` string as `HH:MM`, which the modal parses without any special
+        case (it builds `<date>T<hour>:00`).
         """
         if not value:
             return {'date': '', 'hour': ''}
         local = fields.Datetime.context_timestamp(self, value)
-        if round_up and (local.minute or local.second or local.microsecond):
-            local = local.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
-        return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:00'}
+        minutes = f'{local:%M}' if exact else '00'
+        return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
     def _pos_row(self):
         """One transaction as the till's picker shows it."""
@@ -84,7 +82,7 @@ class LaundryLockerTransaction(models.Model):
             # measured FROM it (see the modal's own diffHours), which needs it
             # in the same comparable shape as the two slots.
             'schedule': {
-                'deposit': self._pos_schedule(self.new_laundry_at, round_up=True),
+                'deposit': self._pos_schedule(self.new_laundry_at, exact=True),
                 'pickup': self._pos_schedule(self.pickup_datetime),
                 'delivery': self._pos_schedule(self.delivery_datetime),
             },
