@@ -102,10 +102,15 @@ class LaundryLockerTransaction(models.Model):
         [('returning', 'Returning'), ('new', 'New')],
         string='Customer Match', compute='_compute_customer_match', store=True, index=True,
     )
-    # --- the customer as one cell, the way the POS Orders list shows one --
+    # --- the matched contact as one cell, the way POS Orders shows one -----
     # Name, phone and address stacked in a single column, drawn by
     # laundry_pos's `laundry_customer_block` widget - the same column that list
     # carries, so a counter moving between the two reads them alike.
+    #
+    # These read the CONTACT, so they fill in on a returning row only. The
+    # locker's own customer_name / phone are separate columns and always there:
+    # this cell is the customer book's answer, not a second copy of the
+    # question.
     #
     # The two field names below are NOT ours to choose: that widget names them
     # as its fieldDependencies. Rename either one here and half the cell goes
@@ -120,9 +125,10 @@ class LaundryLockerTransaction(models.Model):
     # a display column, and storing it would bump write_date on every row every
     # time a customer's address is edited.
     customer_block = fields.Char(
-        string='Customer', compute='_compute_laundry_customer_details',
-        help="Who this drop-off belongs to: the matched contact where there is "
-             "one, otherwise the name keyed in at the locker.",
+        string='Customer Details', compute='_compute_laundry_customer_details',
+        help="The contact this drop-off was matched to, with the phone number "
+             "and address on file. Blank on a new customer - see the Customer "
+             "and Phone columns for what was keyed in at the locker.",
     )
 
     # A locker customer types their own number and gets it wrong often enough
@@ -231,22 +237,23 @@ class LaundryLockerTransaction(models.Model):
             tx.pos_cashier = employee or order.user_id.name or False
             tx.pos_pickup_rider = order.laundry_pickup_rider or False
 
-    @api.depends('partner_id', 'partner_id.street', 'partner_id.street2',
-                 'customer_name', 'phone')
+    @api.depends('partner_id', 'partner_id.phone',
+                 'partner_id.street', 'partner_id.street2')
     def _compute_laundry_customer_details(self):
+        """The matched contact's own name, number and address.
+
+        All three come off the CONTACT and nothing falls back to the locker's
+        copy: an unmatched row is meant to read blank here. Dressing the keyed-in
+        name up in this cell would look exactly like a match that was never
+        made, and the name and number as keyed are their own two columns anyway.
+        """
         for tx in self:
             partner = tx.partner_id
-            # The LOCKER's number, matched or not: it is the one the customer
-            # keyed in and the one this row was matched on. A contact's other
-            # number would not be the one written on this bag.
-            tx.laundry_customer_phone = tx.phone or False
+            tx.customer_block = partner.display_name or False
+            tx.laundry_customer_phone = partner.phone or False
             tx.laundry_customer_address = ' '.join(
                 filter(None, [partner.street, partner.street2])
             ).strip() or False
-            # Falls back to the keyed-in name, so an unmatched row still says
-            # who it is rather than showing a bare phone number. Which of the
-            # two is on screen reads off Customer Match, right beside it.
-            tx.customer_block = partner.display_name or tx.customer_name or False
 
     @api.depends('partner_id')
     def _compute_customer_match(self):
