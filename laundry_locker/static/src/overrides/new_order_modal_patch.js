@@ -62,6 +62,18 @@ patch(NewOrderModal.prototype, {
                 ref, partner_name: "", phone: "", dirty_door: "",
                 id: null, phone_verified: false,
             };
+            // The ref is the durable fact - it is written onto the order the
+            // moment a drop-off is taken - so an order carrying one IS a Locker
+            // order, whether or not Continue was ever pressed on it. Switching
+            // the type away is the only thing that gives it back, and that
+            // clears the ref, so there is no order with a ref and some other
+            // type to overrule here.
+            //
+            // Without this, dismissing the modal after taking a drop-off
+            // reopened it with NO service type selected while the customer and
+            // the service lines were still on the order: the claim sat behind a
+            // Locker key nobody had pressed.
+            this.state.serviceType = "locker";
             this._loadLockerClaim(ref);
         }
     },
@@ -84,13 +96,30 @@ patch(NewOrderModal.prototype, {
         // Re-arms the guard on an order being edited. Only ADDS what is
         // missing, so reopening a set-up order changes nothing.
         this._applyLockerServices(row.service);
+        // And the promised slots, which the modal has no other copy of unless
+        // Continue was pressed: the schedule the cashier can see is state, and
+        // state does not survive the modal being closed. Only ever fills a slot
+        // the booking actually carried, so a leg the cashier was left to choose
+        // is not overwritten with a blank.
+        if (this.state.serviceType === "locker") {
+            this._applyLockerSchedule(row.schedule);
+        }
     },
 
     selectServiceType(code) {
         const previous = this.state.serviceType;
         super.selectServiceType(...arguments);
         if (code === "locker") {
-            if (!this.lockerState.claim) {
+            if (this.lockerState.claim) {
+                // super clears the schedule on EVERY pick, a re-pick of the
+                // same type included. A drop-off already taken keeps the slots
+                // its customer was promised, so they go straight back - left
+                // alone, pressing Locker on an order that already holds one
+                // offered the cashier pickers for two slots they are not
+                // allowed to choose.
+                this._applyLockerSchedule(this.lockerState.claim.schedule);
+                this._applyLockerServices(this.lockerState.claim.service);
+            } else {
                 // Deliberately not awaited - selectServiceType is called from
                 // the template and the modal stays usable behind the picker.
                 this.openLockerPicker(false).then((taken) => {
