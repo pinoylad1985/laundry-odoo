@@ -2,13 +2,21 @@
 <templates xml:space="preserve">
     <t t-inherit="point_of_sale.ReceiptHeader" t-inherit-mode="extension">
 
-        <!-- "Service Type: Locker | door 10, 9 | LX-000123" - appended INSIDE
+        <!-- "Service Type: Locker | RISE | 000123" - appended INSIDE
              laundry_pos's own service-type line, so the drop-off's details
              keep the one piece of context that makes sense of them, and never
-             print on an order that has none. -->
+             print on an order that has none.
+
+             The site and the ref share the one large bold style: they are the
+             two things read off the paper at arm's length while matching bags,
+             and sizing one of them down would sort the pile by whichever half
+             happened to be legible. The door number is deliberately NOT here -
+             it is still on the order and on the POS Orders list, but it names
+             a locker compartment that has since been let to someone else. -->
         <xpath expr="//div[hasclass('laundry-service-type')]" position="inside">
-            <t t-if="laundryLockerDoor">
-                <span> | door <t t-esc="laundryLockerDoor"/></span>
+            <t t-if="laundryLockerSite">
+                <span> | </span>
+                <span class="laundry-detail-ref" t-esc="laundryLockerSite"/>
             </t>
             <t t-if="laundryLockerRef">
                 <span> | </span>

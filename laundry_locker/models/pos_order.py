@@ -26,6 +26,14 @@ class PosOrder(models.Model):
         string='Locker Door', copy=False,
         help="Door the laundry was dropped into, as it was at drop-off.",
     )
+    # The site, for the same reason and printed in the door's old place on the
+    # receipt: a door number identifies a bag only to whoever is standing at
+    # that locker, while the site is what a customer holding the ticket, or a
+    # driver loading a van, actually needs to read.
+    laundry_locker_location = fields.Char(
+        string='Locker Site', copy=False,
+        help="Locker site the laundry was dropped off at.",
+    )
 
     def _sync_laundry_locker(self):
         """Settle locker drop-offs against the orders that actually took them.

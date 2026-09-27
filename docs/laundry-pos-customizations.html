@@ -190,8 +190,8 @@
      (<code>laundry_locker</code> overrides <code>diffHours</code>): the customer has been waiting since the bag went
      into the door, so the van collecting it hours later is the shop's own scheduling and not part of the wait. The
      deposit is used <em>to the minute</em> &mdash; not rounded to an hour, which could move the figure across a
-     threshold on its own &mdash; and is shown in the modal's read-only schedule box as <strong>Locker Deposit Date
-     Time</strong>, above the pickup, so Express/Regular can be read off the lines on screen. Below the minimum lead time it shows a validation error and blocks
+     threshold on its own &mdash; and is shown in the modal's read-only schedule box as <strong>Deposit Date
+     &amp; Time</strong>, above the pickup, so Express/Regular can be read off the lines on screen. Below the minimum lead time it shows a validation error and blocks
      confirm. <strong>Skip for now</strong> still saves whatever was selected.</p>
 
   <h2 id="hub">5. Navbar hub buttons, mutual exclusivity, Settle &amp; Order List <span class="file">navbar_patch.js/.xml, product_screen_patch.js, settle_modal/, ticket_screen_patch.*</span></h2>
@@ -294,6 +294,16 @@
   <h3>Header meta &amp; per-line formatting</h3>
   <ul>
     <li>Header block (<code>receipt_header_patch.js</code>): customer type, services, service type, TAT, pickup, and claim/delivery datetimes (12-hour). Resolves from order JS fields or localStorage for <strong>reprints</strong>.</li>
+    <li>Locker orders (<code>laundry_locker/overrides/receipt_header_patch.*</code>): the service-type line gains
+        <em>site</em> and <em>ref</em> &mdash; "Service Type: Locker | RISE | 000123" &mdash; both in the large bold
+        <code>.laundry-detail-ref</code> style, the two things read off the paper while matching bags. The <code>LX-</code>
+        prefix is stripped for printing only (the stored ref keeps it; the feed and the backend are keyed on it), as is the
+        article in <code>THE RISE</code> &mdash; the receipt reads RISE / AIR while the backend keeps its one settled
+        spelling for the Location column and its grouping. The
+        <strong>door number is not printed</strong> &mdash; it names a compartment already let to someone else by the time
+        the ticket is read. Site and door are both copied onto the order at the till
+        (<code>laundry_locker_location</code> / <code>_door</code>), so a reprint works on a machine that never loaded the
+        drop-off queue.</li>
     <li>Line formatting (<code>order_line_patch.js</code>): per-line attributes as name/value; "Turnaround (Press)" / "Turnaround Time" normalised to "Turnaround" and dropped from the printed line (shown once in the header); the duplicated "(Variant)" suffix stripped from the product name; WDF/Press get write-in count lines (Sorting / Folding / Press counts).</li>
   </ul>
 

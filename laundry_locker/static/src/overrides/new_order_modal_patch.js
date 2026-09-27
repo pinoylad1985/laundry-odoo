@@ -144,6 +144,7 @@ patch(NewOrderModal.prototype, {
         if (order) {
             order.laundry_locker_ref = false;
             order.laundry_locker_door = false;
+            order.laundry_locker_location = false;
         }
     },
 
@@ -210,9 +211,10 @@ patch(NewOrderModal.prototype, {
         const order = this.pos.getOrder();
         if (order) {
             order.laundry_locker_ref = result.ref;
-            // Copied ONTO the order so the receipt can print it: a reprint
+            // Copied ONTO the order so the receipt can print them: a reprint
             // from order history runs on tills that never loaded the queue.
             order.laundry_locker_door = result.dirty_door || false;
+            order.laundry_locker_location = result.location_name || false;
         }
         // Always "returning" in the modal's terms: a claim always ends with a
         // real contact (created there and then for a new number), so the
