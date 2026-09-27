@@ -365,12 +365,25 @@ export class NewOrderModal extends Component {
         return this.state.serviceType === "self_service";
     }
 
-    // ── Turnaround calculation (mirrors pos.html logic) ───────────────────
+    // ── Turnaround calculation ────────────────────────────────
+    // Ported from the old pos.html POS, and no longer a mirror of it: the
+    // returning-customer threshold was dropped here and not there. Nothing
+    // keeps the two in step, so this is the rule - a turnaround quoted
+    // anywhere else is checked against THIS, not against pos.html.
 
+    // ONE threshold for everybody. A returning customer used to get a shorter
+    // one - 18 hrs instead of 24, or 48 instead of 72 - so the same schedule
+    // read Regular for them and Express for a walk-in. Two prices for one
+    // promise, off a distinction nobody at the counter could state out loud.
+    //
+    // The first-time customer's numbers are the ones kept, so the band that
+    // used to be a returning customer's Regular (18 up to 24 hrs, or 48 up to
+    // 72) is now Express for them too. That is the point of dropping it.
+    //
+    // customerType still says who the order is FOR - a Returning one has to
+    // have a contact picked - it just no longer decides what it costs.
     get turnaroundThreshold() {
-        const long = this.hasLongService;
-        const ret  = this.state.customerType === "returning";
-        return long ? (ret ? 48 : 72) : (ret ? 18 : 24);
+        return this.hasLongService ? 72 : 24;
     }
 
     get turnaroundMinHrs() {
