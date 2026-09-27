@@ -33,8 +33,24 @@
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
-                <field name="customer_name" string="Customer" optional="show"/>
-                <field name="phone" string="Phone" optional="show"/>
+                <!-- One customer cell, drawn the way the POS Orders list
+                     draws its own: contact name, then phone, then address.
+                     Customer Match sits right after it, because the badge is
+                     what says whether that name is a contact we already had or
+                     the one the customer keyed into the locker. -->
+                <field name="customer_block" string="Customer" optional="show"
+                       widget="laundry_customer_block"/>
+                <field name="customer_match" string="Customer Match" widget="badge"
+                       decoration-success="customer_match == 'returning'"
+                       decoration-warning="customer_match == 'new'"
+                       optional="show"/>
+                <!-- Both folded into the cell above and hidden rather than
+                     dropped: the keyed-in name is not always the contact's
+                     name, and that difference is the whole reason Correct
+                     number exists. Turn them back on from the column menu when
+                     the two need comparing. -->
+                <field name="customer_name" string="Customer (as keyed)" optional="hide"/>
+                <field name="phone" string="Phone" optional="hide"/>
                 <field name="service" string="Service" optional="show"/>
                 <field name="turnaround" string="Turnaround" optional="show"/>
                 <field name="pickup_datetime" string="Pickup" optional="show"/>
@@ -49,10 +65,11 @@
                      found for certain. -->
                 <field name="pos_order_number" string="Order #" optional="show"/>
                 <field name="pos_order_ref" string="Receipt #" optional="show"/>
-                <field name="customer_match" string="Customer Match" widget="badge"
-                       decoration-success="customer_match == 'returning'"
-                       decoration-warning="customer_match == 'new'"
-                       optional="show"/>
+                <!-- Who rang it up and who collected the bag, both off that
+                     same sale. Blank on an unbilled row, and Pickup Rider
+                     stays blank on a billed one until a rider signs for it. -->
+                <field name="pos_cashier" string="Cashier" optional="show"/>
+                <field name="pos_pickup_rider" string="Pickup Rider" optional="show"/>
                 <field name="partner_id" optional="hide"/>
                 <field name="phone_verified" optional="hide"/>
                 <field name="pos_order_id" optional="hide"/>
@@ -141,6 +158,8 @@
                             <field name="pos_order_id" readonly="1"/>
                             <field name="pos_order_number" readonly="1"/>
                             <field name="pos_order_ref" readonly="1"/>
+                            <field name="pos_cashier" readonly="1"/>
+                            <field name="pos_pickup_rider" readonly="1"/>
                             <field name="billed_date" readonly="1"/>
                         </group>
                         <!-- Buttons here despite the note above, because
