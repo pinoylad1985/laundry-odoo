@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <!--
-        The locker reference and door as columns on the POS Orders list.
+        The locker reference, site and door as columns on the POS Orders list.
         optional="show" so they are available in Studio and can be repositioned
         there (a hidden optional column never appears in Studio at all).
     -->
@@ -13,6 +13,7 @@
             <xpath expr="//list" position="inside">
                 <field name="laundry_locker_ref" optional="show"/>
                 <field name="laundry_locker_door" optional="show"/>
+                <field name="laundry_locker_location" optional="show"/>
             </xpath>
         </field>
     </record>
