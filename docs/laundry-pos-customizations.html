@@ -144,7 +144,7 @@
     <tr><td><code>shoe</code></td><td>Shoe Clean</td><td>"shoe clean"</td></tr>
     <tr><td><code>press</code></td><td>Press</td><td>"press"</td></tr>
   </table>
-  <p><code>dwc</code> and <code>shoe</code> are "long-turnaround" services (affect schedule thresholds). Matching uses a
+  <p><code>dwc</code>, <code>shoe</code> and <code>cap</code> are "long-turnaround" services (affect schedule thresholds). Matching uses a
      <strong>leading word boundary</strong> so <code>"press"</code> never matches <code>"(express)"</code>. Lookups go
      through live <code>pos.models</code> (active + <code>available_in_pos</code>), so price/attributes/variants always
      reflect the real POS product.</p>
@@ -176,9 +176,15 @@
   <h3>Turnaround (TAT) — auto-decided by the schedule, not the cashier</h3>
   <table>
     <tr><th></th><th>Express threshold</th><th>Minimum lead time</th></tr>
-    <tr><td>Standard (WDF / Press)</td><td>&lt; 24h new, &lt; 18h returning</td><td>6 hrs</td></tr>
-    <tr><td>Long (Dry/Wet Clean, Shoe Clean)</td><td>&lt; 72h new, &lt; 48h returning</td><td>24 hrs</td></tr>
+    <tr><td>Standard (WDF / Press)</td><td>&lt; 24h</td><td>6 hrs</td></tr>
+    <tr><td>Long (Dry/Wet Clean, Shoe Clean, Cap Clean)</td><td>&lt; 72h</td><td>24 hrs</td></tr>
   </table>
+  <p><strong>The same threshold applies to New and Returning customers.</strong> A returning customer used to get a
+     shorter one (&lt; 18h standard / &lt; 48h long), so one schedule could be Regular for them and Express for a
+     walk-in; that was removed and the first-time customer's numbers kept. New/Returning is still asked in the modal
+     &mdash; it decides whether a contact must be picked &mdash; it just no longer affects the turnaround or the price.</p>
+  <p><strong>One long line makes the whole order long:</strong> a WDF + Shoe Clean order is judged at the 24-hour
+     minimum and the 72-hour threshold, not at 6/24.</p>
   <p>The modal computes hours between now (or pickup) and claim/delivery, then labels the order <strong>Express</strong>
      (below threshold) or <strong>Regular</strong>. Below the minimum lead time it shows a validation error and blocks
      confirm. <strong>Skip for now</strong> still saves whatever was selected.</p>
