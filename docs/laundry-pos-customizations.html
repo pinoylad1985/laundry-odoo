@@ -295,9 +295,11 @@
   <ul>
     <li>Header block (<code>receipt_header_patch.js</code>): customer type, services, service type, TAT, pickup, and claim/delivery datetimes (12-hour). Resolves from order JS fields or localStorage for <strong>reprints</strong>.</li>
     <li>Locker orders (<code>laundry_locker/overrides/receipt_header_patch.*</code>): the service-type line gains
-        <em>site</em> and <em>ref</em> &mdash; "Service Type: Locker | THE RISE | 000123" &mdash; both in the large bold
+        <em>site</em> and <em>ref</em> &mdash; "Service Type: Locker | RISE | 000123" &mdash; both in the large bold
         <code>.laundry-detail-ref</code> style, the two things read off the paper while matching bags. The <code>LX-</code>
-        prefix is stripped for printing only (the stored ref keeps it; the feed and the backend are keyed on it), and the
+        prefix is stripped for printing only (the stored ref keeps it; the feed and the backend are keyed on it), as is the
+        article in <code>THE RISE</code> &mdash; the receipt reads RISE / AIR while the backend keeps its one settled
+        spelling for the Location column and its grouping. The
         <strong>door number is not printed</strong> &mdash; it names a compartment already let to someone else by the time
         the ticket is read. Site and door are both copied onto the order at the till
         (<code>laundry_locker_location</code> / <code>_door</code>), so a reprint works on a machine that never loaded the
