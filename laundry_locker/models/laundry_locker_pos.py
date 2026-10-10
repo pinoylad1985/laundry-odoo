@@ -3,6 +3,7 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from .laundry_locker_sync import CLEARED_STATUS
 from .laundry_locker_transaction import ph_local_phone, phone_last10
 from .pos_order import VALIDATED_STATES
 
@@ -96,7 +97,19 @@ class LaundryLockerTransaction(models.Model):
         a drop-off that happens mid-shift has to be pickable without reopening
         the register.
         """
-        transactions = self.search([('billed', '=', False)], limit=limit)
+        # Unbilled AND not Cleared. A clear is PudoPro saying the drop-off is
+        # no longer owed for, so it is as unbillable as one already sold - and
+        # the cashier never sees a row they would have to know not to take.
+        #
+        # Read straight off the feed's own status on every pull, so it needs no
+        # undoing: a drop-off un-cleared at the locker end comes back here by
+        # itself. See CLEARED_STATUS in laundry_locker_sync for why the match is
+        # exact. Odoo's `!=` covers a NULL status too, so a row the feed sent
+        # without one still queues rather than vanishing.
+        transactions = self.search(
+            [('billed', '=', False),
+             ('status_label', '!=', CLEARED_STATUS)], limit=limit
+        )
         return [tx._pos_row() for tx in transactions]
 
     @api.model
@@ -117,7 +130,15 @@ class LaundryLockerTransaction(models.Model):
         is how the turnaround came to be measured differently on a reopened
         order than on a fresh one.
         """
-        transaction = self.search([('ref', '=', ref)], limit=1)
+        # active_test=False: the order is ASKING for a ref it already holds,
+        # so this is a read-back of a known row and not a queue to be filtered.
+        # An archived one - deleted or cleared at the locker end - would
+        # otherwise come back False and strip the locker details off an order
+        # already taking it, on nothing more than a page reload. The queue that
+        # does need filtering is get_unbilled_for_pos, and it still is.
+        transaction = self.with_context(active_test=False).search(
+            [('ref', '=', ref)], limit=1
+        )
         return transaction._pos_row() if transaction else False
 
     @api.model

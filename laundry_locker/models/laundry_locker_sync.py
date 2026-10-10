@@ -43,6 +43,30 @@ PARAM_LAST_PULL = 'laundry_locker.last_pull_ms'
 PULL_OVERLAP_MS = 15 * 60 * 1000
 REQUEST_TIMEOUT = 30
 
+# A drop-off CLEARED at the locker end - PudoPro's own "no longer owed for".
+# /orders carries it as `overallStatus: "Cleared"`, alongside the values a
+# drop-off takes on the way there ("For Pickup", "For Payment", "Completed"),
+# so it arrives with the record on an ordinary delta pull: the clear bumps
+# `updatedAt` like any other change.
+#
+# Kept as a STATUS and nothing more. There was briefly a `locker_cleared`
+# boolean derived from it, which bought nothing the status did not already say
+# and cost a field in every Custom Filter dialog; the picker and the To Bill
+# filter both compare this string instead.
+#
+# Matched EXACTLY, which is the one fragile thing here: reword the status at
+# PudoPro and cleared drop-offs start offering themselves to be billed again.
+# The `!=` is deliberate over a `not ilike 'clear'` that would survive a
+# rewording, because a substring would also swallow a future status that
+# merely contains the word while still being billable.
+#
+# It was NOT always on this node: until the dashboard's orders sync was taught
+# to carry it, a cleared drop-off still read `For Pickup` here and the clear
+# could only be found by looking up /lockerTransactions one ref at a time. If
+# cleared rows ever show in the picker again, check the feed first - this reads
+# it and trusts it.
+CLEARED_STATUS = 'Cleared'
+
 # /orders holds every channel, the orders Odoo itself pushes back included.
 # Locker ones are marked, and their refs sit in their own prefix - which also
 # gives a locker-only read needing no Firebase index, since $key is always
@@ -286,6 +310,9 @@ class LaundryLockerTransaction(models.Model):
         # correction on every single row.
         phone = ph_local_phone(_clean(customer.get('contact')))
         code = _location_code(record.get('locationCode'))
+        status_label = (
+            _clean(record.get('overallStatus')) or _clean(record.get('status'))
+        )
         return {
             'ref': ref,
             'location_code': code,
@@ -308,9 +335,7 @@ class LaundryLockerTransaction(models.Model):
             # Provenance, not a field: _upsert_orders pops it back off.
             '_door_from_feed': bool(door and not latched),
             'status_code': _clean(record.get('status')),
-            'status_label': (
-                _clean(record.get('overallStatus')) or _clean(record.get('status'))
-            ),
+            'status_label': status_label,
             'created_at': _ms_to_datetime(record.get('createdAt')),
             'updated_at': _ms_to_datetime(record.get('updatedAt')),
             # One and the same instant on this feed: a row is only written once
@@ -384,7 +409,7 @@ class LaundryLockerTransaction(models.Model):
         return rows
 
     @api.model
-    def _upsert_orders(self, records, doors=None):
+    def _upsert_orders(self, records, doors=None, stats=None):
         """Create or update transactions from /orders rows, keyed on `ref`.
 
         Shared by both inbound paths - the locker service's push and the hourly
@@ -401,11 +426,24 @@ class LaundryLockerTransaction(models.Model):
             if vals['ref']:
                 by_ref[vals['ref']] = vals
 
+        # active_test=False or an ARCHIVED ref is invisible here, the upsert
+        # takes it for a new drop-off, and create() hits the unique(ref)
+        # constraint - which does not just lose that row, it aborts the whole
+        # sync. Archived rows are still updated by the feed; what they are not
+        # is resurrected, and they cannot be: `active` is never in `vals`.
         existing = {
-            tx.ref: tx for tx in self.search([('ref', 'in', list(by_ref))])
+            tx.ref: tx
+            for tx in self.with_context(active_test=False).search(
+                [('ref', 'in', list(by_ref))]
+            )
         }
         now = fields.Datetime.now()
         touched = self.browse()
+        # Rows whose status became Cleared ON THIS PULL, which is not the same
+        # as the cleared rows in the batch: a Full resync re-reads every cleared
+        # drop-off there has ever been, and reporting those as news would bury
+        # the one that just happened.
+        newly_cleared = 0
         to_create = []
         for ref, vals in by_ref.items():
             vals['synced_at'] = now
@@ -416,12 +454,19 @@ class LaundryLockerTransaction(models.Model):
             if tx:
                 writes = tx._sync_writes(vals, door_from_feed=door_from_feed)
                 if writes:
+                    # `status_label` is in `writes` only when it actually
+                    # changed - _sync_writes drops the keys that match what is
+                    # stored - so this counts the clear, not the cleared row.
+                    newly_cleared += writes.get('status_label') == CLEARED_STATUS
                     tx.write(writes)
                 touched |= tx
             else:
+                newly_cleared += vals.get('status_label') == CLEARED_STATUS
                 to_create.append(vals)
         if to_create:
             touched |= self.create(to_create)
+        if stats is not None:
+            stats['cleared'] = newly_cleared
         # Every row the feed touched asks the orders whether it was already
         # sold - see _laundry_adopt_billed_orders. It is what makes a deleted
         # and rebuilt list come back knowing what it had sold.
@@ -432,7 +477,7 @@ class LaundryLockerTransaction(models.Model):
     # the pull (safety net behind the push)
     # ------------------------------------------------------------------
     @api.model
-    def _sync_pull(self, since_ms=None, full=False):
+    def _sync_pull(self, since_ms=None, full=False, stats=None):
         icp = self.env['ir.config_parameter'].sudo()
         if not full and since_ms is None:
             last = icp.get_param(PARAM_LAST_PULL)
@@ -481,7 +526,11 @@ class LaundryLockerTransaction(models.Model):
         except Exception:  # noqa: BLE001 - the door latch is an overlay, not the data
             _logger.warning('Locker sync: could not read /lockerDoors', exc_info=True)
 
-        touched = self._upsert_orders(records, doors if isinstance(doors, dict) else {})
+        # The clear rides in with the record, so there is nothing to look up;
+        # the upsert reports what it set, for the notification.
+        touched = self._upsert_orders(
+            records, doors if isinstance(doors, dict) else {}, stats=stats
+        )
 
         # Watermark from the data, not the clock: a record written while this
         # pull was running is then still in range of the next one. It counts
@@ -513,17 +562,26 @@ class LaundryLockerTransaction(models.Model):
         return self.action_sync_now(full=True)
 
     def action_sync_now(self, full=False):
+        stats = {}
         try:
-            touched = self._sync_pull(full=full)
+            touched = self._sync_pull(full=full, stats=stats)
         except Exception as err:  # noqa: BLE001 - shown to the cashier, not swallowed
             _logger.exception('Locker sync failed')
             raise UserError(_('Could not reach the locker feed:\n%s') % err) from err
+        message = _('%s transaction(s) synced.') % len(touched)
+        if stats.get('cleared'):
+            # Said out loud, because the visible result of a clear is a
+            # drop-off DISAPPEARING from the picker - which needs a reason on
+            # screen, or it reads as the sync having lost it.
+            message += _(
+                ' %s newly cleared at the locker - no longer billable.'
+            ) % stats['cleared']
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Locker sync'),
-                'message': _('%s transaction(s) synced.') % len(touched),
+                'message': message,
                 'type': 'success',
                 'sticky': False,
             },

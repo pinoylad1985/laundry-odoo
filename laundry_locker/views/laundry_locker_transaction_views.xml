@@ -13,6 +13,7 @@
             <list string="Locker Transactions"
                   decoration-muted="billed"
                   decoration-warning="not billed and customer_match == 'new'"
+                  decoration-danger="not active or status_label == 'Cleared'"
                   create="0">
                 <!-- The cron is the routine path; these are for when the
                      counter is waiting on a drop-off that just happened, or
@@ -30,6 +31,10 @@
                             display="always" class="btn-secondary"
                             title="Re-reads every locker transaction instead of only the recent ones, so it is slower. Use it after the sync has been taught something new - a drop-off door, say - to fill that in on rows that are already listed. Sync now will never revisit those on its own, because nothing has changed at the locker end. It is safe to run: it cannot overwrite a door already recorded, and it never touches Billed, the order it was sold on, or a phone number corrected at the till."/>
                 </header>
+                <!-- Carried only so decoration-danger can read it; a
+                     deleted-at-the-locker row shows red on the rare occasion
+                     one is on screen (they are filtered out by default). -->
+                <field name="active" column_invisible="1"/>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
@@ -44,7 +49,14 @@
                 <field name="pickup_datetime" string="Pickup" optional="show"/>
                 <field name="delivery_datetime" string="Delivery" optional="show"/>
                 <field name="dirty_door" string="Dirty Door" optional="show"/>
-                <field name="status_label" string="Status" optional="show"/>
+                <!-- NOT optional, unlike every other column here: the
+                     word "Cleared" in this one is what takes a drop-off out
+                     of To Bill and out of the cashier's picker, and it is
+                     what decoration-danger above reads. An optional column
+                     that is switched off is not fetched, so letting this one
+                     be hidden would both lose the red row and leave no answer
+                     on screen to "why is this unbilled row not in To Bill?". -->
+                <field name="status_label" string="Status"/>
                 <field name="billed" string="Billed" widget="boolean_toggle" readonly="1" optional="show"/>
                 <!-- Everything from here on is what Odoo knows and the locker
                      does not: who the drop-off turned out to belong to, and
@@ -129,6 +141,12 @@
                                  till carries it into the order's schedule. -->
                             <field name="pickup_datetime" readonly="1"/>
                             <field name="delivery_datetime" readonly="1"/>
+                            <!-- Read-only because the sync owns it, and
+                                 "Cleared" here is what holds the drop-off out
+                                 of the POS picker. A drop-off cleared by
+                                 mistake is put right by un-clearing it at
+                                 PudoPro: the next pull overwrites this and
+                                 returns it to the picker on its own. -->
                             <field name="status_label" readonly="1"/>
                             <field name="status_code" readonly="1"/>
                         </group>
@@ -165,12 +183,31 @@
                 <field name="phone" string="Phone"
                        filter_domain="['|', ('phone', 'ilike', self), ('phone_last10', 'ilike', self)]"/>
                 <field name="location_name" string="Location"/>
+                <!-- Searchable, not a set of filters. The vocabulary is
+                     PudoPro's and it changes without telling us - "Cleared"
+                     only appeared on this feed in October - so hard-coded
+                     status filters would quietly stop matching the day one is
+                     reworded. Typing matches whatever the feed is saying
+                     today, and Group By > Status lists every value actually
+                     present, with counts, which is the clickable breakdown a
+                     fixed list was wanted for. -->
+                <field name="status_label" string="Status"
+                       filter_domain="[('status_label', 'ilike', self)]"/>
                 <!-- Both, under one box: a counter holding a receipt does not
                      stop to work out which of the two numbers it is. -->
                 <field name="pos_order_number" string="Order / Receipt #"
                        filter_domain="['|', ('pos_order_number', 'ilike', self), ('pos_order_ref', 'ilike', self)]"/>
-                <filter name="filter_unbilled" string="Unbilled"
-                        domain="[('billed', '=', False)]"/>
+                <!-- The same two conditions the POS locker picker uses, so
+                     the default view of this list IS the cashier's queue and
+                     the two cannot drift apart. Called "To Bill" and not
+                     "Unbilled" because a cleared drop-off is unbilled and is
+                     deliberately not here - a filter that hides rows its own
+                     label promises is how someone ends up hunting for a row
+                     that was never missing. A cleared one is a Status search
+                     away, or one click on the facet's x. -->
+                <filter name="filter_unbilled" string="To Bill"
+                        domain="[('billed', '=', False),
+                                 ('status_label', '!=', 'Cleared')]"/>
                 <filter name="filter_billed" string="Billed"
                         domain="[('billed', '=', True)]"/>
                 <separator/>
