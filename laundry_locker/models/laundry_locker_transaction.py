@@ -53,10 +53,12 @@ class LaundryLockerTransaction(models.Model):
     # listed and then withdrawn is a thing that happened, which a Billed row in
     # particular must keep saying.
     #
-    # It is `active` and not a flag of our own precisely BECAUSE Odoo filters it
-    # out of every search by default - which is what takes the row out of the
-    # cashier's locker picker (`get_unbilled_for_pos` searches on `billed`
-    # alone) and out of the partner re-match, with no change to either.
+    # It is `active` and not a flag of our own precisely BECAUSE Odoo filters
+    # it out of every search by default - which takes the row out of the
+    # cashier's locker picker and out of the partner re-match without either
+    # having to name it. (`get_unbilled_for_pos` does name `locker_cleared`,
+    # which is a different thing: a clear is reported by the feed and so is
+    # filtered explicitly, while a deletion can only ever be recorded here.)
     active = fields.Boolean(
         string='Active', default=True, index=True, copy=False,
         help="Unticked when the drop-off was deleted at the locker end. The row "
