@@ -263,23 +263,6 @@
                 <filter name="filter_unverified" string="Number Not Verified"
                         domain="[('phone_verified', '=', False)]"/>
                 <separator/>
-                <!-- Deleted at the PudoPro end, which archives the row.
-                     Odoo hides inactive rows from every search by default, so
-                     without a filter that says so in the counter's own words
-                     there is no way back to one. A CLEARED drop-off is not
-                     archived and is not here - it has its own filter. -->
-                <filter name="filter_deleted" string="Deleted at Locker"
-                        domain="[('active', '=', False)]"/>
-                <!-- `active in [True, False]` is not a no-op: naming the
-                     field is what switches Odoo's automatic active-test off.
-                     A clear does not archive, but one that was archived by
-                     v1.1.8 - or a drop-off deleted AND cleared - would
-                     otherwise be missing from the one filter meant to find
-                     every cleared row. -->
-                <filter name="filter_cleared" string="Cleared at Locker"
-                        domain="[('locker_cleared', '=', True),
-                                 ('active', 'in', [True, False])]"/>
-                <separator/>
                 <!-- Either one missing counts: a drop-off whose pickup is on
                      the list and whose delivery is not is exactly the one worth
                      finding again. -->
