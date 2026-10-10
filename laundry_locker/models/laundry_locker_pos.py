@@ -96,7 +96,14 @@ class LaundryLockerTransaction(models.Model):
         a drop-off that happens mid-shift has to be pickable without reopening
         the register.
         """
-        transactions = self.search([('billed', '=', False)], limit=limit)
+        # Not cleared AND unbilled. A clear is PudoPro saying the drop-off
+        # is no longer owed for, so it is as unbillable as one already sold -
+        # and the cashier never sees a row they would have to know not to
+        # take. `locker_cleared` tracks the feed in both directions, so a
+        # drop-off un-cleared at the locker end comes back here by itself.
+        transactions = self.search(
+            [('billed', '=', False), ('locker_cleared', '=', False)], limit=limit
+        )
         return [tx._pos_row() for tx in transactions]
 
     @api.model

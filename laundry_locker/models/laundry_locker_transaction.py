@@ -63,21 +63,26 @@ class LaundryLockerTransaction(models.Model):
              "stays for the record but drops out of the POS locker picker.",
     )
 
-    # CLEARED at the locker end - PudoPro's "Clear Transaction", statusCode 7.
-    # A clear is not a deletion: the drop-off was real and is on the record,
-    # it just is not ours to bill any more. Both outcomes archive the row,
-    # which is what takes it out of the cashier's picker; this flag is what
-    # tells the two apart afterwards, so "Deleted at Locker" keeps meaning
-    # deleted and a clear is not quietly filed as one.
+    # CLEARED at the locker end - PudoPro's own "no longer owed for".
     #
-    # It is NOT `status_code` / `status_label`: those carry /orders' workflow
-    # words ("New", "For Pickup") and the clear is only ever visible in the
-    # OTHER node, /lockerTransactions, whose codes are numbers. Writing one
-    # vocabulary into the other field would make both unreadable.
+    # NOT archived with it, unlike a deleted drop-off. A clear is a status the
+    # feed reports and keeps reporting, so the row stays on the list with
+    # "Cleared" in its Status column where anyone can see what became of it;
+    # what it leaves is the POS picker, and get_unbilled_for_pos filters on
+    # this flag directly. Archiving would have hidden a row whose whole value
+    # now is being visible.
+    #
+    # Written from the feed on every pull (see CLEAR_STATUS_HINT), so it is
+    # self-correcting in both directions and nothing here may set it by hand.
+    #
+    # It is NOT `status_label`, which holds the same status as free text: a
+    # boolean is what a search domain and a filter can rely on, and it does
+    # not change meaning the day PudoPro rewords a label.
     locker_cleared = fields.Boolean(
-        string='Cleared at Locker', index=True, copy=False,
-        help="Set when the locker feed reports the drop-off as Clear Transaction. "
-             "The row is archived with it, so it leaves the POS locker picker.",
+        string='Cleared at Locker', index=True, copy=False, readonly=True,
+        help="Set from the locker feed when the drop-off is reported Cleared. "
+             "A cleared drop-off stays on this list but leaves the POS locker "
+             "picker: it is no longer billable.",
     )
 
     location_code = fields.Char(string='Location Code', index=True)
