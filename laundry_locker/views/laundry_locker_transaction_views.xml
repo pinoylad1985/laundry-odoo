@@ -184,6 +184,16 @@
                 <field name="phone" string="Phone"
                        filter_domain="['|', ('phone', 'ilike', self), ('phone_last10', 'ilike', self)]"/>
                 <field name="location_name" string="Location"/>
+                <!-- Searchable, not a set of filters. The vocabulary is
+                     PudoPro's and it changes without telling us - "Cleared"
+                     only appeared on this feed in October - so hard-coded
+                     status filters would quietly stop matching the day one is
+                     reworded. Typing matches whatever the feed is saying
+                     today, and Group By > Status lists every value actually
+                     present, with counts, which is the clickable breakdown a
+                     fixed list was wanted for. -->
+                <field name="status_label" string="Status"
+                       filter_domain="[('status_label', 'ilike', self)]"/>
                 <!-- Both, under one box: a counter holding a receipt does not
                      stop to work out which of the two numbers it is. -->
                 <field name="pos_order_number" string="Order / Receipt #"
