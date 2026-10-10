@@ -47,6 +47,22 @@ class LaundryLockerTransaction(models.Model):
     # /orders. Every sync upserts on it, so it has to be unique.
     ref = fields.Char(string='Ref #', required=True, index=True, copy=False)
 
+    # A drop-off DELETED at the PudoPro end. Archived rather than deleted here
+    # for two reasons: the feed is upserted, never reconciled, so a row deleted
+    # in Odoo is simply rebuilt by the next Full resync; and a drop-off that was
+    # listed and then withdrawn is a thing that happened, which a Billed row in
+    # particular must keep saying.
+    #
+    # It is `active` and not a flag of our own precisely BECAUSE Odoo filters it
+    # out of every search by default - which is what takes the row out of the
+    # cashier's locker picker (`get_unbilled_for_pos` searches on `billed`
+    # alone) and out of the partner re-match, with no change to either.
+    active = fields.Boolean(
+        string='Active', default=True, index=True, copy=False,
+        help="Unticked when the drop-off was deleted at the locker end. The row "
+             "stays for the record but drops out of the POS locker picker.",
+    )
+
     location_code = fields.Char(string='Location Code', index=True)
     location_name = fields.Char(string='Location')
 

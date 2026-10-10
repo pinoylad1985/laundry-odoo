@@ -401,8 +401,16 @@ class LaundryLockerTransaction(models.Model):
             if vals['ref']:
                 by_ref[vals['ref']] = vals
 
+        # active_test=False or an ARCHIVED ref is invisible here, the upsert
+        # takes it for a new drop-off, and create() hits the unique(ref)
+        # constraint - which does not just lose that row, it aborts the whole
+        # sync. Archived rows are still updated by the feed; what they are not
+        # is resurrected, and they cannot be: `active` is never in `vals`.
         existing = {
-            tx.ref: tx for tx in self.search([('ref', 'in', list(by_ref))])
+            tx.ref: tx
+            for tx in self.with_context(active_test=False).search(
+                [('ref', 'in', list(by_ref))]
+            )
         }
         now = fields.Datetime.now()
         touched = self.browse()
