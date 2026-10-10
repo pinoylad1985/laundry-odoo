@@ -3,6 +3,7 @@ import logging
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
+from .laundry_locker_sync import CLEARED_STATUS
 from .laundry_locker_transaction import ph_local_phone, phone_last10
 from .pos_order import VALIDATED_STATES
 
@@ -96,13 +97,18 @@ class LaundryLockerTransaction(models.Model):
         a drop-off that happens mid-shift has to be pickable without reopening
         the register.
         """
-        # Not cleared AND unbilled. A clear is PudoPro saying the drop-off
-        # is no longer owed for, so it is as unbillable as one already sold -
-        # and the cashier never sees a row they would have to know not to
-        # take. `locker_cleared` tracks the feed in both directions, so a
-        # drop-off un-cleared at the locker end comes back here by itself.
+        # Unbilled AND not Cleared. A clear is PudoPro saying the drop-off is
+        # no longer owed for, so it is as unbillable as one already sold - and
+        # the cashier never sees a row they would have to know not to take.
+        #
+        # Read straight off the feed's own status on every pull, so it needs no
+        # undoing: a drop-off un-cleared at the locker end comes back here by
+        # itself. See CLEARED_STATUS in laundry_locker_sync for why the match is
+        # exact. Odoo's `!=` covers a NULL status too, so a row the feed sent
+        # without one still queues rather than vanishing.
         transactions = self.search(
-            [('billed', '=', False), ('locker_cleared', '=', False)], limit=limit
+            [('billed', '=', False),
+             ('status_label', '!=', CLEARED_STATUS)], limit=limit
         )
         return [tx._pos_row() for tx in transactions]
 

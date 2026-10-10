@@ -43,21 +43,29 @@ PARAM_LAST_PULL = 'laundry_locker.last_pull_ms'
 PULL_OVERLAP_MS = 15 * 60 * 1000
 REQUEST_TIMEOUT = 30
 
-# A drop-off CLEARED at the locker end. /orders carries it as
-# `overallStatus: "Cleared"`, alongside the values it takes on the way there
-# ("For Pickup", "For Payment", "Completed"), so it arrives with the record on
-# an ordinary delta pull - the clear bumps `updatedAt` like any other change.
+# A drop-off CLEARED at the locker end - PudoPro's own "no longer owed for".
+# /orders carries it as `overallStatus: "Cleared"`, alongside the values a
+# drop-off takes on the way there ("For Pickup", "For Payment", "Completed"),
+# so it arrives with the record on an ordinary delta pull: the clear bumps
+# `updatedAt` like any other change.
 #
-# Matched on the word, not on equality, so "Clear Transaction" - the wording
-# PudoPro's own locker node uses - counts too. No other status in the feed's
-# vocabulary contains it.
+# Kept as a STATUS and nothing more. There was briefly a `locker_cleared`
+# boolean derived from it, which bought nothing the status did not already say
+# and cost a field in every Custom Filter dialog; the picker and the To Bill
+# filter both compare this string instead.
 #
-# It was NOT always here: until the dashboard's orders sync was taught to
-# carry it, a cleared drop-off still read `For Pickup` on this node and the
-# clear could only be found by looking up /lockerTransactions one ref at a
-# time. If cleared rows ever start showing in the picker again, that is the
-# first thing to check - this reads the feed and trusts it.
-CLEAR_STATUS_HINT = 'clear'
+# Matched EXACTLY, which is the one fragile thing here: reword the status at
+# PudoPro and cleared drop-offs start offering themselves to be billed again.
+# The `!=` is deliberate over a `not ilike 'clear'` that would survive a
+# rewording, because a substring would also swallow a future status that
+# merely contains the word while still being billable.
+#
+# It was NOT always on this node: until the dashboard's orders sync was taught
+# to carry it, a cleared drop-off still read `For Pickup` here and the clear
+# could only be found by looking up /lockerTransactions one ref at a time. If
+# cleared rows ever show in the picker again, check the feed first - this reads
+# it and trusts it.
+CLEARED_STATUS = 'Cleared'
 
 # /orders holds every channel, the orders Odoo itself pushes back included.
 # Locker ones are marked, and their refs sit in their own prefix - which also
@@ -328,12 +336,6 @@ class LaundryLockerTransaction(models.Model):
             '_door_from_feed': bool(door and not latched),
             'status_code': _clean(record.get('status')),
             'status_label': status_label,
-            # Derived here rather than computed off status_label so the feed
-            # stays the only thing that can set it, and so it CLEARS ITSELF:
-            # a drop-off un-cleared at PudoPro comes back with a live status
-            # and this goes false again on the same pull. A one-way flag would
-            # have needed a human to undo.
-            'locker_cleared': CLEAR_STATUS_HINT in (status_label or '').lower(),
             'created_at': _ms_to_datetime(record.get('createdAt')),
             'updated_at': _ms_to_datetime(record.get('updatedAt')),
             # One and the same instant on this feed: a row is only written once
@@ -437,10 +439,10 @@ class LaundryLockerTransaction(models.Model):
         }
         now = fields.Datetime.now()
         touched = self.browse()
-        # Rows that became cleared ON THIS PULL, which is not the same as the
-        # cleared rows in the batch: a Full resync re-reads every cleared
-        # drop-off there has ever been, and reporting those as news would
-        # bury the one that just happened.
+        # Rows whose status became Cleared ON THIS PULL, which is not the same
+        # as the cleared rows in the batch: a Full resync re-reads every cleared
+        # drop-off there has ever been, and reporting those as news would bury
+        # the one that just happened.
         newly_cleared = 0
         to_create = []
         for ref, vals in by_ref.items():
@@ -452,13 +454,14 @@ class LaundryLockerTransaction(models.Model):
             if tx:
                 writes = tx._sync_writes(vals, door_from_feed=door_from_feed)
                 if writes:
-                    # Only present when the value actually changed -
-                    # _sync_writes drops the keys that match what is stored.
-                    newly_cleared += bool(writes.get('locker_cleared'))
+                    # `status_label` is in `writes` only when it actually
+                    # changed - _sync_writes drops the keys that match what is
+                    # stored - so this counts the clear, not the cleared row.
+                    newly_cleared += writes.get('status_label') == CLEARED_STATUS
                     tx.write(writes)
                 touched |= tx
             else:
-                newly_cleared += bool(vals.get('locker_cleared'))
+                newly_cleared += vals.get('status_label') == CLEARED_STATUS
                 to_create.append(vals)
         if to_create:
             touched |= self.create(to_create)
