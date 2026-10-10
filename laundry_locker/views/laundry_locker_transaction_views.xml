@@ -198,8 +198,17 @@
                      stop to work out which of the two numbers it is. -->
                 <field name="pos_order_number" string="Order / Receipt #"
                        filter_domain="['|', ('pos_order_number', 'ilike', self), ('pos_order_ref', 'ilike', self)]"/>
-                <filter name="filter_unbilled" string="Unbilled"
-                        domain="[('billed', '=', False)]"/>
+                <!-- The same two conditions the POS locker picker uses, so
+                     the default view of this list IS the cashier's queue and
+                     the two cannot drift apart. Called "To Bill" and not
+                     "Unbilled" because a cleared drop-off is unbilled and is
+                     deliberately not here - a filter that hides rows its own
+                     label promises is how someone ends up hunting for a row
+                     that was never missing. A cleared one is a Status search
+                     away, or one click on the facet's x. -->
+                <filter name="filter_unbilled" string="To Bill"
+                        domain="[('billed', '=', False),
+                                 ('locker_cleared', '=', False)]"/>
                 <filter name="filter_billed" string="Billed"
                         domain="[('billed', '=', True)]"/>
                 <separator/>
