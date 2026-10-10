@@ -13,6 +13,7 @@
             <list string="Locker Transactions"
                   decoration-muted="billed"
                   decoration-warning="not billed and customer_match == 'new'"
+                  decoration-danger="not active"
                   create="0">
                 <!-- The cron is the routine path; these are for when the
                      counter is waiting on a drop-off that just happened, or
@@ -30,6 +31,10 @@
                             display="always" class="btn-secondary"
                             title="Re-reads every locker transaction instead of only the recent ones, so it is slower. Use it after the sync has been taught something new - a drop-off door, say - to fill that in on rows that are already listed. Sync now will never revisit those on its own, because nothing has changed at the locker end. It is safe to run: it cannot overwrite a door already recorded, and it never touches Billed, the order it was sold on, or a phone number corrected at the till."/>
                 </header>
+                <!-- Carried only so decoration-danger can read it; a
+                     deleted-at-the-locker row shows red on the rare occasion
+                     one is on screen (they are filtered out by default). -->
+                <field name="active" column_invisible="1"/>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
@@ -233,6 +238,12 @@
                 <separator/>
                 <filter name="filter_unverified" string="Number Not Verified"
                         domain="[('phone_verified', '=', False)]"/>
+                <separator/>
+                <!-- Deleted at the PudoPro end. Odoo hides inactive rows from
+                     every search by default, so without a filter that says so
+                     in the counter's own words there is no way back to one. -->
+                <filter name="filter_deleted" string="Deleted at Locker"
+                        domain="[('active', '=', False)]"/>
                 <separator/>
                 <!-- Either one missing counts: a drop-off whose pickup is on
                      the list and whose delivery is not is exactly the one worth
