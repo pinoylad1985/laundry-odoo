@@ -56,35 +56,13 @@ class LaundryLockerTransaction(models.Model):
     # It is `active` and not a flag of our own precisely BECAUSE Odoo filters
     # it out of every search by default - which takes the row out of the
     # cashier's locker picker and out of the partner re-match without either
-    # having to name it. (`get_unbilled_for_pos` does name `locker_cleared`,
-    # which is a different thing: a clear is reported by the feed and so is
-    # filtered explicitly, while a deletion can only ever be recorded here.)
+    # having to name it. (A CLEAR is a different thing: the feed reports it as
+    # a status, so `get_unbilled_for_pos` filters on `status_label` and the row
+    # stays visible - a deletion can only ever be recorded here.)
     active = fields.Boolean(
         string='Active', default=True, index=True, copy=False,
         help="Unticked when the drop-off was deleted at the locker end. The row "
              "stays for the record but drops out of the POS locker picker.",
-    )
-
-    # CLEARED at the locker end - PudoPro's own "no longer owed for".
-    #
-    # NOT archived with it, unlike a deleted drop-off. A clear is a status the
-    # feed reports and keeps reporting, so the row stays on the list with
-    # "Cleared" in its Status column where anyone can see what became of it;
-    # what it leaves is the POS picker, and get_unbilled_for_pos filters on
-    # this flag directly. Archiving would have hidden a row whose whole value
-    # now is being visible.
-    #
-    # Written from the feed on every pull (see CLEAR_STATUS_HINT), so it is
-    # self-correcting in both directions and nothing here may set it by hand.
-    #
-    # It is NOT `status_label`, which holds the same status as free text: a
-    # boolean is what a search domain and a filter can rely on, and it does
-    # not change meaning the day PudoPro rewords a label.
-    locker_cleared = fields.Boolean(
-        string='Cleared at Locker', index=True, copy=False, readonly=True,
-        help="Set from the locker feed when the drop-off is reported Cleared. "
-             "A cleared drop-off stays on this list but leaves the POS locker "
-             "picker: it is no longer billable.",
     )
 
     location_code = fields.Char(string='Location Code', index=True)
@@ -121,6 +99,12 @@ class LaundryLockerTransaction(models.Model):
     # workflow state (`status` / `overallStatus`), already in words, not
     # PudoPro's numeric codes - so there is nothing left to map.
     status_code = fields.Char(string='Status Code', index=True)
+    # The feed's own wording, and LOAD-BEARING: `Cleared` here is what takes a
+    # drop-off out of the POS locker picker and out of the To Bill filter. It is
+    # matched exactly (see CLEARED_STATUS in laundry_locker_sync), so if PudoPro
+    # ever rewords the status, cleared drop-offs start offering themselves to be
+    # billed again - that is the first place to look. Indexed because both of
+    # those filters name it.
     status_label = fields.Char(string='Status', index=True)
 
     created_at = fields.Datetime(string='Created', index=True)

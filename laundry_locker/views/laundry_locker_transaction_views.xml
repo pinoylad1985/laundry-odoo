@@ -13,7 +13,7 @@
             <list string="Locker Transactions"
                   decoration-muted="billed"
                   decoration-warning="not billed and customer_match == 'new'"
-                  decoration-danger="not active or locker_cleared"
+                  decoration-danger="not active or status_label == 'Cleared'"
                   create="0">
                 <!-- The cron is the routine path; these are for when the
                      counter is waiting on a drop-off that just happened, or
@@ -35,13 +35,6 @@
                      deleted-at-the-locker row shows red on the rare occasion
                      one is on screen (they are filtered out by default). -->
                 <field name="active" column_invisible="1"/>
-                <!-- Carried for decoration-danger, not shown: the Status
-                     column already reads "Cleared" in words, so a second
-                     column saying the same thing would only take up room. It
-                     is column_invisible rather than optional because an
-                     optional column that is switched off is not fetched, and
-                     the decoration would silently stop working. -->
-                <field name="locker_cleared" column_invisible="1"/>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
@@ -56,7 +49,14 @@
                 <field name="pickup_datetime" string="Pickup" optional="show"/>
                 <field name="delivery_datetime" string="Delivery" optional="show"/>
                 <field name="dirty_door" string="Dirty Door" optional="show"/>
-                <field name="status_label" string="Status" optional="show"/>
+                <!-- NOT optional, unlike every other column here: the
+                     word "Cleared" in this one is what takes a drop-off out
+                     of To Bill and out of the cashier's picker, and it is
+                     what decoration-danger above reads. An optional column
+                     that is switched off is not fetched, so letting this one
+                     be hidden would both lose the red row and leave no answer
+                     on screen to "why is this unbilled row not in To Bill?". -->
+                <field name="status_label" string="Status"/>
                 <field name="billed" string="Billed" widget="boolean_toggle" readonly="1" optional="show"/>
                 <!-- Everything from here on is what Odoo knows and the locker
                      does not: who the drop-off turned out to belong to, and
@@ -172,15 +172,14 @@
                                  till carries it into the order's schedule. -->
                             <field name="pickup_datetime" readonly="1"/>
                             <field name="delivery_datetime" readonly="1"/>
+                            <!-- Read-only because the sync owns it, and
+                                 "Cleared" here is what holds the drop-off out
+                                 of the POS picker. A drop-off cleared by
+                                 mistake is put right by un-clearing it at
+                                 PudoPro: the next pull overwrites this and
+                                 returns it to the picker on its own. -->
                             <field name="status_label" readonly="1"/>
                             <field name="status_code" readonly="1"/>
-                            <!-- Set by the sync alone. The clear happened at
-                                 PudoPro, so this follows the feed: a drop-off
-                                 cleared by mistake is put right by
-                                 un-clearing it there, and the next pull
-                                 un-ticks this and returns it to the picker on
-                                 its own. -->
-                            <field name="locker_cleared" readonly="1"/>
                         </group>
                         <group string="Billing">
                             <field name="billed" readonly="1"/>
@@ -260,7 +259,7 @@
                      away, or one click on the facet's x. -->
                 <filter name="filter_unbilled" string="To Bill"
                         domain="[('billed', '=', False),
-                                 ('locker_cleared', '=', False)]"/>
+                                 ('status_label', '!=', 'Cleared')]"/>
                 <filter name="filter_billed" string="Billed"
                         domain="[('billed', '=', True)]"/>
                 <separator/>
