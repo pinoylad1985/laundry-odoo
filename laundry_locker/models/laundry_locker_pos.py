@@ -117,7 +117,15 @@ class LaundryLockerTransaction(models.Model):
         is how the turnaround came to be measured differently on a reopened
         order than on a fresh one.
         """
-        transaction = self.search([('ref', '=', ref)], limit=1)
+        # active_test=False: the order is ASKING for a ref it already holds,
+        # so this is a read-back of a known row and not a queue to be filtered.
+        # An archived one - deleted or cleared at the locker end - would
+        # otherwise come back False and strip the locker details off an order
+        # already taking it, on nothing more than a page reload. The queue that
+        # does need filtering is get_unbilled_for_pos, and it still is.
+        transaction = self.with_context(active_test=False).search(
+            [('ref', '=', ref)], limit=1
+        )
         return transaction._pos_row() if transaction else False
 
     @api.model

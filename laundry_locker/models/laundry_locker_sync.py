@@ -43,6 +43,22 @@ PARAM_LAST_PULL = 'laundry_locker.last_pull_ms'
 PULL_OVERLAP_MS = 15 * 60 * 1000
 REQUEST_TIMEOUT = 30
 
+# A drop-off CLEARED at the locker end, read from /lockerTransactions - the
+# only node that carries it. /orders does not: a cleared drop-off still reads
+# `status: New`, `overallStatus: For Pickup` there, which is why the clear has
+# to be looked up separately instead of arriving with the rest of the record.
+#
+# `completed` on that node is NOT the signal, however much it looks like one:
+# it is true of every collected drop-off, cleared or sold. The status is.
+#   statusCode 6 = "Completed"        - the normal end state, still billable
+#   statusCode 7 = "Clear Transaction" - cleared, ours to drop
+CLEAR_STATUS_CODE = '7'
+CLEAR_LABEL_HINT = 'clear'
+# Bound on one pass, so a pile-up of unbilled rows cannot turn the 5-minute
+# cron into a long run of HTTP calls. Newest first - a clear follows its
+# drop-off by hours, not months.
+CLEAR_CHECK_LIMIT = 300
+
 # /orders holds every channel, the orders Odoo itself pushes back included.
 # Locker ones are marked, and their refs sit in their own prefix - which also
 # gives a locker-only read needing no Firebase index, since $key is always
@@ -437,10 +453,90 @@ class LaundryLockerTransaction(models.Model):
         return touched
 
     # ------------------------------------------------------------------
+    # clears (read from the OTHER node)
+    # ------------------------------------------------------------------
+    @api.model
+    def _is_cleared_at_locker(self, ref):
+        """True when /lockerTransactions reports this ref as a clear.
+
+        Two point reads of a single leaf each, never a read of the record:
+        that node holds thousands of transactions with the customer's details
+        inside each one, so asking for all of them and filtering locally would
+        move a great deal of data every five minutes to find a handful of
+        flags - against the same bandwidth argument that makes the /orders
+        pull a delta.
+
+        The label is read only to CONFIRM a code that already says 7, so the
+        second request happens for an actual clear and almost never otherwise.
+        That asymmetry is deliberate. Missing a clear leaves a row billable,
+        which is merely today's behaviour; a false positive hides a drop-off
+        the shop is owed money for. The expensive mistake gets the second
+        opinion.
+        """
+        quoted = quote(ref, safe='')
+        code = _clean(self._firebase_get('lockerTransactions/%s/statusCode' % quoted))
+        if code != CLEAR_STATUS_CODE:
+            return False
+        label = _clean(self._firebase_get('lockerTransactions/%s/statusLabel' % quoted))
+        if label and CLEAR_LABEL_HINT not in label.lower():
+            # The code means something to PudoPro now that it did not mean
+            # when this was written. Say so loudly and leave the row alone.
+            _logger.warning(
+                'Locker sync: %s carries statusCode %s but its status reads "%s", '
+                'which is not a clear. Left billable - check what code %s now '
+                'means at PudoPro.',
+                ref, CLEAR_STATUS_CODE, label, CLEAR_STATUS_CODE,
+            )
+            return False
+        return True
+
+    @api.model
+    def _sync_clears(self, limit=CLEAR_CHECK_LIMIT):
+        """Archive the unbilled drop-offs the locker has since cleared.
+
+        UNBILLED only, and that is not a shortcut. A clear that arrives after
+        the drop-off was sold is history: archiving it then would hide a real
+        order from the list it was sold on. The queue this protects is the
+        cashier's picker, and a billed row is already out of it.
+
+        It reconciles the whole unbilled queue rather than the rows the pull
+        just touched, because a clear does NOT bump `updatedAt` on /orders -
+        a delta pull sees nothing at all for a cleared drop-off, which is
+        precisely why it needs looking up instead of waiting for.
+
+        Archived rows are not candidates: the default search drops them, so a
+        row cleared last week is not re-checked for ever.
+        """
+        pending = self.search([('billed', '=', False)], limit=limit)
+        cleared = self.browse()
+        for tx in pending:
+            if not tx.ref:
+                continue
+            try:
+                if not self._is_cleared_at_locker(tx.ref):
+                    continue
+            except Exception:  # noqa: BLE001 - one bad ref must not stop the sync
+                _logger.warning(
+                    'Locker sync: could not check the clear status of %s', tx.ref,
+                    exc_info=True,
+                )
+                continue
+            cleared |= tx
+        if cleared:
+            # One write for the pair: the flag is the reason, `active` is the
+            # effect that gets it out of the picker.
+            cleared.write({'locker_cleared': True, 'active': False})
+            _logger.info(
+                'Locker sync: archived %s cleared drop-off(s): %s',
+                len(cleared), ', '.join(cleared.mapped('ref')),
+            )
+        return cleared
+
+    # ------------------------------------------------------------------
     # the pull (safety net behind the push)
     # ------------------------------------------------------------------
     @api.model
-    def _sync_pull(self, since_ms=None, full=False):
+    def _sync_pull(self, since_ms=None, full=False, stats=None):
         icp = self.env['ir.config_parameter'].sudo()
         if not full and since_ms is None:
             last = icp.get_param(PARAM_LAST_PULL)
@@ -480,6 +576,13 @@ class LaundryLockerTransaction(models.Model):
 
         records = self._locker_orders(records)
         if not records:
+            # Sweep for clears anyway. A clear does not touch the record on
+            # /orders, so "the delta came back empty" says nothing about
+            # whether one happened - and on a quiet shop this is the ONLY
+            # path a routine pull ever takes.
+            cleared = self._sync_clears()
+            if stats is not None:
+                stats['cleared'] = len(cleared)
             icp.set_param(PARAM_LAST_PULL, str(self._now_ms()))
             return self.browse()
 
@@ -490,6 +593,14 @@ class LaundryLockerTransaction(models.Model):
             _logger.warning('Locker sync: could not read /lockerDoors', exc_info=True)
 
         touched = self._upsert_orders(records, doors if isinstance(doors, dict) else {})
+
+        # After the upsert, not before: a drop-off that arrives already
+        # cleared - which is most of what a Full resync of older rows turns
+        # up - is then archived on the same pass that created it, instead of
+        # sitting in the picker until the next pull.
+        cleared = self._sync_clears()
+        if stats is not None:
+            stats['cleared'] = len(cleared)
 
         # Watermark from the data, not the clock: a record written while this
         # pull was running is then still in range of the next one. It counts
@@ -521,17 +632,24 @@ class LaundryLockerTransaction(models.Model):
         return self.action_sync_now(full=True)
 
     def action_sync_now(self, full=False):
+        stats = {}
         try:
-            touched = self._sync_pull(full=full)
+            touched = self._sync_pull(full=full, stats=stats)
         except Exception as err:  # noqa: BLE001 - shown to the cashier, not swallowed
             _logger.exception('Locker sync failed')
             raise UserError(_('Could not reach the locker feed:\n%s') % err) from err
+        message = _('%s transaction(s) synced.') % len(touched)
+        if stats.get('cleared'):
+            # Said out loud, because the visible result of a clear is rows
+            # DISAPPEARING from the list - which needs a reason on screen, or
+            # it reads as the sync having lost them.
+            message += _(' %s cleared at the locker and archived.') % stats['cleared']
         return {
             'type': 'ir.actions.client',
             'tag': 'display_notification',
             'params': {
                 'title': _('Locker sync'),
-                'message': _('%s transaction(s) synced.') % len(touched),
+                'message': message,
                 'type': 'success',
                 'sticky': False,
             },

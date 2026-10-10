@@ -35,6 +35,10 @@
                      deleted-at-the-locker row shows red on the rare occasion
                      one is on screen (they are filtered out by default). -->
                 <field name="active" column_invisible="1"/>
+                <!-- Optional, not hidden: an archived row shows red either
+                     way, and this is the column that says WHY it is red. -->
+                <field name="locker_cleared" string="Cleared at Locker"
+                       optional="hide"/>
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
@@ -167,6 +171,14 @@
                             <field name="delivery_datetime" readonly="1"/>
                             <field name="status_label" readonly="1"/>
                             <field name="status_code" readonly="1"/>
+                            <!-- Readonly, and set by the sync alone. The clear
+                                 happened at PudoPro, so neither un-ticking
+                                 this nor un-archiving the row will hold: the
+                                 next pull reads statusCode 7 again and
+                                 archives it afresh. A drop-off cleared by
+                                 mistake has to be un-cleared at the locker
+                                 end. -->
+                            <field name="locker_cleared" readonly="1"/>
                         </group>
                         <group string="Billing">
                             <field name="billed" readonly="1"/>
@@ -239,11 +251,23 @@
                 <filter name="filter_unverified" string="Number Not Verified"
                         domain="[('phone_verified', '=', False)]"/>
                 <separator/>
-                <!-- Deleted at the PudoPro end. Odoo hides inactive rows from
-                     every search by default, so without a filter that says so
-                     in the counter's own words there is no way back to one. -->
+                <!-- Both archive the row, so both need a way back to it: Odoo
+                     hides inactive rows from every search by default, and
+                     without a filter saying so in the counter's own words
+                     there is none. Deleted EXCLUDES cleared rather than
+                     counting them, or the deleted list would quietly fill up
+                     with drop-offs nobody deleted. -->
                 <filter name="filter_deleted" string="Deleted at Locker"
-                        domain="[('active', '=', False)]"/>
+                        domain="[('active', '=', False), ('locker_cleared', '=', False)]"/>
+                <!-- `active` has to appear in the domain at all: naming it
+                     is what switches Odoo's automatic active-test off, and
+                     without it this filter asks for archived rows while the
+                     ORM is still hiding them - always empty. `in [True,
+                     False]` rather than `= False` so a cleared row somebody
+                     un-archived is still listed as cleared. -->
+                <filter name="filter_cleared" string="Cleared at Locker"
+                        domain="[('locker_cleared', '=', True),
+                                 ('active', 'in', [True, False])]"/>
                 <separator/>
                 <!-- Either one missing counts: a drop-off whose pickup is on
                      the list and whose delivery is not is exactly the one worth

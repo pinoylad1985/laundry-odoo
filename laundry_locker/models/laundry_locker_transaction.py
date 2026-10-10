@@ -63,6 +63,23 @@ class LaundryLockerTransaction(models.Model):
              "stays for the record but drops out of the POS locker picker.",
     )
 
+    # CLEARED at the locker end - PudoPro's "Clear Transaction", statusCode 7.
+    # A clear is not a deletion: the drop-off was real and is on the record,
+    # it just is not ours to bill any more. Both outcomes archive the row,
+    # which is what takes it out of the cashier's picker; this flag is what
+    # tells the two apart afterwards, so "Deleted at Locker" keeps meaning
+    # deleted and a clear is not quietly filed as one.
+    #
+    # It is NOT `status_code` / `status_label`: those carry /orders' workflow
+    # words ("New", "For Pickup") and the clear is only ever visible in the
+    # OTHER node, /lockerTransactions, whose codes are numbers. Writing one
+    # vocabulary into the other field would make both unreadable.
+    locker_cleared = fields.Boolean(
+        string='Cleared at Locker', index=True, copy=False,
+        help="Set when the locker feed reports the drop-off as Clear Transaction. "
+             "The row is archived with it, so it leaves the POS locker picker.",
+    )
+
     location_code = fields.Char(string='Location Code', index=True)
     location_name = fields.Char(string='Location')
 
