@@ -4,20 +4,38 @@
         The service buttons, in the list view's own button area (left of the
         control panel, beside New). `web.ListView.Buttons` is an empty <t> that
         core provides as an extension point and calls with t-call, so `this`
-        inside here is the ListController - PendingListController's getters are
-        in scope directly.
+        inside here is the ListController and PendingListController's getters
+        are in scope directly.
+
+        The markup is the shape of a form view's stat buttons (icon, then label
+        over number) but with classes of our own rather than `oe_stat_button`:
+        core styles those through `.oe_button_box > ...` descendant selectors
+        that exist only inside a form, so reusing the name out here would
+        inherit half a look. backend.scss draws the whole thing instead.
     -->
     <t t-name="laundry_pos.PendingListButtons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
         <xpath expr="." position="inside">
-            <div class="laundry-pending-services btn-group" role="group" aria-label="Service">
+            <div class="laundry-pending-services" role="group" aria-label="Service">
                 <button type="button"
-                        t-attf-class="btn {{ laundryAllActive ? 'btn-primary' : 'btn-secondary' }}"
-                        t-on-click="() => this.clearLaundryServices()">All</button>
+                        t-attf-class="laundry-pending-stat {{ laundryAllActive ? 'active' : '' }}"
+                        t-on-click="() => this.clearLaundryServices()">
+                    <i class="fa fa-th-list laundry-pending-stat-icon" aria-hidden="true"/>
+                    <span class="laundry-pending-stat-info">
+                        <span class="laundry-pending-stat-text">All</span>
+                        <span class="laundry-pending-stat-value" t-esc="laundryCounts.total"/>
+                    </span>
+                </button>
                 <button t-foreach="laundryServiceFilters" t-as="svc" t-key="svc.id"
                         type="button"
-                        t-attf-class="btn {{ svc.isActive ? 'btn-primary' : 'btn-secondary' }}"
-                        t-on-click="() => this.toggleLaundryService(svc)"
-                        t-esc="svc.description"/>
+                        t-attf-class="laundry-pending-stat {{ svc.isActive ? 'active' : '' }}"
+                        t-on-click="() => this.toggleLaundryService(svc)">
+                    <i t-attf-class="fa {{ laundryIconFor(svc) }} laundry-pending-stat-icon"
+                       aria-hidden="true"/>
+                    <span class="laundry-pending-stat-info">
+                        <span class="laundry-pending-stat-text" t-esc="svc.description"/>
+                        <span class="laundry-pending-stat-value" t-esc="laundryCountFor(svc)"/>
+                    </span>
+                </button>
             </div>
         </xpath>
     </t>

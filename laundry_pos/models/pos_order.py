@@ -300,6 +300,31 @@ class PosOrder(models.Model):
         return {"id": emp.id, "name": emp.name} if emp else False
 
     @api.model
+    def laundry_service_counts(self, domain, services):
+        """How many orders in `domain` carry each of `services` — the numbers on the
+        Orders Pending stat buttons.
+
+        `laundry_services` is the comma-joined list of service NAMES the POS writes on
+        the order, so each service is counted with the same `ilike` the matching
+        search-view filter uses; the two can never drift apart and give a button a
+        count its own filter would not produce. An order with three services counts
+        once under each of them, which is why these do not add up to `total`.
+
+        One call rather than one per service: the bar needs six numbers and the list
+        it sits on top of is already fetching a page of records.
+        """
+        domain = domain or []
+        return {
+            "total": self.search_count(domain),
+            "services": {
+                name: self.search_count(
+                    domain + [("laundry_services", "ilike", name)]
+                )
+                for name in (services or [])
+            },
+        }
+
+    @api.model
     def check_laundry_manager(self, pin):
         """Authenticate a MANAGER by PIN — for approving a refund without a rebooked
         order. Returns {'id', 'name'} if the PIN belongs to an employee flagged
