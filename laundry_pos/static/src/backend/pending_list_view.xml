@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <!--
+        The service buttons, in the list view's own button area (left of the
+        control panel, beside New). `web.ListView.Buttons` is an empty <t> that
+        core provides as an extension point and calls with t-call, so `this`
+        inside here is the ListController - PendingListController's getters are
+        in scope directly.
+    -->
+    <t t-name="laundry_pos.PendingListButtons" t-inherit="web.ListView.Buttons" t-inherit-mode="primary">
+        <xpath expr="." position="inside">
+            <div class="laundry-pending-services btn-group" role="group" aria-label="Service">
+                <button type="button"
+                        t-attf-class="btn {{ laundryAllActive ? 'btn-primary' : 'btn-secondary' }}"
+                        t-on-click="() => this.clearLaundryServices()">All</button>
+                <button t-foreach="laundryServiceFilters" t-as="svc" t-key="svc.id"
+                        type="button"
+                        t-attf-class="btn {{ svc.isActive ? 'btn-primary' : 'btn-secondary' }}"
+                        t-on-click="() => this.toggleLaundryService(svc)"
+                        t-esc="svc.description"/>
+            </div>
+        </xpath>
+    </t>
+</templates>
