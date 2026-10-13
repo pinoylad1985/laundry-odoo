@@ -105,12 +105,20 @@
 // widget has to opt out of that before the stacked divs have anywhere to go.
 .o_list_table td:has(.o_field_laundry_services_list) {
     white-space: normal;
-    min-width: 7rem;
     vertical-align: top;
 }
 .o_field_laundry_services_list {
-    white-space: normal;
     line-height: 1.25;
+
+    // nowrap per service, NOT on the cell: the cell has to wrap for the stacked
+    // divs to sit on separate lines at all, but each service must stay whole on
+    // its own line. Without this the column sizes itself down and "Wash-Dry-Fold"
+    // breaks at its own hyphen into "Wash-Dry-" / "Fold", which reads as two
+    // services - exactly the confusion one-per-line was meant to remove.
+    // It is also what widens the column: the cell sizes to the longest name.
+    .laundry-svc-item {
+        white-space: nowrap;
+    }
 
     // Only the lines AFTER the first are indented, so the column reads as a list
     // hanging under its own first entry rather than as a block pushed off the edge.
