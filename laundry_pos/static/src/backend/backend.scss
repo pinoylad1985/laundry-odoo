@@ -119,12 +119,6 @@
     .laundry-svc-item {
         white-space: nowrap;
     }
-
-    // Only the lines AFTER the first are indented, so the column reads as a list
-    // hanging under its own first entry rather than as a block pushed off the edge.
-    .laundry-svc-item + .laundry-svc-item {
-        padding-left: 0.5rem;
-    }
 }
 
 // Fallback for a Services column placed from STUDIO rather than from the module view:
