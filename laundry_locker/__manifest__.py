@@ -1,6 +1,6 @@
 {
     'name': 'Laundry Lockers',
-    'version': '1.1.10',
+    'version': '1.1.11',
     'author': 'laundryx',
     'summary': 'PudoPro locker transactions, and billing them through the POS',
     'description': """
@@ -26,6 +26,13 @@ a link to the POS order it was billed on.
     'assets': {
         'point_of_sale._assets_pos': [
             'laundry_locker/static/src/**/*',
+            # Backend-only field widgets must NOT load in the POS bundle.
+            ('remove', 'laundry_locker/static/src/backend/**/*'),
+        ],
+        'web.assets_backend': [
+            'laundry_locker/static/src/backend/**/*.scss',
+            'laundry_locker/static/src/backend/**/*.js',
+            'laundry_locker/static/src/backend/**/*.xml',
         ],
     },
     'post_init_hook': 'post_init_hook',

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_locker.LockerBlockField">
+        <div class="o_field_laundry_locker_block">
+            <div t-if="ref" class="laundry-lk-ref" t-esc="ref"/>
+            <div t-if="site" class="laundry-lk-sub" t-esc="site"/>
+            <!-- "Door" spelled out: the number alone is the one line here that
+                 does not say what it is. -->
+            <div t-if="door" class="laundry-lk-sub">Door <t t-esc="door"/></div>
+        </div>
+    </t>
+</templates>

@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <!--
-        The locker reference, site and door as columns on the POS Orders list.
-        optional="show" so they are available in Studio and can be repositioned
-        there (a hidden optional column never appears in Studio at all).
+        Where a drop-off came from, as ONE column on the POS Orders list: the
+        ref, the site and the door stacked by the `laundry_locker_block` widget
+        instead of three columns of their own. optional="show" so it is
+        available in Studio and can be repositioned there (a hidden optional
+        column never appears in Studio at all).
     -->
     <record id="view_pos_order_tree_locker" model="ir.ui.view">
         <field name="name">pos.order.list.locker</field>
@@ -11,9 +13,8 @@
         <field name="inherit_id" ref="laundry_pos.view_pos_order_tree_laundry"/>
         <field name="arch" type="xml">
             <xpath expr="//list" position="inside">
-                <field name="laundry_locker_ref" optional="show"/>
-                <field name="laundry_locker_door" optional="show"/>
-                <field name="laundry_locker_location" optional="show"/>
+                <field name="laundry_locker_block" string="Locker Details" optional="show"
+                       widget="laundry_locker_block"/>
             </xpath>
         </field>
     </record>
