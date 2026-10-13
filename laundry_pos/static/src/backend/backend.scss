@@ -98,3 +98,34 @@
         text-overflow: clip !important;
     }
 }
+
+// "Laundry Services" column: one service per line. Same two-part shape as the customer
+// block above - the list's data cells are nowrap + ellipsis by default, so an order with
+// three services was clipped to "Wash-Dry-Fold, Dry/W...", and the cell holding our
+// widget has to opt out of that before the stacked divs have anywhere to go.
+.o_list_table td:has(.o_field_laundry_services_list) {
+    white-space: normal;
+    min-width: 7rem;
+    vertical-align: top;
+}
+.o_field_laundry_services_list {
+    white-space: normal;
+    line-height: 1.25;
+
+    // Only the lines AFTER the first are indented, so the column reads as a list
+    // hanging under its own first entry rather than as a block pushed off the edge.
+    .laundry-svc-item + .laundry-svc-item {
+        padding-left: 0.5rem;
+    }
+}
+
+// Fallback for a Services column placed from STUDIO rather than from the module view:
+// Studio adds a plain <field>, which gets no widget, so there are no per-service divs
+// to stack. Wrapping the cell at least keeps the whole value readable instead of
+// clipping it. Scoped to this list, and keyed on the field name because that is all a
+// Studio-added column gives us to aim at.
+.laundry-orders-list td[name="laundry_services"] {
+    white-space: normal;
+    min-width: 7rem;
+    vertical-align: top;
+}
