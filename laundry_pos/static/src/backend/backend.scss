@@ -133,7 +133,8 @@
 }
 
 // Orders Pending: the service bar (All / Wash-Dry-Fold / Press / ...) that the
-// `laundry_pending_list` controller puts in the list's button area, beside New.
+// `laundry_pending_list` controller puts on a row of its own at the top of the
+// control panel, above the breadcrumb and the search bar.
 //
 // Drawn to match the stat buttons on a form view - one flush strip of bordered
 // cells, each an icon beside a label over a number - but with our own classes.
@@ -147,7 +148,10 @@
     flex-wrap: wrap;
     align-items: stretch;
     gap: 0;
-    margin-left: 0.5rem;
+    // The band is a child of the control panel's flex COLUMN, so it gets a full row
+    // to itself - but the strip itself hugs its buttons rather than being stretched
+    // across the whole width, which would leave a long empty box after Cap Clean.
+    align-self: flex-start;
     border: 1px solid var(--border-color, #dee2e6);
     border-radius: 0.25rem;
     // Clips the cell backgrounds to the rounded corners, so a lit first or last

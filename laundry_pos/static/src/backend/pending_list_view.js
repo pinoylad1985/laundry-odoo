@@ -8,7 +8,8 @@ import { ListController } from "@web/views/list/list_controller";
 
 // Service buttons across the top of the Orders Pending list: All, Wash-Dry-Fold,
 // Press, Dry/Wet Clean, Shoe Clean, Cap Clean - shaped like the stat buttons on a
-// contact form (icon, label, number).
+// contact form (icon, label, number), on a row of their own above the search bar
+// (see the `control-panel-laundry-band` slot in pending_list_view.xml).
 //
 // They are not a filter of their own: each button is one of the `laundry_svc_*`
 // <filter> entries declared in the search view (views/pos_order_pending_views.xml),
@@ -38,6 +39,11 @@ const SVC_ICONS = {
 };
 
 export class PendingListController extends ListController {
+    // Not just a buttonTemplate: the band is not in the list's button strip, it is
+    // in a slot of its own at the top of the control panel, so the controller needs
+    // its own template to set that slot.
+    static template = "laundry_pos.PendingListView";
+
     setup() {
         super.setup();
         this.orm = useService("orm");
@@ -112,5 +118,4 @@ export class PendingListController extends ListController {
 registry.category("views").add("laundry_pending_list", {
     ...listView,
     Controller: PendingListController,
-    buttonTemplate: "laundry_pos.PendingListButtons",
 });
