@@ -18,6 +18,15 @@
             <xpath expr="//field[@name='partner_id']" position="attributes">
                 <attribute name="optional">show</attribute>
             </xpath>
+            <!-- Order Number. Core ships it optional="hide" (pos_order_view.xml), and a
+                 hidden optional column is absent from Studio entirely - it cannot be
+                 positioned or switched on there, only from the gear menu. Flipped to
+                 "show" so it is a column Studio can place. This is the Order # the
+                 counter calls out and the one the receipt prints as "ORDER # "; it is
+                 NOT pos_reference, which is the Receipt Number. -->
+            <xpath expr="//field[@name='tracking_number']" position="attributes">
+                <attribute name="optional">show</attribute>
+            </xpath>
             <!-- Tag the list so we can wrap the column headers (scss) without affecting
                  other backend lists. -->
             <xpath expr="//list" position="attributes">
