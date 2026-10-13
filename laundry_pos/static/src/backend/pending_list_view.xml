@@ -22,35 +22,40 @@
         second line and squeezed the breadcrumb down to "Orders ...". They get a row
         of their own instead, through the slot above.
 
-        The markup is the shape of a form view's stat buttons (icon, then label over
-        number) but with classes of our own rather than `oe_stat_button`: core styles
-        those through `.oe_button_box > ...` descendant selectors that exist only
-        inside a form, so reusing the name out here would inherit half a look.
-        backend.scss draws the whole thing instead.
+        These are core's OWN stat buttons, not an imitation: .o-form-buttonbox,
+        .oe_stat_button, .o_stat_info, .o_stat_text, .o_stat_value and .o_button_icon,
+        exactly as a contact form's button box is built. Its stylesheet
+        (web/static/src/views/form/button_box/button_box.scss) is scoped to
+        .o-form-buttonbox rather than to the form view, so the whole look - the icon
+        size, the label above the bold value, the collapsed borders, the rounded ends -
+        comes over intact and stays matched if core restyles it. backend.scss adds only
+        the two things core has no notion of out here: where the strip sits, and what a
+        SELECTED service looks like.
     -->
     <t t-name="laundry_pos.PendingListView" t-inherit="web.ListView" t-inherit-mode="primary">
         <xpath expr="//t[@t-set-slot='layout-actions']" position="before">
             <t t-set-slot="control-panel-laundry-band">
-                <div class="laundry-pending-services" role="group" aria-label="Service">
+                <div class="o-form-buttonbox d-flex laundry-pending-services"
+                     role="group" aria-label="Service">
                     <button type="button"
-                            t-attf-class="laundry-pending-stat {{ laundryAllActive ? 'active' : '' }}"
+                            t-attf-class="btn btn-outline-secondary oe_stat_button {{ laundryAllActive ? 'o_laundry_selected' : '' }}"
                             t-on-click="() => this.clearLaundryServices()">
-                        <i class="fa fa-th-list laundry-pending-stat-icon" aria-hidden="true"/>
-                        <span class="laundry-pending-stat-info">
-                            <span class="laundry-pending-stat-text">All</span>
-                            <span class="laundry-pending-stat-value" t-esc="laundryCounts.total"/>
-                        </span>
+                        <i class="o_button_icon fa fa-fw fa-th-list" aria-hidden="true"/>
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">All</span>
+                            <span class="o_stat_value" t-esc="laundryCounts.total"/>
+                        </div>
                     </button>
                     <button t-foreach="laundryServiceFilters" t-as="svc" t-key="svc.id"
                             type="button"
-                            t-attf-class="laundry-pending-stat {{ svc.isActive ? 'active' : '' }}"
+                            t-attf-class="btn btn-outline-secondary oe_stat_button {{ svc.isActive ? 'o_laundry_selected' : '' }}"
                             t-on-click="() => this.toggleLaundryService(svc)">
-                        <i t-attf-class="fa {{ laundryIconFor(svc) }} laundry-pending-stat-icon"
+                        <i t-attf-class="o_button_icon fa fa-fw {{ laundryIconFor(svc) }}"
                            aria-hidden="true"/>
-                        <span class="laundry-pending-stat-info">
-                            <span class="laundry-pending-stat-text" t-esc="svc.description"/>
-                            <span class="laundry-pending-stat-value" t-esc="laundryCountFor(svc)"/>
-                        </span>
+                        <div class="o_stat_info">
+                            <span class="o_stat_text" t-esc="svc.description"/>
+                            <span class="o_stat_value" t-esc="laundryCountFor(svc)"/>
+                        </div>
                     </button>
                 </div>
             </t>

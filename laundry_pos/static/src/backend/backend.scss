@@ -136,85 +136,35 @@
 // `laundry_pending_list` controller puts on a row of its own at the top of the
 // control panel, above the breadcrumb and the search bar.
 //
-// Drawn to match the stat buttons on a form view - one flush strip of bordered
-// cells, each an icon beside a label over a number - but with our own classes.
-// Core's `.oe_stat_button` only picks up its look from `.oe_button_box > ...`
-// selectors that exist inside a form view, so borrowing the class name out here
-// would inherit half the styling and none of the layout.
-.laundry-pending-services {
-    display: flex;
-    // Six service names is wider than the control panel on a laptop, so the strip
-    // is allowed to fall onto a second line rather than squeeze or overflow.
-    flex-wrap: wrap;
-    align-items: stretch;
-    gap: 0;
-    // The band is a child of the control panel's flex COLUMN, so it gets a full row
-    // to itself - but the strip itself hugs its buttons rather than being stretched
-    // across the whole width, which would leave a long empty box after Cap Clean.
-    // Centred, which lines it up with the search bar on the row below: the search
-    // bar sits in the control panel's actions area, which centres on the same axis.
+// The buttons themselves are CORE's stat buttons - the band carries
+// .o-form-buttonbox and each button .oe_stat_button, so font, size, icon, the
+// label-over-bold-value stack and the collapsed borders all come from
+// web/static/src/views/form/button_box/button_box.scss, which is scoped to
+// .o-form-buttonbox and not to the form view. Nothing here may set a font-size, a
+// padding or a height: that is the whole point, and a stat button on this list
+// should stay identical to one on a contact form even after core restyles them.
+//
+// So this adds exactly two things core has no notion of out here.
+.laundry-pending-services.o-form-buttonbox {
+    // One: where the strip sits. It is a child of the control panel's flex COLUMN,
+    // so it gets a full row - centred, which lines it up with the search bar on the
+    // row below, and sized to its buttons rather than stretched across the window,
+    // which would leave a long empty box trailing off after Cap Clean.
     align-self: center;
-    border: 1px solid var(--border-color, #dee2e6);
-    border-radius: 0.25rem;
-    // Clips the cell backgrounds to the rounded corners, so a lit first or last
-    // button does not square off the end of the strip.
-    overflow: hidden;
+    // Six services are wider than a narrow window; let them fall to a second line
+    // rather than squeeze or overflow.
+    flex-wrap: wrap;
 
-    .laundry-pending-stat {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.35rem 0.75rem;
-        background: transparent;
-        border: 0;
-        // The divider between cells, rather than a border per button: a border
-        // would double up where two cells meet.
-        border-left: 1px solid var(--border-color, #dee2e6);
-        color: inherit;
-        text-align: left;
-        line-height: 1.1;
-        white-space: nowrap;
-
-        &:first-child {
-            border-left: 0;
-        }
-
-        &:hover {
-            background: var(--gray-200, #e9ecef);
-        }
-
-        // Selected. The tint plus the primary-coloured text is the whole signal -
-        // these buttons stay on in combination, so a solid fill on four of them at
-        // once would be a wall of colour with nothing to read against it.
-        &.active {
-            background: rgba(113, 75, 103, 0.12);
-            color: var(--primary, #714b67);
-            box-shadow: inset 0 -2px 0 var(--primary, #714b67);
-
-            .laundry-pending-stat-text,
-            .laundry-pending-stat-icon {
-                color: var(--primary, #714b67);
-            }
-        }
-    }
-
-    .laundry-pending-stat-icon {
-        font-size: 1.1rem;
-        color: var(--gray-600, #6c757d);
-    }
-
-    .laundry-pending-stat-info {
-        display: flex;
-        flex-direction: column;
-    }
-
-    .laundry-pending-stat-text {
-        font-size: 0.75rem;
-        color: var(--gray-700, #495057);
-    }
-
-    .laundry-pending-stat-value {
-        font-size: 1rem;
-        font-weight: 600;
+    // Two: what a SELECTED service looks like. Deliberately NOT Bootstrap's own
+    // `.active`, which fills an outline button solid - these buttons stay on in
+    // combination, so four solid fills at once would be a wall of colour with the
+    // counts lost inside it. A tint plus the underline reads as "on" at a glance
+    // and still lets the number be read.
+    .oe_stat_button.o_laundry_selected {
+        background-color: rgba(113, 75, 103, 0.12);
+        box-shadow: inset 0 -3px 0 var(--primary, #714b67);
+        // The strip collapses each button's border onto its neighbour's; without
+        // this the selected cell's border is the one that ends up underneath.
+        z-index: 1;
     }
 }
