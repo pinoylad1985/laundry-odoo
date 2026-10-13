@@ -151,7 +151,9 @@
     // The band is a child of the control panel's flex COLUMN, so it gets a full row
     // to itself - but the strip itself hugs its buttons rather than being stretched
     // across the whole width, which would leave a long empty box after Cap Clean.
-    align-self: flex-start;
+    // Centred, which lines it up with the search bar on the row below: the search
+    // bar sits in the control panel's actions area, which centres on the same axis.
+    align-self: center;
     border: 1px solid var(--border-color, #dee2e6);
     border-radius: 0.25rem;
     // Clips the cell backgrounds to the rounded corners, so a lit first or last
