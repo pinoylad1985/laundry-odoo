@@ -1,0 +1,29 @@
+// Combined "Locker Details" column: ref, site and door stacked in one cell.
+// Same two-part shape as laundry_pos's Customer Details and Services columns -
+// the list's data cells are nowrap + ellipsis by default, so the cell holding
+// the widget has to opt out of that before the stacked divs have anywhere to go.
+.o_list_table td:has(.o_field_laundry_locker_block) {
+    white-space: normal;
+    vertical-align: top;
+}
+.o_field_laundry_locker_block {
+    line-height: 1.25;
+
+    // nowrap per line, NOT on the cell: the cell must wrap for the divs to sit
+    // on separate lines at all, while a ref must stay whole rather than break
+    // at its own hyphen into "LX-" / "000123", which reads as two values.
+    .laundry-lk-ref,
+    .laundry-lk-sub {
+        white-space: nowrap;
+    }
+
+    // The ref is the identifier the rest of the cell qualifies, so it leads in
+    // the same weight the customer's name does one column over.
+    .laundry-lk-ref {
+        font-weight: 600;
+    }
+    .laundry-lk-sub {
+        font-size: 0.85em;
+        color: #6c757d;
+    }
+}

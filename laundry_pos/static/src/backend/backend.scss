@@ -98,3 +98,36 @@
         text-overflow: clip !important;
     }
 }
+
+// "Laundry Services" column: one service per line. Same two-part shape as the customer
+// block above - the list's data cells are nowrap + ellipsis by default, so an order with
+// three services was clipped to "Wash-Dry-Fold, Dry/W...", and the cell holding our
+// widget has to opt out of that before the stacked divs have anywhere to go.
+.o_list_table td:has(.o_field_laundry_services_list) {
+    white-space: normal;
+    vertical-align: top;
+}
+.o_field_laundry_services_list {
+    line-height: 1.25;
+
+    // nowrap per service, NOT on the cell: the cell has to wrap for the stacked
+    // divs to sit on separate lines at all, but each service must stay whole on
+    // its own line. Without this the column sizes itself down and "Wash-Dry-Fold"
+    // breaks at its own hyphen into "Wash-Dry-" / "Fold", which reads as two
+    // services - exactly the confusion one-per-line was meant to remove.
+    // It is also what widens the column: the cell sizes to the longest name.
+    .laundry-svc-item {
+        white-space: nowrap;
+    }
+}
+
+// Fallback for a Services column placed from STUDIO rather than from the module view:
+// Studio adds a plain <field>, which gets no widget, so there are no per-service divs
+// to stack. Wrapping the cell at least keeps the whole value readable instead of
+// clipping it. Scoped to this list, and keyed on the field name because that is all a
+// Studio-added column gives us to aim at.
+.laundry-orders-list td[name="laundry_services"] {
+    white-space: normal;
+    min-width: 7rem;
+    vertical-align: top;
+}

@@ -35,6 +35,34 @@ class PosOrder(models.Model):
         help="Locker site the laundry was dropped off at.",
     )
 
+    # The three above, stacked into one column on the POS Orders list (rendered
+    # by the `laundry_locker_block` OWL widget): ref, then site, then door. Three
+    # columns side by side cost three column-widths to carry one thing - where a
+    # bag came from - and two of them are near-empty on every non-locker order,
+    # which is most of the list. NOT stored, for the same reason
+    # `laundry_customer_block` is not: a stored compute would bump write_date on
+    # every order in the database the first time it ran. The widget reads the
+    # three source fields directly; this Char is the export and the fallback.
+    laundry_locker_block = fields.Char(
+        string='Locker Details',
+        compute='_compute_laundry_locker_block',
+    )
+
+    @api.depends('laundry_locker_ref', 'laundry_locker_location',
+                 'laundry_locker_door')
+    def _compute_laundry_locker_block(self):
+        for order in self:
+            # The door is the one part that does not say what it is: a ref
+            # carries its LX- and a site is a place name, but a door is a bare
+            # number that reads as an order count or a quantity on its own.
+            door = order.laundry_locker_door
+            parts = filter(None, [
+                order.laundry_locker_ref,
+                order.laundry_locker_location,
+                'Door %s' % door if door else None,
+            ])
+            order.laundry_locker_block = ' · '.join(parts) or False
+
     def _sync_laundry_locker(self):
         """Settle locker drop-offs against the orders that actually took them.
 

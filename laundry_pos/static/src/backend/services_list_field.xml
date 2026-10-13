@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.ServicesListField">
+        <div class="o_field_laundry_services_list">
+            <div t-foreach="services" t-as="service" t-key="service_index"
+                 class="laundry-svc-item" t-esc="service"/>
+        </div>
+    </t>
+</templates>
