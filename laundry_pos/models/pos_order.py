@@ -3,6 +3,13 @@ import json
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
+# The laundry_status values that mean the work is still open. An order with no per-service
+# rows is pending only while its status is one of these - asking it this way round (rather
+# than "is it finished?") keeps a legacy status nobody has seen before, or a blank one,
+# out of Orders Pending. Kept in step with LAUNDRY_OPEN_STATUSES in laundry_pos/__init__.py,
+# which the migration and the post-init hook recompute the roll-up with in SQL.
+LAUNDRY_OPEN_STATUSES = ('Not Started', 'In Process')
+
 
 class PosOrder(models.Model):
     _inherit = 'pos.order'
@@ -195,13 +202,18 @@ class PosOrder(models.Model):
         for order in self:
             services = order.laundry_service_ids
             if services:
+                # What pending MEANS: every service on the order has to be Done.
                 order.laundry_all_done = all(s.status == 'Done' for s in services)
             else:
                 # No service rows: orders from before per-service tracking, and any order
                 # the POS never sent a service list for. Fall back to the order's own
-                # Wash-Dry-Fold status so a long-finished order does not come back as
-                # pending the moment this field starts deciding what pending means.
-                order.laundry_all_done = order.laundry_status == 'Folded'
+                # status - and ask whether it is still OPEN, not whether it is finished.
+                # Asking it the other way round ('Folded'?) is what put 161 finished
+                # orders from 2025-10 back into Orders Pending: their status was the
+                # legacy 'Done' (see _laundry_normalize_status), which is neither 'Folded'
+                # nor an open status. Phrased like this, only a status that actually says
+                # the work is open can hold an order in the pending list.
+                order.laundry_all_done = order.laundry_status not in LAUNDRY_OPEN_STATUSES
 
     @api.depends('laundry_service_ids.name', 'laundry_service_ids.staff_id',
                  'laundry_service_ids.processed_datetime', 'laundry_service_ids.status')

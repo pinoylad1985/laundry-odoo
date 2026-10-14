@@ -329,7 +329,7 @@ real, loaded field) so it survives reloads/reprints. It's shown as-is, like a va
   re-bill the line at the bare 6KG minimum. Anything added to a laundry line from here on has to be
   added to BOTH rebuilds.
 
-## Per-service progress (staff / processed date / status) — v1.5.1
+## Per-service progress (staff / processed date / status) — v1.5.3
 An order may carry several services at once, each handled by a different person and finished at a
 different time, so the three progress values live on **`laundry.order.service`** — one row per
 service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on the order.
@@ -348,9 +348,14 @@ service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on t
   places that must stay in step: the Orders Pending action (`views/pos_order_pending_views.xml`), the
   `PENDINGS` `ir.filters` (`data/pos_order_filters.xml`) and `_compute_laundry_due_icon` (the urgency
   icon clears only when all services are done).
-  - ⚠ **With no service rows it falls back to `laundry_status == 'Folded'`.** Without that fallback
-    every legacy order that predates `laundry_services` would read as not-done and flood Orders
-    Pending. Keep the fallback.
+  - **With no service rows it falls back to the order's own status — and asks whether that status is
+    still OPEN**, `laundry_status not in LAUNDRY_OPEN_STATUSES` (`'Not Started'`, `'In Process'`;
+    defined in `models/pos_order.py` and mirrored in `laundry_pos/__init__.py` for the SQL paths).
+    Some fallback is needed or every order predating `laundry_services` floods Orders Pending.
+  - ⚠ **Ask "is it open?", NEVER "is it finished?".** v1.5.0–1.5.2 asked `laundry_status == 'Folded'`,
+    which put **161 finished orders from 2025-10-12…16 back into Orders Pending** — their status was
+    the legacy `'Done'`, which is neither `'Folded'` nor an open status. Phrased as "is it open?", an
+    unknown or blank status can never hold an order in the list.
   - ⚠ `data/pos_order_filters.xml` is `noupdate="1"`, so its domain does **not** reload on upgrade —
     the 1.5.0 migration rewrites that filter's domain in SQL. Any future change to the pending rule
     needs the same treatment.
@@ -400,6 +405,16 @@ service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on t
   kept for `action_laundry_set_staff` on orders with no rows. ⚠ `service_id` must **not** be
   `readonly` — the web client drops readonly fields from the save payload, so a context default would
   arrive back empty; it is carried `invisible="1"` and displayed through the related `service_name`.
+- ⚠ **`laundry_status` may hold a LABEL instead of a stored value, from Studio-era data.**
+  `'Done'` is the *label* of `'Folded'`, and 161 orders (2025-10-12…16) stored the label — the 1.2.3
+  copy of `x_studio_status` took it verbatim. It broke two things that both ask "is this a value I
+  know?": Orders Pending (above) and the readonly Selection widget (`options.find(...)[1]` →
+  `Cannot read properties of undefined (reading '1')`, which took the order form down). Fixed by
+  **rewriting the data**: `_laundry_normalize_status(cr)` + `LAUNDRY_STATUS_FIXUPS` in
+  `laundry_pos/__init__.py`, run from the `19.0.1.5.3` migration **and** from `_laundry_post_init`
+  (a staging refresh copies `x_studio_status` verbatim and would reintroduce it). Any further legacy
+  spelling goes in that dict. `_laundry_recompute_all_done(cr)` then redoes the roll-up in SQL by the
+  same rule as the compute — it is shared with the backfill, so there is one copy of that rule in SQL.
 - **Backfill** — `_laundry_backfill_services(cr)` in `laundry_pos/__init__.py`, called from BOTH the
   `19.0.1.5.0` migration (upgrade) and `_laundry_post_init` (install onto a database that already has
   orders, e.g. a staging refresh). It copies the order's single staff/date/status onto **every**
