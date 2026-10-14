@@ -91,7 +91,10 @@
                      that widget for why a readonly selection is a crash risk on order
                      history that carries statuses no longer offered. -->
                 <field name="laundry_status" readonly="1" widget="laundry_selection_text"/>
-                <field name="laundry_staff_id" readonly="1"/>
+                <!-- no_open: a readonly Many2one is still a link into the employee
+                     record, and the POS PIN lives on that form. Nobody needs to walk
+                     from an order into an employee file. -->
+                <field name="laundry_staff_id" readonly="1" options="{'no_open': True}"/>
                 <field name="laundry_processed_datetime" readonly="1"/>
                 <field name="laundry_all_done" readonly="1"/>
                 <!-- Every service, so one order can be read on its own page. Read-only on
@@ -101,7 +104,7 @@
                     <list create="false" delete="false">
                         <field name="sequence" column_invisible="1"/>
                         <field name="name"/>
-                        <field name="staff_id"/>
+                        <field name="staff_id" options="{'no_open': True}"/>
                         <field name="processed_datetime"/>
                         <field name="status" widget="laundry_selection_text"/>
                     </list>
@@ -124,7 +127,12 @@
                          related field and is display-only. -->
                     <field name="service_id" invisible="1"/>
                     <field name="service_name" invisible="not service_id"/>
-                    <field name="staff_id" options="{'no_create': True, 'no_open': True}"/>
+                    <!-- list_view_ref: "Search more..." must NOT open the default
+                         employee list, which carries the POS PIN column. no_open so the
+                         employee record cannot be opened from here either. -->
+                    <field name="staff_id"
+                           options="{'no_create': True, 'no_open': True}"
+                           context="{'list_view_ref': 'laundry_pos.view_employee_list_laundry_picker'}"/>
                     <field name="processed_datetime" widget="laundry_folding_roller"/>
                     <field name="pin" password="True" placeholder="Cashier PIN"/>
                 </group>

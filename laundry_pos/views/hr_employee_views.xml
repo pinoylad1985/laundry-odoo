@@ -15,4 +15,30 @@
             </xpath>
         </field>
     </record>
+
+    <!--
+        The employee list OUR pickers open, and nothing else. A Many2one to hr.employee
+        offers "Search more..." once there are more than a handful of employees, and that
+        dialog opens the model's DEFAULT list view - whatever columns anyone has since put
+        on it. On this database that list carries the POS PIN column, so the Staff picker
+        on an order was handing every staff PIN to anyone who could open an order: the PIN
+        is the signature on who did the work, so reading it is the same as being able to
+        sign as somebody else.
+        Names and where they work are all a picker needs. priority 99 keeps this from ever
+        becoming the default list for hr.employee (lowest priority wins) - it is reached
+        only through list_view_ref, which is why no PIN column can creep back onto it from
+        Studio either.
+    -->
+    <record id="view_employee_list_laundry_picker" model="ir.ui.view">
+        <field name="name">hr.employee.list.laundry.picker</field>
+        <field name="model">hr.employee</field>
+        <field name="priority">99</field>
+        <field name="arch" type="xml">
+            <list string="Staff" create="false" edit="false">
+                <field name="name"/>
+                <field name="department_id"/>
+                <field name="job_title"/>
+            </list>
+        </field>
+    </record>
 </odoo>

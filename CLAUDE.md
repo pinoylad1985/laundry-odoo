@@ -410,6 +410,28 @@ service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on t
   if those columns are never made editable again. `folding_pin_field.js` gained a PIN-less
   **`laundry_folding_roller`** variant for the wizard, where the PIN is taken once at Confirm.
 
+## Employee PINs are never readable from this module — v1.5.2
+The PIN is the signature on who did the work, so being able to READ one is the same as being able to
+sign as that person. Nothing in `laundry_pos` / `laundry_locker` may display, return or route to a PIN.
+- **Every PIN input is masked** — `password="True"` on the wizard field, `type="password"` in
+  `laundry_pin_dialog`, `manager_pin_popup`, `refund_gate_popup` (both PIN inputs) and
+  `rider_signoff_popup`.
+- **PINs are compared SERVER-side and never travel to the browser** — `check_laundry_staff`,
+  `check_laundry_rider`, `check_laundry_manager`, `check_laundry_rebook` and `get_laundry_staff` /
+  `get_laundry_riders` return only `{"id", "name"}`. Don't ever add `pin` to one of those payloads.
+- ⚠ **A Many2one to `hr.employee` is a PIN leak unless it is pinned to our own list view.** Past a
+  handful of employees the dropdown offers **"Search more…"**, and that dialog opens the model's
+  DEFAULT list view — whatever columns anyone (Studio, in this database) has since put on it, PIN
+  included. So the wizard's `staff_id` carries
+  `context="{'list_view_ref': 'laundry_pos.view_employee_list_laundry_picker'}"` →
+  `views/hr_employee_views.xml`, a name / department / job-title list at **`priority` 99** so it can
+  never become the model default and nothing can be added to it from Studio. Any new employee picker
+  needs the same context.
+- **`no_open` on every employee Many2one, readonly ones included** — a readonly M2O still renders as a
+  link into the employee form, and the PIN field lives there.
+- Core's `hr.employee.pin` is restricted to `hr.group_hr_user`, so a POS-only user can't read it
+  anyway — this is about the owner/admin accounts, which can.
+
 ## Secondary Type (reporting classification)
 `pos.order.laundry_secondary_type` (computed, **stored**) classifies each order **Order / Payment / Adjustment /
 Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml`).
