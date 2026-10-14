@@ -40,11 +40,21 @@
                      Char here would be clipped by the cell's ellipsis the moment an
                      order has more than one. -->
                 <field name="laundry_services" string="Services" optional="show" widget="laundry_services_list"/>
+                <!-- Staff / processed date / status for EVERY service on the order, in
+                     one cell, one line per service. Tapping a line opens the PIN wizard
+                     on that service - this is where progress is now recorded. -->
+                <field name="laundry_service_block" optional="show" widget="laundry_service_block"/>
                 <field name="laundry_due_datetime" optional="show"/>
                 <field name="laundry_due_icon" optional="show"/>
-                <field name="laundry_status" optional="show"/>
-                <field name="laundry_staff_id" optional="show" widget="laundry_staff_pin"/>
-                <field name="laundry_processed_datetime" optional="show" widget="laundry_processed_date_pin"/>
+                <!-- The three Wash-Dry-Fold columns: READ-ONLY mirrors of the order's
+                     Wash-Dry-Fold row in the Services Progress column (the mirror is
+                     one-way, see laundry_order_service._mirror_wdf_to_order). Editable
+                     here they would be a second place to state the same fact, and the two
+                     could disagree. Kept so the WDF numbers stay sortable, exportable and
+                     placeable in Studio, and so laundry_account_reports keeps its cashier. -->
+                <field name="laundry_status" optional="show" readonly="1"/>
+                <field name="laundry_staff_id" optional="show" readonly="1"/>
+                <field name="laundry_processed_datetime" optional="show" readonly="1"/>
                 <field name="laundry_pickup_rider" optional="show"/>
                 <field name="laundry_delivery_rider" optional="show"/>
                 <field name="laundry_account_approved_by" optional="show"/>
@@ -70,11 +80,26 @@
         <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_id']" position="after">
-                <field name="laundry_status" readonly="1"/>
                 <field name="laundry_service_type" readonly="1"/>
                 <field name="laundry_due_datetime" readonly="1"/>
-                <field name="laundry_staff_id" widget="laundry_staff_pin"/>
-                <field name="laundry_processed_datetime" widget="laundry_processed_date_pin"/>
+                <!-- Wash-Dry-Fold mirror (read-only - record progress on the Services
+                     list below, or on the Services Progress column of the order list). -->
+                <field name="laundry_status" readonly="1"/>
+                <field name="laundry_staff_id" readonly="1"/>
+                <field name="laundry_processed_datetime" readonly="1"/>
+                <field name="laundry_all_done" readonly="1"/>
+                <!-- Every service, so one order can be read on its own page. Read-only on
+                     purpose: a change here would skip the PIN, and the PIN is how the
+                     module records WHO did the work. -->
+                <field name="laundry_service_ids" readonly="1" nolabel="1" colspan="2">
+                    <list create="false" delete="false">
+                        <field name="sequence" column_invisible="1"/>
+                        <field name="name"/>
+                        <field name="staff_id"/>
+                        <field name="processed_datetime"/>
+                        <field name="status"/>
+                    </list>
+                </field>
             </xpath>
         </field>
     </record>
@@ -87,8 +112,14 @@
             <form string="Set Staff / Processed Date">
                 <group>
                     <field name="order_id" invisible="1"/>
+                    <!-- Which service this PIN signs for - shown so nobody signs off
+                         the wrong one on a multi-service order. The id is carried
+                         invisibly (a readonly field would not be saved); the name is a
+                         related field and is display-only. -->
+                    <field name="service_id" invisible="1"/>
+                    <field name="service_name" invisible="not service_id"/>
                     <field name="staff_id" options="{'no_create': True, 'no_open': True}"/>
-                    <field name="processed_datetime"/>
+                    <field name="processed_datetime" widget="laundry_folding_roller"/>
                     <field name="pin" password="True" placeholder="Cashier PIN"/>
                 </group>
                 <footer>

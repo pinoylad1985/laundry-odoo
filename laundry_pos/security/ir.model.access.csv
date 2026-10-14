@@ -2,3 +2,5 @@ id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
 access_laundry_service_type_user,laundry.service.type user,model_laundry_service_type,base.group_user,1,0,0,0
 access_laundry_service_type_manager,laundry.service.type manager,model_laundry_service_type,base.group_system,1,1,1,1
 access_laundry_staff_pin_wizard,laundry.staff.pin.wizard,model_laundry_staff_pin_wizard,point_of_sale.group_pos_user,1,1,1,1
+access_laundry_order_service_user,laundry.order.service user,model_laundry_order_service,base.group_user,1,0,0,0
+access_laundry_order_service_pos,laundry.order.service pos,model_laundry_order_service,point_of_sale.group_pos_user,1,1,1,1

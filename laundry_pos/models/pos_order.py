@@ -1,3 +1,5 @@
+import json
+
 from odoo import models, fields, api
 from odoo.exceptions import ValidationError
 
@@ -102,18 +104,56 @@ class PosOrder(models.Model):
         ],
         string='Staff (legacy name)',
     )
-    # The assigned cashier. Picker shows ACTIVE employees (archive resignees to hide
-    # them while keeping history). Editing it on the form requires the cashier's POS PIN.
-    laundry_staff_id = fields.Many2one('hr.employee', string='Staff')
-    laundry_processed_datetime = fields.Datetime(string='Processed Date')
+    # --- Wash-Dry-Fold progress: a READ-ONLY MIRROR of this order's Wash-Dry-Fold row in
+    # laundry_service_ids (see laundry_order_service._mirror_wdf_to_order). These three
+    # described WDF and nothing else from the start - the staff PIN dialog is titled
+    # "Wash-Dry-Fold Staff" - so now that every service is tracked separately they are
+    # kept, relabelled, as the WDF columns. They are no longer edited directly: do it on
+    # the Services column, which writes the row and the mirror follows. Keeping them
+    # stored (rather than computed) means the legacy values already in the database are
+    # never recomputed away, and laundry_account_reports keeps reading laundry_staff_id. ---
+    laundry_staff_id = fields.Many2one('hr.employee', string='WDF Staff')
+    laundry_processed_datetime = fields.Datetime(string='WDF Processed Date')
     laundry_status = fields.Selection(
         selection=[
             ('Not Started', 'Not Started'),
             ('In Process', 'In Process'),
-            ('Folded', 'Folded'),
+            # Stored value stays 'Folded' - relabelled "Done" because an order now holds
+            # services that are never folded (Press, Shoe Clean). Label-only, so years of
+            # legacy rows need no migration; laundry.order.service uses 'Done' outright.
+            ('Folded', 'Done'),
         ],
-        string='Status',
+        string='WDF Status',
         default='Not Started',
+    )
+
+    # --- Per-service progress (multiple services per order) ---
+    # One row per service on the order, each with its own staff, processed date and status.
+    laundry_service_ids = fields.One2many(
+        'laundry.order.service', 'order_id', string='Service Tracking',
+    )
+    # The single "Services Progress" list column: every service with its staff, processed
+    # date and status stacked in one cell, rendered by the `laundry_service_block` widget.
+    #
+    # Carried as a JSON string, NOT as the One2many itself: a list view gives a cell
+    # widget only the fields declared in the arch, and there is no way to declare the
+    # sub-fields of an x2many inside a list cell. Encoding them in a Char is the same
+    # trick the `laundry_services_list` column already uses, and JSON (rather than a
+    # delimiter) because staff names and service names are free text that would collide
+    # with any separator worth reading. Display-only and NOT stored - it would otherwise
+    # bump write_date on every order whenever a service moved.
+    laundry_service_block = fields.Char(
+        string='Services Progress',
+        compute='_compute_laundry_service_block',
+    )
+    # THE PENDING TEST. An order is finished only when every one of its services is Done;
+    # until then it is pending. Stored so the Orders Pending list and the PENDINGS filter
+    # can search it. An order with no service rows at all counts as NOT done, which is how
+    # a fresh order behaved when this was a single 'Not Started' status.
+    laundry_all_done = fields.Boolean(
+        string='All Services Done',
+        compute='_compute_laundry_all_done',
+        store=True,
     )
     # Due-urgency icon for the pending-orders list (module replacement for the Studio
     # x_studio_due_icon). Non-stored + time-based: recomputed on each read so it always
@@ -147,6 +187,88 @@ class PosOrder(models.Model):
     # by cash/card). Set frontend-side and synced like the other stored pos.order fields.
     laundry_account_approved_by = fields.Char(string='Account Approved By')
 
+    @api.depends('laundry_service_ids.status', 'laundry_status')
+    def _compute_laundry_all_done(self):
+        for order in self:
+            services = order.laundry_service_ids
+            if services:
+                order.laundry_all_done = all(s.status == 'Done' for s in services)
+            else:
+                # No service rows: orders from before per-service tracking, and any order
+                # the POS never sent a service list for. Fall back to the order's own
+                # Wash-Dry-Fold status so a long-finished order does not come back as
+                # pending the moment this field starts deciding what pending means.
+                order.laundry_all_done = order.laundry_status == 'Folded'
+
+    @api.depends('laundry_service_ids.name', 'laundry_service_ids.staff_id',
+                 'laundry_service_ids.processed_datetime', 'laundry_service_ids.status')
+    def _compute_laundry_service_block(self):
+        for order in self:
+            order.laundry_service_block = json.dumps([
+                {
+                    # The row id is what the cell taps through to - the widget opens the
+                    # PIN wizard on THIS service rather than on the order.
+                    'id': s.id,
+                    'name': s.name,
+                    'staff': s.staff_id.name or '',
+                    'staff_id': s.staff_id.id or False,
+                    # Naive UTC, as stored. The widget converts to the user's timezone;
+                    # formatting it here would bake the server's timezone into the cell.
+                    'processed': (
+                        fields.Datetime.to_string(s.processed_datetime)
+                        if s.processed_datetime else ''
+                    ),
+                    'status': s.status,
+                }
+                for s in order.laundry_service_ids
+            ])
+
+    def _sync_laundry_services(self):
+        """Derive the per-service tracking rows from `laundry_services`.
+
+        `laundry_services` is the comma-joined, de-duplicated list of service LABELS the
+        POS writes at order submit (product_screen_patch._getLaundryServices), in POS-menu
+        order - so it is both the list of services to track and the order to show them in.
+        """
+        Service = self.env['laundry.order.service']
+        for order in self:
+            wanted = list(dict.fromkeys(
+                n.strip() for n in (order.laundry_services or '').split(',') if n.strip()
+            ))
+            existing = {s.name: s for s in order.laundry_service_ids}
+            for index, name in enumerate(wanted):
+                sequence = (index + 1) * 10
+                service = existing.pop(name, None)
+                if service:
+                    if service.sequence != sequence:
+                        service.sequence = sequence
+                else:
+                    Service.create({
+                        'order_id': order.id, 'name': name, 'sequence': sequence,
+                    })
+            # Rows for services no longer on the order. Only the UNTOUCHED ones go: work
+            # somebody already signed for is never erased just because the order was
+            # re-configured, it stays on the record as history.
+            stale = Service.browse([
+                s.id for s in existing.values()
+                if not s.staff_id and not s.processed_datetime
+            ])
+            stale.unlink()
+
+    @api.model_create_multi
+    def create(self, vals_list):
+        orders = super().create(vals_list)
+        orders._sync_laundry_services()
+        return orders
+
+    def write(self, vals):
+        res = super().write(vals)
+        # Only when the service list itself moves. The WDF mirror writes the three legacy
+        # fields back onto the order, so syncing on every write would recurse.
+        if 'laundry_services' in vals:
+            self._sync_laundry_services()
+        return res
+
     @api.depends('laundry_delivery_datetime', 'laundry_claim_datetime')
     def _compute_laundry_due_datetime(self):
         # Legacy fallback to the ex-Studio field for old records. Guarded by a
@@ -163,7 +285,7 @@ class PosOrder(models.Model):
                 or legacy
             )
 
-    @api.depends('laundry_status', 'laundry_due_datetime')
+    @api.depends('laundry_all_done', 'laundry_due_datetime')
     def _compute_laundry_due_icon(self):
         # Same buckets as the legacy Studio x_studio_due_icon, but off the module
         # fields. Non-stored, so it recomputes on every read (list load) — the value
@@ -172,7 +294,9 @@ class PosOrder(models.Model):
         now = fields.Datetime.now()  # naive UTC — matches Odoo's datetime storage
         for order in self:
             icon, level = "", ""
-            if order.laundry_status in ('Not Started', 'In Process') and order.laundry_due_datetime:
+            # Urgency is about work still owed, so it follows the roll-up: the icon
+            # clears only once EVERY service is Done, not once Wash-Dry-Fold is.
+            if not order.laundry_all_done and order.laundry_due_datetime:
                 delta = (order.laundry_due_datetime - now).total_seconds()
                 if delta < 0:
                     icon, level = "🚨PD", "pd"

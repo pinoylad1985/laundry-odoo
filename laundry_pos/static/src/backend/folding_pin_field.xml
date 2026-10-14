@@ -6,4 +6,13 @@
             <span t-if="value" class="text-primary fw-bold"><t t-esc="display"/></span>
         </div>
     </t>
+    <!-- Wizard variant: an empty value has to be visibly tappable, so it carries a
+         placeholder instead of the list cell's bare min-height. -->
+    <t t-name="laundry_pos.FoldingRollerField">
+        <div class="o_field_laundry_processed_date_pin" style="cursor: pointer; min-height: 1.5em;"
+             t-on-click="() => this.open()">
+            <span t-if="value" class="text-primary fw-bold"><t t-esc="display"/></span>
+            <span t-else="" class="text-muted">Tap to set date &amp; time</span>
+        </div>
+    </t>
 </templates>

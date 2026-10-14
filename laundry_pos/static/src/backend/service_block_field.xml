@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.ServiceBlockField">
+        <div class="o_field_laundry_service_block">
+            <div t-if="!services.length" class="laundry-sb-empty">—</div>
+            <!-- A button, not a clickable div: the list is used on touchscreens and with
+                 the keyboard, and each service has to be reachable both ways. -->
+            <button t-foreach="services" t-as="service" t-key="service.id"
+                    type="button" class="laundry-sb-row"
+                    t-on-click.stop="() => this.open(service)"
+                    t-attf-title="Set staff / processed date for {{ service.name }}">
+                <span class="laundry-sb-name" t-esc="service.name"/>
+                <span class="laundry-sb-meta">
+                    <span class="laundry-sb-staff" t-esc="service.staff or '—'"/>
+                    <span class="laundry-sb-sep">·</span>
+                    <span class="laundry-sb-date" t-esc="processedLabel(service)"/>
+                    <span class="laundry-sb-sep">·</span>
+                    <span t-attf-class="laundry-sb-status {{ statusClass(service) }}"
+                          t-esc="service.status"/>
+                </span>
+            </button>
+        </div>
+    </t>
+</templates>

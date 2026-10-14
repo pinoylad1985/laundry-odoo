@@ -168,3 +168,81 @@
         z-index: 1;
     }
 }
+
+// "Services Progress" column: every service on the order as its own tappable line,
+// with the staff, the processed date and the status on a second line under the name.
+// Same two-part shape as the customer and services columns above - the list's cells are
+// nowrap + ellipsis by default, so the cell has to opt out before stacked rows have
+// anywhere to go.
+.o_list_table td:has(.o_field_laundry_service_block) {
+    white-space: normal;
+    min-width: 14rem;
+    vertical-align: top;
+}
+.o_field_laundry_service_block {
+    line-height: 1.25;
+
+    .laundry-sb-empty {
+        color: #adb5bd;
+    }
+
+    // The whole line is the tap target, reset out of a <button> back to looking like a
+    // cell: it is a button for touch and keyboard reach, not because it should look like
+    // one. Rows are touched on a laptop touchscreen at the folding table, so the target
+    // is the full width of the cell rather than the text.
+    .laundry-sb-row {
+        display: block;
+        width: 100%;
+        padding: 2px 4px;
+        border: 0;
+        border-radius: 3px;
+        background: none;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            background-color: rgba(113, 75, 103, 0.08);
+        }
+        & + & {
+            margin-top: 2px;
+        }
+    }
+
+    .laundry-sb-name {
+        display: block;
+        font-weight: 600;
+        // Service names carry a hyphen and a slash; without this the column narrows and
+        // "Wash-Dry-Fold" breaks at its own hyphen, reading as two services.
+        white-space: nowrap;
+    }
+
+    .laundry-sb-meta {
+        display: block;
+        font-size: 0.85em;
+        color: #6c757d;
+        white-space: nowrap;
+    }
+
+    .laundry-sb-sep {
+        margin: 0 0.25em;
+        color: #ced4da;
+    }
+
+    // Status carries the colour, because it is the one value being scanned for down the
+    // column. Staff and date are supporting detail and stay grey.
+    .laundry-sb-status {
+        font-weight: 600;
+    }
+    .laundry-sb-done {
+        color: #28a745;
+    }
+    .laundry-sb-progress {
+        color: #d9822b;
+    }
+    .laundry-sb-idle {
+        color: #adb5bd;
+    }
+}
