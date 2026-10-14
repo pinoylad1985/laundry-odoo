@@ -21,8 +21,11 @@ class LaundryStaffPinWizard(models.TransientModel):
     # readonly service_id set from the context default would arrive back empty and the
     # wizard would fall through to the order-level branch. It is hidden in the view and
     # shown through service_name instead, the same way order_id has always been carried.
+    # "Service Record", not "Service": the label is never shown (the field is invisible
+    # and service_name carries the display), and two fields with the same label on one
+    # model make Odoo warn on every upgrade.
     service_id = fields.Many2one(
-        "laundry.order.service", string="Service", ondelete="cascade",
+        "laundry.order.service", string="Service Record", ondelete="cascade",
     )
     # Display-only echo of what is being signed for. Related, so it is never written.
     service_name = fields.Char(related="service_id.name", string="Service")
