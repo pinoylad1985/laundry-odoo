@@ -132,6 +132,16 @@
     vertical-align: top;
 }
 
+// Service Type: same treatment. "Drop-off & Delivery" and "Pickup & Delivery" are
+// longer than the column ever gets, so the default nowrap + ellipsis clipped them to
+// "Drop-off & D..." - and the two longest values are the two that then read alike.
+// Narrower floor than the services column: these are five known values, not free text.
+.laundry-orders-list td[name="laundry_service_type"] {
+    white-space: normal;
+    min-width: 5.5rem;
+    vertical-align: top;
+}
+
 // Orders Pending: the service bar (All / Wash-Dry-Fold / Press / ...) that the
 // `laundry_pending_list` controller puts on a row of its own at the top of the
 // control panel, above the breadcrumb and the search bar.
