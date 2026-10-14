@@ -62,6 +62,33 @@ class LaundryOrderService(models.Model):
         "A service can only be tracked once per order.",
     )
 
+    def action_laundry_set_staff(self):
+        """Open the PIN-gated wizard on THIS service.
+
+        The same wizard the order list's cells tap through to, reached from the order's
+        own form - so a multi-service order can be signed off from the page that shows
+        all of its services, one service at a time. Staff and processed date are never
+        typed straight onto the row: the PIN is what records WHO did the work, and a row
+        that could be edited without one would attribute work to somebody who never
+        entered their PIN.
+        """
+        self.ensure_one()
+        return {
+            "type": "ir.actions.act_window",
+            "name": self.name,
+            "res_model": "laundry.staff.pin.wizard",
+            "view_mode": "form",
+            "views": [(False, "form")],
+            "target": "new",
+            "context": {
+                "default_service_id": self.id,
+                "default_staff_id": self.staff_id.id,
+                "default_processed_datetime": fields.Datetime.to_string(
+                    self.processed_datetime
+                ) or False,
+            },
+        }
+
     @api.depends("staff_id", "processed_datetime")
     def _compute_status(self):
         for svc in self:

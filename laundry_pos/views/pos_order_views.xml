@@ -101,10 +101,17 @@
                      from an order into an employee file. -->
                 <field name="laundry_staff_id" readonly="1" options="{'no_open': True}"/>
                 <field name="laundry_processed_datetime" readonly="1"/>
+                <!-- Orders that predate per-service tracking have no rows to press, so
+                     the old order-level path stays reachable for exactly those. -->
+                <button name="action_laundry_set_staff" type="object" class="btn-link ps-0"
+                        string="Set Staff / Processed Date"
+                        invisible="laundry_service_ids"/>
                 <field name="laundry_all_done" readonly="1"/>
-                <!-- Every service, so one order can be read on its own page. Read-only on
-                     purpose: a change here would skip the PIN, and the PIN is how the
-                     module records WHO did the work. -->
+                <!-- Every service, so a multi-service order is signed off from the page
+                     that shows all of them. The VALUES are read-only - typing a staff
+                     name straight onto the row would skip the PIN, and the PIN is how
+                     the module records WHO did the work - so each row carries a button
+                     that opens the same PIN wizard the order list's cells open. -->
                 <field name="laundry_service_ids" readonly="1" nolabel="1" colspan="2">
                     <list create="false" delete="false">
                         <field name="sequence" column_invisible="1"/>
@@ -112,6 +119,8 @@
                         <field name="staff_id" options="{'no_open': True}"/>
                         <field name="processed_datetime"/>
                         <field name="status" widget="laundry_selection_text"/>
+                        <button name="action_laundry_set_staff" type="object"
+                                class="btn-link" string="Set Staff / Date"/>
                     </list>
                 </field>
             </xpath>
