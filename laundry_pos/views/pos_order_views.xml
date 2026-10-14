@@ -90,29 +90,38 @@
             <xpath expr="//field[@name='partner_id']" position="after">
                 <field name="laundry_service_type" readonly="1"/>
                 <field name="laundry_due_datetime" readonly="1"/>
-                <!-- Wash-Dry-Fold mirror (read-only - record progress in the Services
-                     list below, or in the Status / Staff / Processed Date columns of the
-                     order list). laundry_selection_text rather than the plain field: see
-                     that widget for why a readonly selection is a crash risk on order
-                     history that carries statuses no longer offered. -->
-                <field name="laundry_status" readonly="1" widget="laundry_selection_text"/>
+                <!-- The Wash-Dry-Fold mirror, shown ONLY on an order with no service
+                     rows. On every other order these three are the Wash-Dry-Fold line of
+                     the table below, word for word, and the same fact printed twice on
+                     one page is a fact that looks like it can disagree with itself.
+                     Still mirrored, still on the list columns, still read by
+                     laundry_account_reports - just not repeated here.
+                     laundry_selection_text rather than the plain field: see that widget
+                     for why a readonly selection is a crash risk on order history that
+                     carries statuses no longer offered. -->
+                <field name="laundry_status" readonly="1" widget="laundry_selection_text"
+                       invisible="laundry_service_ids"/>
                 <!-- no_open: a readonly Many2one is still a link into the employee
                      record, and the POS PIN lives on that form. Nobody needs to walk
                      from an order into an employee file. -->
-                <field name="laundry_staff_id" readonly="1" options="{'no_open': True}"/>
-                <field name="laundry_processed_datetime" readonly="1"/>
+                <field name="laundry_staff_id" readonly="1" options="{'no_open': True}"
+                       invisible="laundry_service_ids"/>
+                <field name="laundry_processed_datetime" readonly="1"
+                       invisible="laundry_service_ids"/>
                 <!-- Orders that predate per-service tracking have no rows to press, so
                      the old order-level path stays reachable for exactly those. -->
                 <button name="action_laundry_set_staff" type="object" class="btn-link ps-0"
                         string="Set Staff / Processed Date"
                         invisible="laundry_service_ids"/>
-                <field name="laundry_all_done" readonly="1"/>
-                <!-- Every service, so a multi-service order is signed off from the page
-                     that shows all of them. The VALUES are read-only - typing a staff
-                     name straight onto the row would skip the PIN, and the PIN is how
-                     the module records WHO did the work - so each row carries a button
-                     that opens the same PIN wizard the order list's cells open. -->
-                <field name="laundry_service_ids" readonly="1" nolabel="1" colspan="2">
+                <!-- Directly under Due Date: the services ARE the progress on this order,
+                     so they are read before the roll-up that summarises them, not after.
+                     The VALUES are read-only - typing a staff name straight onto the row
+                     would skip the PIN, and the PIN is how the module records WHO did the
+                     work - so each row carries a button that opens the same PIN wizard
+                     the order list's cells open. Hidden entirely on an order with no
+                     rows, where it would be a header over nothing. -->
+                <field name="laundry_service_ids" readonly="1" nolabel="1" colspan="2"
+                       invisible="not laundry_service_ids">
                     <list create="false" delete="false">
                         <field name="sequence" column_invisible="1"/>
                         <field name="name"/>
@@ -123,6 +132,7 @@
                                 class="btn-link" string="Set Staff / Date"/>
                     </list>
                 </field>
+                <field name="laundry_all_done" readonly="1"/>
             </xpath>
         </field>
     </record>

@@ -329,7 +329,7 @@ real, loaded field) so it survives reloads/reprints. It's shown as-is, like a va
   re-bill the line at the bare 6KG minimum. Anything added to a laundry line from here on has to be
   added to BOTH rebuilds.
 
-## Per-service progress (staff / processed date / status) — v1.5.5
+## Per-service progress (staff / processed date / status) — v1.5.6
 An order may carry several services at once, each handled by a different person and finished at a
 different time, so the three progress values live on **`laundry.order.service`** — one row per
 service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on the order.
@@ -413,6 +413,14 @@ service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on t
   - An order with **no** service rows shows a single **`Set Staff / Processed Date`** button instead
     (`invisible="laundry_service_ids"`), wired to the order-level `pos.order.action_laundry_set_staff`
     — the legacy branch, which until now had no button anywhere in the UI.
+  - **The table sits directly under Due Date, above `All Services Done`** — the services are the
+    progress; the roll-up only summarises them, so it is read after.
+  - **The three order-level fields are HIDDEN on the form when the order has service rows**
+    (`invisible="laundry_service_ids"`, v1.5.6). On such an order they repeat the table's
+    Wash-Dry-Fold line word for word, and one fact printed twice looks like it could disagree with
+    itself. They are untouched everywhere else — still mirrored, still the Orders-list columns, still
+    read by `laundry_account_reports`. The table itself is hidden when there are no rows
+    (`invisible="not laundry_service_ids"`), where it would be a header over nothing.
 - ⚠ **`laundry_status` may hold a LABEL instead of a stored value, from Studio-era data.**
   `'Done'` is the *label* of `'Folded'`, and 161 orders (2025-10-12…16) stored the label — the 1.2.3
   copy of `x_studio_status` took it verbatim. It broke two things that both ask "is this a value I
