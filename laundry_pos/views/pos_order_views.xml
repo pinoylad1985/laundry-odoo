@@ -34,6 +34,11 @@
             </xpath>
             <xpath expr="//list" position="inside">
                 <field name="laundry_customer_block" optional="show" widget="laundry_customer_block"/>
+                <!-- "TAT", not the field's own "Turnaround (TAT)": the column is read
+                     down a long list and the header is the widest thing in it. The pill
+                     (REG blue / EXP red) is laundry_tat_pill - see
+                     static/src/backend/tat_pill_field.js. -->
+                <field name="laundry_turnaround" string="TAT" optional="show" widget="laundry_tat_pill"/>
                 <field name="laundry_service_type" optional="show"/>
                 <field name="laundry_secondary_type" optional="show"/>
                 <!-- One service per line (laundry_services is comma-joined). A plain

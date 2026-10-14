@@ -224,3 +224,24 @@
         color: #adb5bd;
     }
 }
+
+// Turnaround pill (laundry_tat_pill) - REG blue / EXP red. Solid fills rather than
+// Bootstrap's badge classes so the two colours are stated here and cannot drift with a
+// theme change; EXP is the one that has to carry across a long list.
+.laundry-tat-pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    color: #fff;
+    white-space: nowrap;
+}
+.laundry-tat-reg {
+    background-color: #0d6efd;
+}
+.laundry-tat-exp {
+    background-color: #dc3545;
+}
