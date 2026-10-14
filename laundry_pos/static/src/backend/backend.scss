@@ -131,3 +131,117 @@
     min-width: 7rem;
     vertical-align: top;
 }
+
+// Orders Pending: the service bar (All / Wash-Dry-Fold / Press / ...) that the
+// `laundry_pending_list` controller puts on a row of its own at the top of the
+// control panel, above the breadcrumb and the search bar.
+//
+// The buttons themselves are CORE's stat buttons - the band carries
+// .o-form-buttonbox and each button .oe_stat_button, so font, size, icon, the
+// label-over-bold-value stack and the collapsed borders all come from
+// web/static/src/views/form/button_box/button_box.scss, which is scoped to
+// .o-form-buttonbox and not to the form view. Nothing here may set a font-size, a
+// padding or a height: that is the whole point, and a stat button on this list
+// should stay identical to one on a contact form even after core restyles them.
+//
+// So this adds exactly two things core has no notion of out here.
+.laundry-pending-services.o-form-buttonbox {
+    // One: where the strip sits. It is a child of the control panel's flex COLUMN,
+    // so it gets a full row - centred, which lines it up with the search bar on the
+    // row below, and sized to its buttons rather than stretched across the window,
+    // which would leave a long empty box trailing off after Cap Clean.
+    align-self: center;
+    // Six services are wider than a narrow window; let them fall to a second line
+    // rather than squeeze or overflow.
+    flex-wrap: wrap;
+
+    // Two: what a SELECTED service looks like. Deliberately NOT Bootstrap's own
+    // `.active`, which fills an outline button solid - these buttons stay on in
+    // combination, so four solid fills at once would be a wall of colour with the
+    // counts lost inside it. A tint plus the underline reads as "on" at a glance
+    // and still lets the number be read.
+    .oe_stat_button.o_laundry_selected {
+        background-color: rgba(113, 75, 103, 0.12);
+        box-shadow: inset 0 -3px 0 var(--primary, #714b67);
+        // The strip collapses each button's border onto its neighbour's; without
+        // this the selected cell's border is the one that ends up underneath.
+        z-index: 1;
+    }
+}
+
+// Staff / Processed Date / Status columns: one line per service inside the SAME three
+// columns the list always had - no extra column, and one order is still one row. The
+// three cells stack their lines in the same order, so the row reads across as well as
+// down; the fixed line height is what keeps them in step when one value is short.
+// Same two-part shape as the customer and services columns above: the list's cells are
+// nowrap + ellipsis by default, so the cell has to opt out before stacked lines have
+// anywhere to go.
+.o_list_table td:has(.o_field_laundry_service_lines) {
+    white-space: normal;
+    vertical-align: top;
+}
+.o_field_laundry_service_lines {
+    // The whole line is the tap target, reset out of a <button> back to looking like a
+    // cell: it is a button for touch and keyboard reach, not because it should look like
+    // one. The target is the full width of the cell rather than just the text, because
+    // these are touched on a laptop touchscreen at the folding table.
+    .laundry-sl-row {
+        display: block;
+        width: 100%;
+        // Matches the line heights of the other two columns so service 2 of Staff sits
+        // level with service 2 of Status. A dash occupies the line for the same reason.
+        min-height: 1.45rem;
+        line-height: 1.45rem;
+        padding: 0 4px;
+        border: 0;
+        border-radius: 3px;
+        background: none;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        // Service names and dates must stay whole on their own line; the CELL wraps so
+        // the lines stack, each line does not.
+        white-space: nowrap;
+        cursor: pointer;
+
+        &:hover,
+        &:focus-visible {
+            background-color: rgba(113, 75, 103, 0.08);
+        }
+    }
+
+    // Status carries the colour, because it is the one value scanned for down the
+    // column. Staff and date are supporting detail and stay with the cell's own colour.
+    .laundry-sl-done {
+        color: #28a745;
+        font-weight: 600;
+    }
+    .laundry-sl-progress {
+        color: #d9822b;
+        font-weight: 600;
+    }
+    .laundry-sl-idle {
+        color: #adb5bd;
+    }
+}
+
+// Turnaround pill (laundry_tat_pill) - REG blue / EXP red. Solid fills rather than
+// Bootstrap's badge classes so the two colours are stated here and cannot drift with a
+// theme change; EXP is the one that has to carry across a long list.
+.laundry-tat-pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    letter-spacing: 0.02em;
+    color: #fff;
+    white-space: nowrap;
+}
+.laundry-tat-reg {
+    background-color: #0d6efd;
+}
+.laundry-tat-exp {
+    background-color: #dc3545;
+}

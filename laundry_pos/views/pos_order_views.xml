@@ -34,17 +34,35 @@
             </xpath>
             <xpath expr="//list" position="inside">
                 <field name="laundry_customer_block" optional="show" widget="laundry_customer_block"/>
+                <!-- "TAT", not the field's own "Turnaround (TAT)": the column is read
+                     down a long list and the header is the widest thing in it. The pill
+                     (REG blue / EXP red) is laundry_tat_pill - see
+                     static/src/backend/tat_pill_field.js. -->
+                <field name="laundry_turnaround" string="TAT" optional="show" widget="laundry_tat_pill"/>
                 <field name="laundry_service_type" optional="show"/>
                 <field name="laundry_secondary_type" optional="show"/>
                 <!-- One service per line (laundry_services is comma-joined). A plain
                      Char here would be clipped by the cell's ellipsis the moment an
                      order has more than one. -->
                 <field name="laundry_services" string="Services" optional="show" widget="laundry_services_list"/>
+                <!-- The services, their staff, their dates and their statuses are all
+                     carried to the cells by this ONE hidden value (JSON). No column of
+                     its own: the three columns below do the showing. -->
+                <field name="laundry_service_block" column_invisible="1"/>
                 <field name="laundry_due_datetime" optional="show"/>
                 <field name="laundry_due_icon" optional="show"/>
-                <field name="laundry_status" optional="show"/>
-                <field name="laundry_staff_id" optional="show" widget="laundry_staff_pin"/>
-                <field name="laundry_processed_datetime" optional="show" widget="laundry_processed_date_pin"/>
+                <!-- The SAME three columns the list always had - Status, Staff, Processed
+                     Date - now with one line per service inside each cell, in the same
+                     order in all three (and in the same order as the Services column), so
+                     the row still reads across. One order stays ONE row.
+                     Tapping a line opens the PIN wizard on THAT service: progress is
+                     recorded where it is read. An order with no service rows (anything
+                     predating this) falls back to the order's own single value.
+                     readonly: the values are never typed into the cell, they are signed
+                     for with a PIN. -->
+                <field name="laundry_status" optional="show" readonly="1" widget="laundry_service_status"/>
+                <field name="laundry_staff_id" optional="show" readonly="1" widget="laundry_service_staff"/>
+                <field name="laundry_processed_datetime" optional="show" readonly="1" widget="laundry_service_processed"/>
                 <field name="laundry_pickup_rider" optional="show"/>
                 <field name="laundry_delivery_rider" optional="show"/>
                 <field name="laundry_account_approved_by" optional="show"/>
@@ -70,11 +88,51 @@
         <field name="inherit_id" ref="point_of_sale.view_pos_pos_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='partner_id']" position="after">
-                <field name="laundry_status" readonly="1"/>
                 <field name="laundry_service_type" readonly="1"/>
                 <field name="laundry_due_datetime" readonly="1"/>
-                <field name="laundry_staff_id" widget="laundry_staff_pin"/>
-                <field name="laundry_processed_datetime" widget="laundry_processed_date_pin"/>
+                <!-- The Wash-Dry-Fold mirror, shown ONLY on an order with no service
+                     rows. On every other order these three are the Wash-Dry-Fold line of
+                     the table below, word for word, and the same fact printed twice on
+                     one page is a fact that looks like it can disagree with itself.
+                     Still mirrored, still on the list columns, still read by
+                     laundry_account_reports - just not repeated here.
+                     laundry_selection_text rather than the plain field: see that widget
+                     for why a readonly selection is a crash risk on order history that
+                     carries statuses no longer offered. -->
+                <field name="laundry_status" readonly="1" widget="laundry_selection_text"
+                       invisible="laundry_service_ids"/>
+                <!-- no_open: a readonly Many2one is still a link into the employee
+                     record, and the POS PIN lives on that form. Nobody needs to walk
+                     from an order into an employee file. -->
+                <field name="laundry_staff_id" readonly="1" options="{'no_open': True}"
+                       invisible="laundry_service_ids"/>
+                <field name="laundry_processed_datetime" readonly="1"
+                       invisible="laundry_service_ids"/>
+                <!-- Orders that predate per-service tracking have no rows to press, so
+                     the old order-level path stays reachable for exactly those. -->
+                <button name="action_laundry_set_staff" type="object" class="btn-link ps-0"
+                        string="Set Staff / Processed Date"
+                        invisible="laundry_service_ids"/>
+                <!-- Directly under Due Date: the services ARE the progress on this order,
+                     so they are read before the roll-up that summarises them, not after.
+                     The VALUES are read-only - typing a staff name straight onto the row
+                     would skip the PIN, and the PIN is how the module records WHO did the
+                     work - so each row carries a button that opens the same PIN wizard
+                     the order list's cells open. Hidden entirely on an order with no
+                     rows, where it would be a header over nothing. -->
+                <field name="laundry_service_ids" readonly="1" nolabel="1" colspan="2"
+                       invisible="not laundry_service_ids">
+                    <list create="false" delete="false">
+                        <field name="sequence" column_invisible="1"/>
+                        <field name="name"/>
+                        <field name="staff_id" options="{'no_open': True}"/>
+                        <field name="processed_datetime"/>
+                        <field name="status" widget="laundry_selection_text"/>
+                        <button name="action_laundry_set_staff" type="object"
+                                class="btn-link" string="Set Staff / Date"/>
+                    </list>
+                </field>
+                <field name="laundry_all_done" readonly="1"/>
             </xpath>
         </field>
     </record>
@@ -87,8 +145,19 @@
             <form string="Set Staff / Processed Date">
                 <group>
                     <field name="order_id" invisible="1"/>
-                    <field name="staff_id" options="{'no_create': True, 'no_open': True}"/>
-                    <field name="processed_datetime"/>
+                    <!-- Which service this PIN signs for - shown so nobody signs off
+                         the wrong one on a multi-service order. The id is carried
+                         invisibly (a readonly field would not be saved); the name is a
+                         related field and is display-only. -->
+                    <field name="service_id" invisible="1"/>
+                    <field name="service_name" invisible="not service_id"/>
+                    <!-- list_view_ref: "Search more..." must NOT open the default
+                         employee list, which carries the POS PIN column. no_open so the
+                         employee record cannot be opened from here either. -->
+                    <field name="staff_id"
+                           options="{'no_create': True, 'no_open': True}"
+                           context="{'list_view_ref': 'laundry_pos.view_employee_list_laundry_picker'}"/>
+                    <field name="processed_datetime" widget="laundry_folding_roller"/>
                     <field name="pin" password="True" placeholder="Cashier PIN"/>
                 </group>
                 <footer>

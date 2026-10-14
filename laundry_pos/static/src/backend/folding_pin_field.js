@@ -53,3 +53,21 @@ registry.category("fields").add("laundry_processed_date_pin", {
     component: FoldingPinField,
     supportedTypes: ["datetime"],
 });
+
+// The same roller picker WITHOUT the per-field PIN, for the Staff / Processed Date wizard.
+// That form already takes the staff's PIN once at Confirm and verifies it server-side, so
+// prompting again here would be a second prompt for the same signature - and it cannot
+// work anyway: the PIN step reads laundry_staff_id off the record, which a wizard has no
+// such field on.
+export class FoldingRollerField extends FoldingPinField {
+    static template = "laundry_pos.FoldingRollerField";
+
+    _askPin(dt) {
+        this.props.record.update({ [this.props.name]: dt });
+    }
+}
+
+registry.category("fields").add("laundry_folding_roller", {
+    component: FoldingRollerField,
+    supportedTypes: ["datetime"],
+});

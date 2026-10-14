@@ -35,7 +35,10 @@ laundry_pos/
 ├── models/
 │   ├── pos_order.py                 # laundry_* fields on pos.order (+ computed due/phone/address + laundry_secondary_type); PosOrderLine.laundry_actual_weight
 │   ├── res_partner.py               # pos_tag_names computed char (for receipt tags)
-│   └── laundry_service_type.py      # laundry.service.type catalog model (5 seeded types)
+│   ├── laundry_service_type.py      # laundry.service.type catalog model (5 seeded types)
+│   └── laundry_order_service.py     # laundry.order.service — ONE ROW PER SERVICE per order
+│                                    #   (staff / processed date / status) + the WDF mirror;
+│                                    #   shown as stacked lines INSIDE the existing 3 columns
 ├── security/ir.model.access.csv
 ├── views/pos_order_views.xml        # backend POS Orders list → adds Service Type + Secondary Type columns
 ├── data/
@@ -294,6 +297,7 @@ remaining service types (**Pickup & Delivery**, **Locker**) are unaffected — C
 | `wdf` | Wash-Dry-Fold | weight-based — **Actual Weight** entered in the configurator (required, 2 decimals); billed qty = `max(actual rounded to a WHOLE kg, min)` — decimal **above 0.40 rounds up**, 0.40 and below rounds down; min = 6kg single / 4kg each multi. Qty **locked from manual numpad edits**. See below. |
 | `dwc` | Dry/Wet Clean | locked to 1; long turnaround |
 | `shoe` | Shoe Clean | locked to 1; long turnaround |
+| `cap` | Cap Clean | locked to 1; long turnaround |
 | `press` | Press | may exceed 1 |
 
 ## Wash-Dry-Fold weight & billing
@@ -324,6 +328,140 @@ real, loaded field) so it survives reloads/reprints. It's shown as-is, like a va
   note from the receipt (both are gated on it in `order_line_patch.xml`) and let the pay-time sweep
   re-bill the line at the bare 6KG minimum. Anything added to a laundry line from here on has to be
   added to BOTH rebuilds.
+
+## Per-service progress (staff / processed date / status) — v1.5.6
+An order may carry several services at once, each handled by a different person and finished at a
+different time, so the three progress values live on **`laundry.order.service`** — one row per
+service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on the order.
+- **The rows are DERIVED from `laundry_services`**, the comma-joined list of service labels the POS
+  already writes at modal submit. `pos.order._sync_laundry_services()` runs from `create` and from
+  `write` (only when `laundry_services` is in the vals) and adds/retires rows. **A row that someone
+  already signed for is never retired** — only untouched rows are dropped when a service leaves the
+  order, so work done stays on the record as history.
+- **Status is computed, never typed** — `staff_id` set = In Process, `staff_id` + `processed_datetime`
+  = Done. This is the rule the old *"Orders Status Update"* automation applied to the order;
+  that automation was **deleted** in v1.5.0 (removing the record from `data/automations.xml` deletes
+  it on upgrade). Don't re-add it — it would fight the WDF mirror. The Firebase webhook in that file
+  is untouched and stays enabled.
+- **"Pending" now means `laundry_all_done = False`** — a stored roll-up on `pos.order`, True only when
+  **every** service is Done. It replaced `laundry_status in ('Not Started','In Process')` in **three**
+  places that must stay in step: the Orders Pending action (`views/pos_order_pending_views.xml`), the
+  `PENDINGS` `ir.filters` (`data/pos_order_filters.xml`) and `_compute_laundry_due_icon` (the urgency
+  icon clears only when all services are done).
+  - **With no service rows it falls back to the order's own status — and asks whether that status is
+    still OPEN**, `laundry_status not in LAUNDRY_OPEN_STATUSES` (`'Not Started'`, `'In Process'`;
+    defined in `models/pos_order.py` and mirrored in `laundry_pos/__init__.py` for the SQL paths).
+    Some fallback is needed or every order predating `laundry_services` floods Orders Pending.
+  - ⚠ **Ask "is it open?", NEVER "is it finished?".** v1.5.0–1.5.2 asked `laundry_status == 'Folded'`,
+    which put **161 finished orders from 2025-10-12…16 back into Orders Pending** — their status was
+    the legacy `'Done'`, which is neither `'Folded'` nor an open status. Phrased as "is it open?", an
+    unknown or blank status can never hold an order in the list.
+  - ⚠ `data/pos_order_filters.xml` is `noupdate="1"`, so its domain does **not** reload on upgrade —
+    the 1.5.0 migration rewrites that filter's domain in SQL. Any future change to the pending rule
+    needs the same treatment.
+- **NO new column, and one order stays ONE row.** The list keeps the three columns it always had —
+  **Status / Staff / Processed Date** — and each *cell* now stacks **one line per service**
+  (`static/src/backend/service_lines_field.*`: `laundry_service_status` / `_staff` / `_processed`,
+  three subclasses of one component differing only in `static part`).
+  - **The three cells stack in the same order** (and the same order as the Services column), with a
+    fixed `min-height`/`line-height` per line, so a row reads **across** as well as down. An unworked
+    value is an em-dash, never blank — a blank would slide the columns out of step.
+  - **Each line is a tap target** that opens the PIN wizard on THAT service.
+  - ⚠ v1.5.0 shipped this as a 4th "Services Progress" column instead; the owner's requirement is
+    *the existing* columns, one row per order. Don't re-add a combined column.
+- **All three widgets read ONE field, `laundry_service_block`** — a JSON string carried in the list
+  arch as `column_invisible="1"` (a hidden carrier, not a column; its label is
+  "Service Progress (internal)" so a stray Studio placement is self-explaining).
+  - **JSON, not the One2many.** A list cell widget only receives the fields declared in the arch, and
+    an x2many's sub-fields can't be declared inside a cell. Same trick as the `laundry_services_list`
+    column; JSON rather than a delimiter because staff and service names are free text that would
+    collide with any readable separator. Non-stored, or it would bump `write_date` on every order
+    whenever a service moved.
+  - The datetime is sent as stored **naive UTC** and converted in the widget (`deserializeDateTime`);
+    formatting it server-side would bake the server's timezone into the cell.
+  - **No service rows → the cell falls back to the order's own value** (the field the widget is
+    attached to), so orders predating this still show their single staff/date/status, and tapping
+    opens the wizard's order-level branch.
+- **The three order-level fields keep their labels (Staff / Processed Date / Status) but hold
+  WASH-DRY-FOLD values, read-only.** They always described WDF (the staff PIN dialog is titled
+  "Wash-Dry-Fold Staff"); they are now a **one-way mirror** of the order's Wash-Dry-Fold row
+  (`laundry_order_service._mirror_wdf_to_order`). The columns named after them show *every* service.
+  - **One-way on purpose** — two-way would make two places able to disagree about one fact. Record
+    progress by tapping a service line; the mirror follows.
+  - **Kept stored, NOT computed** — a computed field would recompute over the whole order history on
+    upgrade and wipe the legacy values. `laundry_account_reports` also reads `laundry_staff_id` as the
+    cashier.
+  - `laundry_status`'s stored value stays **`'Folded'`**, just relabelled **"Done"** (an order now
+    holds services that are never folded). `laundry.order.service.status` uses `'Done'` outright —
+    new table, no history to migrate. The mirror maps between them.
+- ⚠ **A readonly `<field>` on a Selection crashes the whole view on a value that is no longer one of
+  the options** — core reads the label as `options.find(...)[1]`, so an unknown value is
+  `Cannot read properties of undefined (reading '1')` and the form/list dies (v1.5.0 bug, hit by
+  clicking through to the order form). Our selections are read over years of Studio-era history, so
+  the order form and the per-service list use **`laundry_selection_text`**
+  (`static/src/backend/selection_text_field.js`), which falls back to showing the stored value. Use
+  it for any readonly selection we add; the `_status` cell widget does the same lookup inline.
+- **`laundry.staff.pin.wizard` now targets a SERVICE** (`service_id`), with the old `order_id` branch
+  kept for `action_laundry_set_staff` on orders with no rows. ⚠ `service_id` must **not** be
+  `readonly` — the web client drops readonly fields from the save payload, so a context default would
+  arrive back empty; it is carried `invisible="1"` and displayed through the related `service_name`.
+- **The order FORM records progress too, service by service** (v1.5.5). The inline Services list on
+  `pos.order`'s form carries a **`Set Staff / Date` button per row** →
+  `laundry.order.service.action_laundry_set_staff()`, which opens the same PIN wizard the list cells
+  open, pre-filled from that row. The row's *values* stay read-only: typed straight in, they would
+  skip the PIN, and the PIN is the signature on who did the work.
+  - An order with **no** service rows shows a single **`Set Staff / Processed Date`** button instead
+    (`invisible="laundry_service_ids"`), wired to the order-level `pos.order.action_laundry_set_staff`
+    — the legacy branch, which until now had no button anywhere in the UI.
+  - **The table sits directly under Due Date, above `All Services Done`** — the services are the
+    progress; the roll-up only summarises them, so it is read after.
+  - **The three order-level fields are HIDDEN on the form when the order has service rows**
+    (`invisible="laundry_service_ids"`, v1.5.6). On such an order they repeat the table's
+    Wash-Dry-Fold line word for word, and one fact printed twice looks like it could disagree with
+    itself. They are untouched everywhere else — still mirrored, still the Orders-list columns, still
+    read by `laundry_account_reports`. The table itself is hidden when there are no rows
+    (`invisible="not laundry_service_ids"`), where it would be a header over nothing.
+- ⚠ **`laundry_status` may hold a LABEL instead of a stored value, from Studio-era data.**
+  `'Done'` is the *label* of `'Folded'`, and 161 orders (2025-10-12…16) stored the label — the 1.2.3
+  copy of `x_studio_status` took it verbatim. It broke two things that both ask "is this a value I
+  know?": Orders Pending (above) and the readonly Selection widget (`options.find(...)[1]` →
+  `Cannot read properties of undefined (reading '1')`, which took the order form down). Fixed by
+  **rewriting the data**: `_laundry_normalize_status(cr)` + `LAUNDRY_STATUS_FIXUPS` in
+  `laundry_pos/__init__.py`, run from the `19.0.1.5.3` migration **and** from `_laundry_post_init`
+  (a staging refresh copies `x_studio_status` verbatim and would reintroduce it). Any further legacy
+  spelling goes in that dict. `_laundry_recompute_all_done(cr)` then redoes the roll-up in SQL by the
+  same rule as the compute — it is shared with the backfill, so there is one copy of that rule in SQL.
+- **Backfill** — `_laundry_backfill_services(cr)` in `laundry_pos/__init__.py`, called from BOTH the
+  `19.0.1.5.0` migration (upgrade) and `_laundry_post_init` (install onto a database that already has
+  orders, e.g. a staging refresh). It copies the order's single staff/date/status onto **every**
+  service of the order — the owner's call: filling only the first service would make every finished
+  multi-service order in the history look half-done and reopen it as pending.
+- `staff_pin_field.*` is now **unreferenced** (the cells are read-only tap targets and the wizard
+  uses a plain many2one + server-side PIN check). Left registered as a harmless fallback; delete it
+  if those columns are never made editable again. `folding_pin_field.js` gained a PIN-less
+  **`laundry_folding_roller`** variant for the wizard, where the PIN is taken once at Confirm.
+
+## Employee PINs are never readable from this module — v1.5.2
+The PIN is the signature on who did the work, so being able to READ one is the same as being able to
+sign as that person. Nothing in `laundry_pos` / `laundry_locker` may display, return or route to a PIN.
+- **Every PIN input is masked** — `password="True"` on the wizard field, `type="password"` in
+  `laundry_pin_dialog`, `manager_pin_popup`, `refund_gate_popup` (both PIN inputs) and
+  `rider_signoff_popup`.
+- **PINs are compared SERVER-side and never travel to the browser** — `check_laundry_staff`,
+  `check_laundry_rider`, `check_laundry_manager`, `check_laundry_rebook` and `get_laundry_staff` /
+  `get_laundry_riders` return only `{"id", "name"}`. Don't ever add `pin` to one of those payloads.
+- ⚠ **A Many2one to `hr.employee` is a PIN leak unless it is pinned to our own list view.** Past a
+  handful of employees the dropdown offers **"Search more…"**, and that dialog opens the model's
+  DEFAULT list view — whatever columns anyone (Studio, in this database) has since put on it, PIN
+  included. So the wizard's `staff_id` carries
+  `context="{'list_view_ref': 'laundry_pos.view_employee_list_laundry_picker'}"` →
+  `views/hr_employee_views.xml`, a name / department / job-title list at **`priority` 99** so it can
+  never become the model default and nothing can be added to it from Studio. Any new employee picker
+  needs the same context.
+- **`no_open` on every employee Many2one, readonly ones included** — a readonly M2O still renders as a
+  link into the employee form, and the PIN field lives there.
+- Core's `hr.employee.pin` is restricted to `hr.group_hr_user`, so a POS-only user can't read it
+  anyway — this is about the owner/admin accounts, which can.
 
 ## Secondary Type (reporting classification)
 `pos.order.laundry_secondary_type` (computed, **stored**) classifies each order **Order / Payment / Adjustment /

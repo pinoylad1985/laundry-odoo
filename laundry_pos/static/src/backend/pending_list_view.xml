@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+
+    <!--
+        A full-width band at the TOP of the control panel, above the breadcrumb and
+        the search bar. The control panel has no slot up there, so one is added here.
+
+        This is a global extension - it touches every control panel in the backend -
+        but all it adds is a `t-slot` nobody fills. OWL renders an unprovided slot as
+        nothing, so every other view is byte-identical to before; the band exists only
+        where a view sets the slot, which today is Orders Pending and nothing else.
+    -->
+    <t t-inherit="web.ControlPanel" t-inherit-mode="extension">
+        <xpath expr="//div[hasclass('o_control_panel_main')]" position="before">
+            <t t-slot="control-panel-laundry-band"/>
+        </xpath>
+    </t>
+
+    <!--
+        Orders Pending: the service buttons. They started in `layout-buttons`, which
+        is the strip beside New - too narrow for six services, so they wrapped onto a
+        second line and squeezed the breadcrumb down to "Orders ...". They get a row
+        of their own instead, through the slot above.
+
+        These are core's OWN stat buttons, not an imitation: .o-form-buttonbox,
+        .oe_stat_button, .o_stat_info, .o_stat_text, .o_stat_value and .o_button_icon,
+        exactly as a contact form's button box is built. Its stylesheet
+        (web/static/src/views/form/button_box/button_box.scss) is scoped to
+        .o-form-buttonbox rather than to the form view, so the whole look - the icon
+        size, the label above the bold value, the collapsed borders, the rounded ends -
+        comes over intact and stays matched if core restyles it. backend.scss adds only
+        the two things core has no notion of out here: where the strip sits, and what a
+        SELECTED service looks like.
+    -->
+    <t t-name="laundry_pos.PendingListView" t-inherit="web.ListView" t-inherit-mode="primary">
+        <xpath expr="//t[@t-set-slot='layout-actions']" position="before">
+            <t t-set-slot="control-panel-laundry-band">
+                <div class="o-form-buttonbox d-flex laundry-pending-services"
+                     role="group" aria-label="Service">
+                    <button type="button"
+                            t-attf-class="btn btn-outline-secondary oe_stat_button {{ laundryAllActive ? 'o_laundry_selected' : '' }}"
+                            t-on-click="() => this.clearLaundryServices()">
+                        <i class="o_button_icon fa fa-fw fa-th-list" aria-hidden="true"/>
+                        <div class="o_stat_info">
+                            <span class="o_stat_text">All</span>
+                            <span class="o_stat_value" t-esc="laundryCounts.total"/>
+                        </div>
+                    </button>
+                    <button t-foreach="laundryServiceFilters" t-as="svc" t-key="svc.id"
+                            type="button"
+                            t-attf-class="btn btn-outline-secondary oe_stat_button {{ svc.isActive ? 'o_laundry_selected' : '' }}"
+                            t-on-click="() => this.toggleLaundryService(svc)">
+                        <i t-attf-class="o_button_icon fa fa-fw {{ laundryIconFor(svc) }}"
+                           aria-hidden="true"/>
+                        <div class="o_stat_info">
+                            <span class="o_stat_text" t-esc="svc.description"/>
+                            <span class="o_stat_value" t-esc="laundryCountFor(svc)"/>
+                        </div>
+                    </button>
+                </div>
+            </t>
+        </xpath>
+    </t>
+
+</templates>

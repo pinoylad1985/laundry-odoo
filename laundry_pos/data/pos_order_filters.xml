@@ -12,7 +12,7 @@
             <field name="is_default" eval="True"/>
             <field name="sort">["laundry_due_datetime", "date_order"]</field>
             <field name="context">{'group_by': []}</field>
-            <field name="domain">[('laundry_status', 'in', ['Not Started', 'In Process']), ('laundry_service_type', 'in', ['dropoff', 'dropoff_delivery', 'pickup_delivery', 'locker']), ('laundry_secondary_type', 'in', ['order'])]</field>
+            <field name="domain">[('laundry_all_done', '=', False), ('laundry_service_type', 'in', ['dropoff', 'dropoff_delivery', 'pickup_delivery', 'locker']), ('laundry_secondary_type', 'in', ['order'])]</field>
         </record>
     </data>
 </odoo>

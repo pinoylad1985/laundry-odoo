@@ -1,47 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <odoo>
     <!--
-        Automations rebuilt in the module, off the Studio x_studio_* fields:
-          1. Orders Status Update  — derives laundry_status from staff + folding time.
-          2. Firebase Dropoff/Delivery webhook — POSTs order data on service-type/due change.
-        These replace the Studio automations of the same name; once verified, DISABLE/DELETE
-        the Studio originals ("Orders Status Update", "Firebase - Dropoff & Delivery webhook")
-        in Settings → Technical → Automation Rules so they don't double-run on the x_studio fields.
+        Firebase Dropoff/Delivery webhook — POSTs order data on service-type/due change.
+        Replaces the Studio automation of the same name; the Studio original
+        ("Firebase - Dropoff & Delivery webhook") must be DISABLED/DELETED in
+        Settings → Technical → Automation Rules so it doesn't double-run on the x_studio fields.
+        (Status is no longer automated at all — see the note below.)
     -->
 
-    <!-- 1. Status: staff + processed date → laundry_status (mirrors the legacy rule). -->
-    <record id="server_action_orders_status_update" model="ir.actions.server">
-        <field name="name">Orders Status Update (laundry)</field>
-        <field name="model_id" ref="point_of_sale.model_pos_order"/>
-        <field name="usage">base_automation</field>
-        <field name="state">code</field>
-        <field name="code"><![CDATA[
-for rec in records:
-    if not rec.id:
-        continue
-    staff = bool(rec.laundry_staff_id)
-    folding = bool(rec.laundry_processed_datetime)
-    if staff and folding:
-        target = 'Folded'
-    elif staff:
-        target = 'In Process'
-    else:
-        target = 'Not Started'
-    if rec.laundry_status != target:
-        rec.write({'laundry_status': target})
-]]></field>
-    </record>
-
-    <record id="automation_orders_status_update" model="base.automation">
-        <field name="name">Orders Status Update (laundry)</field>
-        <field name="model_id" ref="point_of_sale.model_pos_order"/>
-        <field name="trigger">on_create_or_write</field>
-        <field name="trigger_field_ids" eval="[(6, 0, [
-            ref('laundry_pos.field_pos_order__laundry_staff_id'),
-            ref('laundry_pos.field_pos_order__laundry_processed_datetime'),
-        ])]"/>
-        <field name="action_server_ids" eval="[(6, 0, [ref('server_action_orders_status_update')])]"/>
-    </record>
+    <!--
+        The "Orders Status Update" automation that used to live here is GONE (v1.5.0). It
+        derived laundry_status from the order's single staff + processed date, which no
+        longer describes an order: each service now carries its own status, computed on
+        laundry.order.service from that row's staff + processed date, and the order rolls
+        them up into laundry_all_done. Removing the record from this file deletes it on
+        upgrade - do NOT re-add it, it would fight the Wash-Dry-Fold mirror.
+    -->
 
     <!-- 2. Firebase webhook: POST order data when service type / due datetime change.
          ACTIVE on deploy — update the Firebase Cloud Function to read the new field names

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <!--
+        "Orders Pending" - the work-in-hand list: every laundry order that has been
+        taken in and is not finished yet. Same records the PENDINGS favourite picks
+        out, but as a menu of its own, so the filter is the list rather than a facet
+        a cashier can close by accident.
+    -->
+
+    <!--
+        The list. mode=primary with inherit_id means Odoo resolves the Orders list's
+        FULL combined arch first - core's columns plus everything laundry_pos,
+        laundry_locker and Studio add to it - and only then applies the spec below.
+        That is what "inherited details from Orders" buys: a column added to the
+        Orders list later shows up here too, with nothing to keep in sync.
+        priority 1000 keeps it from ever being picked as the default list for
+        pos.order anywhere else; this view is reached only through its own action.
+    -->
+    <record id="view_pos_order_tree_pending" model="ir.ui.view">
+        <field name="name">pos.order.list.pending</field>
+        <field name="model">pos.order</field>
+        <field name="mode">primary</field>
+        <field name="priority">1000</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_tree"/>
+        <field name="arch" type="xml">
+            <xpath expr="//list" position="attributes">
+                <!-- js_class swaps in the controller that draws the service buttons
+                     above the list (static/src/backend/pending_list_view.js). -->
+                <attribute name="js_class">laundry_pending_list</attribute>
+                <!-- Soonest due first, oldest order as the tie-break - the same sort
+                     the PENDINGS favourite carries (data/pos_order_filters.xml). -->
+                <attribute name="default_order">laundry_due_datetime, date_order</attribute>
+                <attribute name="class" add="laundry-pending-list" separator=" "/>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        The search view. Also primary, so it starts from the Orders search view and
+        keeps its fields and filters, and adds one filter per laundry service.
+        The service filters sit between two <separator/> tags, which is the whole
+        trick behind multi-select: filters in ONE separator-delimited group are
+        OR'd together by the search model, so ticking Press and Shoe Clean asks for
+        "Press OR Shoe Clean" rather than for orders that are somehow both. The
+        buttons above the list just toggle these.
+    -->
+    <record id="view_pos_order_filter_pending" model="ir.ui.view">
+        <field name="name">pos.order.search.pending</field>
+        <field name="model">pos.order</field>
+        <field name="mode">primary</field>
+        <field name="priority">1000</field>
+        <field name="inherit_id" ref="point_of_sale.view_pos_order_filter"/>
+        <field name="arch" type="xml">
+            <xpath expr="//filter[@name='cancelled']" position="after">
+                <separator/>
+                <!-- laundry_services is the comma-joined list of service NAMES the POS
+                     writes on the order (product_screen_patch._getLaundryServices), so
+                     these match on the label, not on a code. ilike is safe here because
+                     no service name is a substring of another one. -->
+                <filter string="Wash-Dry-Fold" name="laundry_svc_wdf"
+                        domain="[('laundry_services', 'ilike', 'Wash-Dry-Fold')]"/>
+                <filter string="Press" name="laundry_svc_press"
+                        domain="[('laundry_services', 'ilike', 'Press')]"/>
+                <filter string="Dry/Wet Clean" name="laundry_svc_dwc"
+                        domain="[('laundry_services', 'ilike', 'Dry/Wet Clean')]"/>
+                <filter string="Shoe Clean" name="laundry_svc_shoe"
+                        domain="[('laundry_services', 'ilike', 'Shoe Clean')]"/>
+                <filter string="Cap Clean" name="laundry_svc_cap"
+                        domain="[('laundry_services', 'ilike', 'Cap Clean')]"/>
+            </xpath>
+        </field>
+    </record>
+
+    <!--
+        The action. The pending condition is a hard `domain`, not search_default_*
+        facets: the menu is called "Orders Pending", so the list has to BE pending.
+        A facet is removable, and removing it would silently turn this into a second
+        copy of the Orders menu sitting right underneath the first.
+        Kept character-for-character in step with pos_order_filter_pendings in
+        data/pos_order_filters.xml - change one, change the other.
+    -->
+    <record id="action_pos_order_pending" model="ir.actions.act_window">
+        <field name="name">Orders Pending</field>
+        <field name="res_model">pos.order</field>
+        <field name="view_mode">list,form</field>
+        <field name="search_view_id" ref="view_pos_order_filter_pending"/>
+        <field name="domain">[('laundry_all_done', '=', False), ('laundry_service_type', 'in', ['dropoff', 'dropoff_delivery', 'pickup_delivery', 'locker']), ('laundry_secondary_type', 'in', ['order'])]</field>
+        <field name="help" type="html">
+            <p class="o_view_nocontent_smiling_face">
+                Nothing pending
+            </p><p>
+                Every laundry order taken in has been processed.
+            </p>
+        </field>
+    </record>
+
+    <record id="action_pos_order_pending_view_list" model="ir.actions.act_window.view">
+        <field name="sequence">1</field>
+        <field name="view_mode">list</field>
+        <field name="view_id" ref="view_pos_order_tree_pending"/>
+        <field name="act_window_id" ref="action_pos_order_pending"/>
+    </record>
+
+    <record id="action_pos_order_pending_view_form" model="ir.actions.act_window.view">
+        <field name="sequence">2</field>
+        <field name="view_mode">form</field>
+        <field name="view_id" ref="point_of_sale.view_pos_pos_form"/>
+        <field name="act_window_id" ref="action_pos_order_pending"/>
+    </record>
+
+    <!--
+        Point of Sale > Orders > Orders Pending, directly under Orders.
+        Core ships Orders and Sessions BOTH at sequence 2 and Payments at 3, so
+        there is no free slot between Orders and the rest - the two records below
+        move Sessions and Payments down one each to open it. Nothing but the
+        sequence changes; deleting them puts the core order back.
+
+        Those two are written as <record>, NOT as a bare <menuitem id="..."
+        sequence="4"/>. The menuitem shorthand builds its values dict from
+        scratch, starting at {'parent_id': False} and falling back to the xml id
+        for a missing name (odoo/tools/convert.py, _tag_menuitem) - so the short
+        form would re-parent Sessions to the top level and rename it
+        "menu_pos_session_all". A record writes only the field it lists.
+    -->
+    <menuitem id="menu_pos_order_pending"
+        parent="point_of_sale.menu_point_of_sale"
+        action="action_pos_order_pending"
+        sequence="3"
+        groups="point_of_sale.group_pos_manager,point_of_sale.group_pos_user"/>
+
+    <record id="point_of_sale.menu_pos_session_all" model="ir.ui.menu">
+        <field name="sequence">4</field>
+    </record>
+
+    <record id="point_of_sale.menu_pos_payment" model="ir.ui.menu">
+        <field name="sequence">5</field>
+    </record>
+</odoo>
