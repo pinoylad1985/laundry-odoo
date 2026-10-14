@@ -5,7 +5,8 @@ from odoo.exceptions import UserError, ValidationError
 class LaundryStaffPinWizard(models.TransientModel):
     """PIN-gated setter for Staff + Processed Date on ONE service of an order.
 
-    Opened by tapping a service in the Services Progress column. The staff who did that
+    Opened by tapping a service's line in the Staff / Processed Date / Status columns of
+    the POS Orders list. The staff who did that
     service enters their own POS PIN, which both authorizes the change and records who
     did it; the service's status follows from what is filled in (staff = In Process,
     staff + processed date = Done).

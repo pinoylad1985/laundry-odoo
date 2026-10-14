@@ -3,7 +3,8 @@ from odoo import api, fields, models
 # The order's own laundry_staff_id / laundry_processed_datetime / laundry_status describe
 # THIS service and no other — they always did (the staff PIN dialog is titled
 # "Wash-Dry-Fold Staff"). They are now kept as a one-way mirror of this service's row so
-# the columns, the reports and the Studio layout that read them keep working.
+# the reports and the Studio layout that read them keep working. (The list COLUMNS named
+# after them show EVERY service, one line each - see static/src/backend/service_lines_field.js.)
 WDF_SERVICE = "Wash-Dry-Fold"
 
 

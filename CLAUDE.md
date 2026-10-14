@@ -37,7 +37,8 @@ laundry_pos/
 │   ├── res_partner.py               # pos_tag_names computed char (for receipt tags)
 │   ├── laundry_service_type.py      # laundry.service.type catalog model (5 seeded types)
 │   └── laundry_order_service.py     # laundry.order.service — ONE ROW PER SERVICE per order
-│                                    #   (staff / processed date / status) + the WDF mirror
+│                                    #   (staff / processed date / status) + the WDF mirror;
+│                                    #   shown as stacked lines INSIDE the existing 3 columns
 ├── security/ir.model.access.csv
 ├── views/pos_order_views.xml        # backend POS Orders list → adds Service Type + Secondary Type columns
 ├── data/
@@ -328,7 +329,7 @@ real, loaded field) so it survives reloads/reprints. It's shown as-is, like a va
   re-bill the line at the bare 6KG minimum. Anything added to a laundry line from here on has to be
   added to BOTH rebuilds.
 
-## Per-service progress (staff / processed date / status) — v1.5.0
+## Per-service progress (staff / processed date / status) — v1.5.1
 An order may carry several services at once, each handled by a different person and finished at a
 different time, so the three progress values live on **`laundry.order.service`** — one row per
 service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on the order.
@@ -353,28 +354,48 @@ service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on t
   - ⚠ `data/pos_order_filters.xml` is `noupdate="1"`, so its domain does **not** reload on upgrade —
     the 1.5.0 migration rewrites that filter's domain in SQL. Any future change to the pending rule
     needs the same treatment.
-- **The three order-level fields are now the WASH-DRY-FOLD ones, read-only.** `laundry_staff_id`
-  → "WDF Staff", `laundry_processed_datetime` → "WDF Processed Date", `laundry_status` → "WDF Status".
-  They always described WDF (the staff PIN dialog is titled "Wash-Dry-Fold Staff"); they are now a
-  **one-way mirror** of the order's Wash-Dry-Fold row (`laundry_order_service._mirror_wdf_to_order`).
+- **NO new column, and one order stays ONE row.** The list keeps the three columns it always had —
+  **Status / Staff / Processed Date** — and each *cell* now stacks **one line per service**
+  (`static/src/backend/service_lines_field.*`: `laundry_service_status` / `_staff` / `_processed`,
+  three subclasses of one component differing only in `static part`).
+  - **The three cells stack in the same order** (and the same order as the Services column), with a
+    fixed `min-height`/`line-height` per line, so a row reads **across** as well as down. An unworked
+    value is an em-dash, never blank — a blank would slide the columns out of step.
+  - **Each line is a tap target** that opens the PIN wizard on THAT service.
+  - ⚠ v1.5.0 shipped this as a 4th "Services Progress" column instead; the owner's requirement is
+    *the existing* columns, one row per order. Don't re-add a combined column.
+- **All three widgets read ONE field, `laundry_service_block`** — a JSON string carried in the list
+  arch as `column_invisible="1"` (a hidden carrier, not a column; its label is
+  "Service Progress (internal)" so a stray Studio placement is self-explaining).
+  - **JSON, not the One2many.** A list cell widget only receives the fields declared in the arch, and
+    an x2many's sub-fields can't be declared inside a cell. Same trick as the `laundry_services_list`
+    column; JSON rather than a delimiter because staff and service names are free text that would
+    collide with any readable separator. Non-stored, or it would bump `write_date` on every order
+    whenever a service moved.
+  - The datetime is sent as stored **naive UTC** and converted in the widget (`deserializeDateTime`);
+    formatting it server-side would bake the server's timezone into the cell.
+  - **No service rows → the cell falls back to the order's own value** (the field the widget is
+    attached to), so orders predating this still show their single staff/date/status, and tapping
+    opens the wizard's order-level branch.
+- **The three order-level fields keep their labels (Staff / Processed Date / Status) but hold
+  WASH-DRY-FOLD values, read-only.** They always described WDF (the staff PIN dialog is titled
+  "Wash-Dry-Fold Staff"); they are now a **one-way mirror** of the order's Wash-Dry-Fold row
+  (`laundry_order_service._mirror_wdf_to_order`). The columns named after them show *every* service.
   - **One-way on purpose** — two-way would make two places able to disagree about one fact. Record
-    progress on the Services column; the mirror follows.
+    progress by tapping a service line; the mirror follows.
   - **Kept stored, NOT computed** — a computed field would recompute over the whole order history on
     upgrade and wipe the legacy values. `laundry_account_reports` also reads `laundry_staff_id` as the
     cashier.
   - `laundry_status`'s stored value stays **`'Folded'`**, just relabelled **"Done"** (an order now
     holds services that are never folded). `laundry.order.service.status` uses `'Done'` outright —
     new table, no history to migrate. The mirror maps between them.
-- **ONE column shows all of it**: `laundry_service_block` + the `laundry_service_block` widget
-  (`static/src/backend/service_block_field.*`) — each service on its own line with staff · processed
-  date · status, and **each line is a tap target** that opens the PIN wizard on that service.
-  - **The field is a JSON string, not the One2many.** A list cell widget only receives the fields
-    declared in the arch, and an x2many's sub-fields can't be declared inside a cell. Same trick as
-    the `laundry_services_list` column; JSON rather than a delimiter because staff and service names
-    are free text that would collide with any readable separator. Non-stored, or it would bump
-    `write_date` on every order whenever a service moved.
-  - The datetime is sent as stored **naive UTC** and converted in the widget (`deserializeDateTime`);
-    formatting it server-side would bake the server's timezone into the cell.
+- ⚠ **A readonly `<field>` on a Selection crashes the whole view on a value that is no longer one of
+  the options** — core reads the label as `options.find(...)[1]`, so an unknown value is
+  `Cannot read properties of undefined (reading '1')` and the form/list dies (v1.5.0 bug, hit by
+  clicking through to the order form). Our selections are read over years of Studio-era history, so
+  the order form and the per-service list use **`laundry_selection_text`**
+  (`static/src/backend/selection_text_field.js`), which falls back to showing the stored value. Use
+  it for any readonly selection we add; the `_status` cell widget does the same lookup inline.
 - **`laundry.staff.pin.wizard` now targets a SERVICE** (`service_id`), with the old `order_id` branch
   kept for `action_laundry_set_staff` on orders with no rows. ⚠ `service_id` must **not** be
   `readonly` — the web client drops readonly fields from the save payload, so a context default would
@@ -384,9 +405,9 @@ service per order (`name`, `staff_id`, `processed_datetime`, `status`), not on t
   orders, e.g. a staging refresh). It copies the order's single staff/date/status onto **every**
   service of the order — the owner's call: filling only the first service would make every finished
   multi-service order in the history look half-done and reopen it as pending.
-- `staff_pin_field.*` is now **unreferenced** (the WDF columns are read-only and the wizard uses a
-  plain many2one + server-side PIN check). Left registered as a harmless fallback; delete it if the
-  WDF columns are never made editable again. `folding_pin_field.js` gained a PIN-less
+- `staff_pin_field.*` is now **unreferenced** (the cells are read-only tap targets and the wizard
+  uses a plain many2one + server-side PIN check). Left registered as a harmless fallback; delete it
+  if those columns are never made editable again. `folding_pin_field.js` gained a PIN-less
   **`laundry_folding_roller`** variant for the wizard, where the PIN is taken once at Confirm.
 
 ## Secondary Type (reporting classification)

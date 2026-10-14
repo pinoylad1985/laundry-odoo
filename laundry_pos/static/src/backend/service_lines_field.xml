@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="laundry_pos.ServiceLinesField">
+        <div class="o_field_laundry_service_lines">
+            <!-- A button, not a clickable div: these cells are tapped on the touchscreen
+                 laptop at the folding table AND reached with the keyboard. -->
+            <button t-foreach="lines" t-as="line" t-key="line.key"
+                    type="button" class="laundry-sl-row"
+                    t-on-click.stop="() => this.open(line)"
+                    t-att-title="line.title">
+                <span t-attf-class="laundry-sl-value {{ line.cls }}" t-esc="line.text"/>
+            </button>
+        </div>
+    </t>
+</templates>

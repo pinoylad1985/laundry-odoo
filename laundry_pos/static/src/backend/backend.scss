@@ -169,80 +169,58 @@
     }
 }
 
-// "Services Progress" column: every service on the order as its own tappable line,
-// with the staff, the processed date and the status on a second line under the name.
-// Same two-part shape as the customer and services columns above - the list's cells are
-// nowrap + ellipsis by default, so the cell has to opt out before stacked rows have
+// Staff / Processed Date / Status columns: one line per service inside the SAME three
+// columns the list always had - no extra column, and one order is still one row. The
+// three cells stack their lines in the same order, so the row reads across as well as
+// down; the fixed line height is what keeps them in step when one value is short.
+// Same two-part shape as the customer and services columns above: the list's cells are
+// nowrap + ellipsis by default, so the cell has to opt out before stacked lines have
 // anywhere to go.
-.o_list_table td:has(.o_field_laundry_service_block) {
+.o_list_table td:has(.o_field_laundry_service_lines) {
     white-space: normal;
-    min-width: 14rem;
     vertical-align: top;
 }
-.o_field_laundry_service_block {
-    line-height: 1.25;
-
-    .laundry-sb-empty {
-        color: #adb5bd;
-    }
-
+.o_field_laundry_service_lines {
     // The whole line is the tap target, reset out of a <button> back to looking like a
     // cell: it is a button for touch and keyboard reach, not because it should look like
-    // one. Rows are touched on a laptop touchscreen at the folding table, so the target
-    // is the full width of the cell rather than the text.
-    .laundry-sb-row {
+    // one. The target is the full width of the cell rather than just the text, because
+    // these are touched on a laptop touchscreen at the folding table.
+    .laundry-sl-row {
         display: block;
         width: 100%;
-        padding: 2px 4px;
+        // Matches the line heights of the other two columns so service 2 of Staff sits
+        // level with service 2 of Status. A dash occupies the line for the same reason.
+        min-height: 1.45rem;
+        line-height: 1.45rem;
+        padding: 0 4px;
         border: 0;
         border-radius: 3px;
         background: none;
         text-align: left;
         font: inherit;
         color: inherit;
+        // Service names and dates must stay whole on their own line; the CELL wraps so
+        // the lines stack, each line does not.
+        white-space: nowrap;
         cursor: pointer;
 
         &:hover,
         &:focus-visible {
             background-color: rgba(113, 75, 103, 0.08);
         }
-        & + & {
-            margin-top: 2px;
-        }
     }
 
-    .laundry-sb-name {
-        display: block;
-        font-weight: 600;
-        // Service names carry a hyphen and a slash; without this the column narrows and
-        // "Wash-Dry-Fold" breaks at its own hyphen, reading as two services.
-        white-space: nowrap;
-    }
-
-    .laundry-sb-meta {
-        display: block;
-        font-size: 0.85em;
-        color: #6c757d;
-        white-space: nowrap;
-    }
-
-    .laundry-sb-sep {
-        margin: 0 0.25em;
-        color: #ced4da;
-    }
-
-    // Status carries the colour, because it is the one value being scanned for down the
-    // column. Staff and date are supporting detail and stay grey.
-    .laundry-sb-status {
-        font-weight: 600;
-    }
-    .laundry-sb-done {
+    // Status carries the colour, because it is the one value scanned for down the
+    // column. Staff and date are supporting detail and stay with the cell's own colour.
+    .laundry-sl-done {
         color: #28a745;
+        font-weight: 600;
     }
-    .laundry-sb-progress {
+    .laundry-sl-progress {
         color: #d9822b;
+        font-weight: 600;
     }
-    .laundry-sb-idle {
+    .laundry-sl-idle {
         color: #adb5bd;
     }
 }

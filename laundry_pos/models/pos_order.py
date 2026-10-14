@@ -104,16 +104,18 @@ class PosOrder(models.Model):
         ],
         string='Staff (legacy name)',
     )
-    # --- Wash-Dry-Fold progress: a READ-ONLY MIRROR of this order's Wash-Dry-Fold row in
-    # laundry_service_ids (see laundry_order_service._mirror_wdf_to_order). These three
-    # described WDF and nothing else from the start - the staff PIN dialog is titled
-    # "Wash-Dry-Fold Staff" - so now that every service is tracked separately they are
-    # kept, relabelled, as the WDF columns. They are no longer edited directly: do it on
-    # the Services column, which writes the row and the mirror follows. Keeping them
-    # stored (rather than computed) means the legacy values already in the database are
-    # never recomputed away, and laundry_account_reports keeps reading laundry_staff_id. ---
-    laundry_staff_id = fields.Many2one('hr.employee', string='WDF Staff')
-    laundry_processed_datetime = fields.Datetime(string='WDF Processed Date')
+    # --- Staff / Processed Date / Status. These three are the LIST COLUMNS the laundry
+    # reads progress in, and in the list each cell now shows one line per service (widgets
+    # laundry_service_staff / _processed / _status, fed by laundry_service_block below).
+    # The VALUES here stay what they always were: this order's Wash-Dry-Fold progress -
+    # the staff PIN dialog was titled "Wash-Dry-Fold Staff" from the start - kept as a
+    # READ-ONLY, one-way mirror of the order's Wash-Dry-Fold service row (see
+    # laundry_order_service._mirror_wdf_to_order). They are no longer written directly:
+    # tap a service line, which writes that row, and the mirror follows.
+    # Kept stored (not computed) so the legacy values already in the database are never
+    # recomputed away, and so laundry_account_reports keeps reading laundry_staff_id. ---
+    laundry_staff_id = fields.Many2one('hr.employee', string='Staff')
+    laundry_processed_datetime = fields.Datetime(string='Processed Date')
     laundry_status = fields.Selection(
         selection=[
             ('Not Started', 'Not Started'),
@@ -123,7 +125,7 @@ class PosOrder(models.Model):
             # legacy rows need no migration; laundry.order.service uses 'Done' outright.
             ('Folded', 'Done'),
         ],
-        string='WDF Status',
+        string='Status',
         default='Not Started',
     )
 
@@ -132,18 +134,19 @@ class PosOrder(models.Model):
     laundry_service_ids = fields.One2many(
         'laundry.order.service', 'order_id', string='Service Tracking',
     )
-    # The single "Services Progress" list column: every service with its staff, processed
-    # date and status stacked in one cell, rendered by the `laundry_service_block` widget.
+    # What feeds the Staff / Processed Date / Status cells: every service on the order
+    # with its own staff, processed date and status. NO column of its own - it is carried
+    # in the list arch as a hidden column and the three real columns above do the showing.
     #
-    # Carried as a JSON string, NOT as the One2many itself: a list view gives a cell
-    # widget only the fields declared in the arch, and there is no way to declare the
-    # sub-fields of an x2many inside a list cell. Encoding them in a Char is the same
-    # trick the `laundry_services_list` column already uses, and JSON (rather than a
-    # delimiter) because staff names and service names are free text that would collide
-    # with any separator worth reading. Display-only and NOT stored - it would otherwise
-    # bump write_date on every order whenever a service moved.
+    # A JSON string, NOT the One2many itself: a list view gives a cell widget only the
+    # fields declared in the arch, and there is no way to declare the sub-fields of an
+    # x2many inside a list cell, so the services have to arrive as a value on the order.
+    # Same trick the `laundry_services_list` column already uses; JSON rather than a
+    # delimiter because staff and service names are free text that would collide with any
+    # separator worth reading. Display-only and NOT stored - it would otherwise bump
+    # write_date on every order whenever a service moved.
     laundry_service_block = fields.Char(
-        string='Services Progress',
+        string='Service Progress (internal)',
         compute='_compute_laundry_service_block',
     )
     # THE PENDING TEST. An order is finished only when every one of its services is Done;
