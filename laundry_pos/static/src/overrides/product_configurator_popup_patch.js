@@ -171,7 +171,29 @@ patch(ProductConfiguratorPopup.prototype, {
                 }
             }
         }
-        return super.initAttributes(...arguments);
+        const res = super.initAttributes(...arguments);
+        // Core opens with the FIRST value of every attribute already ticked. On a
+        // laundry service that means a size or a type nobody chose can ride onto the
+        // line - and onto the price - just by pressing Add, and it looks exactly like
+        // a deliberate choice afterwards. So nothing is pre-selected: the cashier has
+        // to pick each option. `confirm()` already refuses to Add until they all are,
+        // and the template says why, so clearing these creates no dead end.
+        // Same reasoning as the New Order modal's date strip, which opens on today
+        // without selecting it.
+        // TURNAROUND IS EXEMPT - it is set by the order's schedule, not chosen here
+        // (it is rendered locked), and _laundryPreselectTat fills it right after this.
+        if (this.isLaundryService) {
+            for (const line of this.props.productTemplate?.attribute_line_ids || []) {
+                if (isTurnaround(line)) {
+                    continue;
+                }
+                const entry = this.state.attributes?.[line.attribute_id?.id];
+                if (entry) {
+                    entry.selected = []; // the same empty shape core's setup() uses
+                }
+            }
+        }
+        return res;
     },
 
     // Pre-select each attribute value the line already has, so re-opening the

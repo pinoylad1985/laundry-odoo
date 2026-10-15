@@ -85,6 +85,15 @@ laundry_pos/
 - **Turnaround (TAT) is computed from the schedule and locked** — not a free cashier choice; keeps lines/receipt consistent.
 - **Configurator crash guard** — `initAttributes()` pre-seeds `state.attributes` for every value's `attribute_id` so
   malformed products (e.g. after a DB restore) don't crash the popup.
+- **Nothing is pre-selected in the configurator on a laundry service** (v1.5.8) — core ticks the FIRST
+  value of every attribute, so a size/type nobody chose could ride onto the line and its price just by
+  pressing Add. `initAttributes()` clears them back to `[]` (core's own empty shape) for the 5 laundry
+  products. **Turnaround is exempt** — the schedule sets it and it renders locked. The gate already
+  existed: `confirm()` refuses to Add while `laundryAllAttributesSelected` is false, and the template
+  prints "Please select all options before adding." Same reasoning as the New Order date strip.
+  ⚠ The deployed Odoo 19 build keys `state.attributes` by **`attribute_id.id`**; the public 19.0 source
+  has since moved to `attribute_line_id.id`. Verified against the container 2026-10-16 — re-check on
+  upgrade, as every pre-select in that file depends on it.
 
 ## Navbar hub buttons (New Order / Settle Order / Order List)
 The navbar (`navbar_patch.*`) carries three buttons (desktop = text, mobile = icons). A blank order has no chosen
