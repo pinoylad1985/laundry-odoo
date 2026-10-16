@@ -35,6 +35,7 @@ laundry_pos/
 ├── models/
 │   ├── pos_order.py                 # laundry_* fields on pos.order (+ computed due/phone/address + laundry_secondary_type); PosOrderLine.laundry_actual_weight
 │   ├── res_partner.py               # pos_tag_names computed char (for receipt tags)
+│                                    #   + phone_last10() and the one-customer-per-number guard
 │   ├── laundry_service_type.py      # laundry.service.type catalog model (5 seeded types)
 │   └── laundry_order_service.py     # laundry.order.service — ONE ROW PER SERVICE per order
 │                                    #   (staff / processed date / status) + the WDF mirror;
@@ -510,6 +511,32 @@ Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml
   overrides the SCREEN-level `addNewPaymentLine` (async) / `deletePaymentLine(uuid)` / `updateSelectedPaymentline`.
 - **A refund order locks the hub:** navbar getter `laundryIsRefund` (`is_refund` / has refund lines) disables
   BOTH New Order and Settle Order.
+
+## One customer per phone number - v1.5.9
+A contact cannot be CREATED, and its number cannot be SET, when another contact already holds the
+same **last 10 digits** - `phone_last10()` in `laundry_pos/models/res_partner.py`, the same key
+`laundry_locker` matches its transactions on (that module now imports it from here, so the two
+spellings of the rule cannot drift apart).
+- **Enforced in `res.partner.create` AND `write`**, server-side, so one rule covers the POS
+  customer picker, the backend form, imports and the locker's "create the customer from this
+  transaction" alike. Create alone would be a formality - saving the customer with no number and
+  typing it in a second later would walk straight past it. `write` only fires when the number
+  itself is being set, and never against the record's own number.
+- **Matched on DIGITS, in SQL.** `0917 123 4567` and `+639171234567` are one number and no ORM
+  domain can say so, so the query strips both sides with `regexp_replace`. No index: creating a
+  customer is rare enough that the scan costs less than another stored column would.
+- **Archived partners count**, and the message says when the twin is archived ("restore it to use
+  it"). An archived duplicate is invisible to the cashier's search, which is exactly how a second
+  record for somebody already in the book gets made.
+- **Child contacts are exempt on both sides** (`parent_id IS NULL`) - a delivery address under a
+  company legitimately carries its parent's number, and blocking that would stop addresses being
+  added at all.
+- The twin's name is read with **sudo** for the message only: "it exists but I cannot tell you
+  which one" is not something a cashier can act on.
+- ⚠ **Two people who share one handset now need two numbers** (spouses, a household). That is the
+  trade this rule makes - the alternative is a book that silently splits one person's orders, dues
+  and points between two contacts.
+- It does **not** clean up the duplicates already in the book; it only stops new ones.
 
 ## Important Files NOT to Break
 - `models/pos_order.py` — do NOT add `_load_pos_data_fields`; keep order fields computed (not related).

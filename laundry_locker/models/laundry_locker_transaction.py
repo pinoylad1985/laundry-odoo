@@ -2,18 +2,12 @@ import re
 
 from odoo import api, fields, models
 
-
-def phone_last10(value):
-    """The comparison key for a phone number: its last 10 digits.
-
-    Locker customers key their own number into the PudoPro screen, so what
-    arrives can be `09171234567`, `+63 917 123 4567` or `9171234567` for the
-    same person. The last 10 digits are the part that identifies a PH mobile
-    (the subscriber number without the 0 or +63), so that is what both sides of
-    the match are reduced to.
-    """
-    digits = re.sub(r'\D', '', value or '')
-    return digits[-10:] if len(digits) >= 10 else ''
+# The key is laundry_pos's: the customer book and this feed have to reduce
+# a number the SAME way, or a transaction matches a customer that the
+# duplicate-phone guard would never have allowed to exist - and the two
+# rules drift apart silently. Re-exported from here because this module's
+# own readers import it from this file.
+from odoo.addons.laundry_pos.models.res_partner import phone_last10  # noqa: F401
 
 
 def ph_local_phone(value):
