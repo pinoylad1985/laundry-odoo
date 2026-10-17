@@ -15,10 +15,11 @@ import { useService } from "@web/core/utils/hooks";
 //   - a number that MATCHED a contact on its last 10 digits is settled; the
 //     matched contact is displayed and nothing is editable, or the register would
 //     be free to put a second spelling of a known customer onto the order.
-//   - a number that matched nothing is called first. "It rang" is what lets a
-//     contact be created from it; "wrong number" is the ONLY thing that unlocks
-//     the name and phone for a correction. A number nobody has dialled is
-//     neither creatable nor editable.
+//   - a number that matched nothing is CALLED first, and the cashier answers
+//     one question: did it ring? "It rang" is what lets a contact be created
+//     from it; "it did NOT ring" is the ONLY thing that unlocks the name and
+//     phone for a correction. A number nobody has dialed is neither creatable
+//     nor editable.
 export class LockerPickerPopup extends Component {
     static template = "laundry_locker.LockerPickerPopup";
     static components = { Dialog };
@@ -42,8 +43,8 @@ export class LockerPickerPopup extends Component {
             match: null,          // 'returning' | 'new' | null
             partnerName: "",
             // The call's two outcomes, and the only two ways out of the gate:
-            // verified = it rang, editing = it did not and is being corrected.
-            // Both false = nobody has called it yet.
+            // verified = it rang, editing = it did not and the number is being
+            // corrected. Both false = nobody has called it yet.
             verified: false,
             editing: false,
             checking: false,
@@ -101,10 +102,10 @@ export class LockerPickerPopup extends Component {
         this.state.partnerName = row.partner_name || "";
         this.state.verified = !!row.phone_verified;
         // A recheck opens straight into the correction: the cashier got here
-        // by pressing "Correct number", which says the same thing as the wrong
-        // -number button. Claiming the row already created its contact, so it
-        // would otherwise read as a settled match and lock them out of the one
-        // screen they opened to fix.
+        // by pressing "Correct number", which says the same thing as answering
+        // that it did not ring. Claiming the row already created its contact, so
+        // it would otherwise read as a settled match and lock them out of the
+        // one screen they opened to fix.
         this.state.editing = this.isRecheck;
         this.state.error = "";
     }
@@ -156,7 +157,8 @@ export class LockerPickerPopup extends Component {
         this.state.error = "";
     }
 
-    // "Wrong number" - the one thing that unlocks the name and phone.
+    // "I called it and it did NOT ring" - the one thing that unlocks the name
+    // and phone.
     onPhoneWrong() {
         this.state.verified = false;
         this.state.editing = true;
@@ -195,8 +197,9 @@ export class LockerPickerPopup extends Component {
         }
         if (this.needsVerification) {
             this.state.error =
-                "No customer has this number. Call it, then press \u201cI called it and " +
-                "it rang\u201d \u2014 or \u201cWrong number\u201d to correct it.";
+                "Call \u201c" + this.state.phone + "\u201d first, then press " +
+                "\u201cI called it and it rang\u201d \u2014 or \u201cI called it and " +
+                "it did NOT ring\u201d if nobody can be reached on it.";
             return;
         }
         this.state.busy = true;
