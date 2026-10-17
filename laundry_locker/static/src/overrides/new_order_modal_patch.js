@@ -212,7 +212,7 @@ patch(NewOrderModal.prototype, {
         if (order) {
             order.laundry_locker_ref = result.ref;
             // Copied ONTO the order so the receipt can print them: a reprint
-            // from order history runs on tills that never loaded the queue.
+            // from order history runs on registers that never loaded the queue.
             order.laundry_locker_door = result.dirty_door || false;
             order.laundry_locker_location = result.location_name || false;
         }

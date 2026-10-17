@@ -163,6 +163,28 @@ class LaundryLockerTransaction(models.Model):
         help="Ticked once the number has been called and confirmed ringing.",
     )
 
+    # The contact this drop-off CREATED, as opposed to the one it matched.
+    #
+    # It is the difference between a record that is ours to correct and one
+    # that is somebody else's. A number called, confirmed and claimed makes a
+    # contact on the cashier's word; when that word turns out to be wrong, the
+    # correction has to be able to reach back to the record it caused. Without
+    # this field it cannot tell them apart - `partner_id` looks identical
+    # whether the contact was found or made - so a correction left the first
+    # contact behind in the book, holding the wrong number and (under the
+    # one-customer-per-number rule) squatting on it, where the real owner of
+    # that number could never be added.
+    #
+    # Kept even after the contact stops being the match, which is the whole
+    # point: it is read when `partner_id` has already moved on.
+    created_partner_id = fields.Many2one(
+        'res.partner', string='Contact Created Here', copy=False,
+        ondelete='set null', index=True,
+        help="The contact this drop-off created from its phone number, rather "
+             "than matched. Correcting the number corrects that contact "
+             "instead of leaving it behind.",
+    )
+
     # --- billing ---------------------------------------------------------
     # Set when a POS order carrying this ref is VALIDATED, not when a register
     # picks it: until a sale is rung up the drop-off is nobody's, and stays in
@@ -294,3 +316,35 @@ class LaundryLockerTransaction(models.Model):
         """
         self._compute_partner_id()
         self._compute_customer_match()
+
+    # ------------------------------------------------------------------
+    # writes
+    # ------------------------------------------------------------------
+    def write(self, vals):
+        """A number that CHANGES is a number nobody has called.
+
+        `phone_verified` is a statement about ONE number - somebody dialed it
+        and heard it ring. Carried across onto a different number it says
+        nothing at all, and would let a drop-off whose number was corrected
+        (from the backend form, or by a later feed update) be claimed at the
+        register with no call ever made.
+
+        Cleared only when the digits actually move. The feed re-sends the same
+        phone on every upsert, so clearing on an unchanged value would
+        un-verify every row every five minutes.
+
+        An explicit `phone_verified` in the same call wins - that is
+        `pos_claim` recording the call the cashier just made ON the corrected
+        number, which is the one case where the two travel together.
+        """
+        changed = self.browse()
+        if 'phone' in vals and 'phone_verified' not in vals:
+            new_key = phone_last10(vals.get('phone')) or ''
+            # Read BEFORE the write, while phone_last10 still holds the old key.
+            changed = self.filtered(lambda t: (t.phone_last10 or '') != new_key)
+        result = super().write(vals)
+        if changed:
+            # A plain write, not a recursive one: `phone` is not in these vals,
+            # so it takes the branch above and stops.
+            changed.phone_verified = False
+        return result

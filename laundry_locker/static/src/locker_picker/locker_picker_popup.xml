@@ -162,10 +162,18 @@
                         <!-- Said once the answer is in, because the button
                              turning solid is a color change on a screen the
                              cashier has stopped reading - it does not say what
-                             to do next. -->
+                             to do next.
+
+                             It names what Confirm is about to DO, because what
+                             it does is not undoable from here: a contact gets
+                             created, and it is the mis-tap on the button above
+                             that this sentence is meant to catch, at the one
+                             moment the cashier is still looking. -->
                         <div t-if="state.verified" class="text-success mt-2">
-                            <i class="fa fa-check me-1"/>Number confirmed - press Confirm
-                            to take the order.
+                            <i class="fa fa-check me-1"/>Number confirmed. Confirm will
+                            create a new contact:
+                            <b><t t-esc="state.customerName"/></b> -
+                            <b><t t-esc="state.phone"/></b>.
                         </div>
                     </t>
                 </div>

@@ -20,7 +20,7 @@ class PosOrder(models.Model):
         help="PudoPro reference of the locker drop-off this order bills.",
     )
     # Copied onto the order rather than read back off the transaction: the
-    # receipt is reprinted from order history, on tills that never loaded the
+    # receipt is reprinted from order history, on registers that never loaded the
     # locker queue, and long after the door has been let to someone else.
     laundry_locker_door = fields.Char(
         string='Locker Door', copy=False,

@@ -160,12 +160,121 @@ class LaundryLockerTransaction(models.Model):
     # ------------------------------------------------------------------
     # taking one at the register
     # ------------------------------------------------------------------
+    def _laundry_own_contact(self):
+        """The contact this drop-off created, if it is still ours to correct.
+
+        A contact made from a locker number exists on one cashier's word that
+        the number rang. When that word was wrong, the correction has to reach
+        back to the record it caused - otherwise the first contact stays in the
+        book holding a number nobody answers, and under the
+        one-customer-per-number rule it SQUATS on it: the real owner of that
+        number can never be added, and the only sign anything is wrong is two
+        contacts with the same name.
+
+        "Ours" is narrow on purpose. The moment anything else has used the
+        contact it has stopped being this drop-off's mistake and become
+        somebody's customer record, and editing it from here would be a
+        different and worse bug than the one being fixed. So: created here,
+        still the match, and used by nothing else.
+        """
+        self.ensure_one()
+        partner = self.created_partner_id
+        if not partner or partner != self.partner_id:
+            return self.env['res.partner'].browse()
+        # Another drop-off has since matched this contact - it is a returning
+        # customer now, whatever it started as.
+        others = self.search_count([
+            ('partner_id', '=', partner.id), ('id', '!=', self.id),
+        ])
+        if others:
+            return self.env['res.partner'].browse()
+        # Sales, invoices or sub-contacts: all of them make it somebody's
+        # record.
+        #
+        # VALIDATED sales only. The order this drop-off is being built onto may
+        # already have been pushed to the server as a draft, carrying this very
+        # contact - counting that would block the correction in exactly the
+        # case it exists for. A draft is an order still being built, and
+        # correcting its customer is what the cashier is in the middle of
+        # doing; a validated sale is the point where the contact stops being
+        # this drop-off's mistake.
+        if self.env['pos.order'].sudo().search_count([
+            ('partner_id', '=', partner.id), ('state', 'in', VALIDATED_STATES),
+        ]):
+            return self.env['res.partner'].browse()
+        if self.env['account.move'].sudo().search_count([('partner_id', '=', partner.id)]):
+            return self.env['res.partner'].browse()
+        if partner.child_ids or partner.parent_id:
+            return self.env['res.partner'].browse()
+        return partner
+
+    def _laundry_absorb_correction(self, new_phone, verified=False):
+        """Carry a number correction onto the contact this drop-off created.
+
+        Runs BEFORE the transaction's own phone is written, which is what makes
+        it tidy rather than clever: once the contact already holds the corrected
+        number, the match recomputes onto that same contact by itself and
+        nothing downstream has to know a correction happened.
+
+        Two endings, and both leave exactly one contact:
+          - the corrected number belongs to NOBODY - the contact we made is
+            simply re-numbered, keeping the name, the locker address and the id;
+          - the corrected number belongs to a contact already in the book (the
+            cashier mistyped a returning customer) - ours is deleted, because
+            there is nothing left for it to be. Archiving would not do: an
+            archived contact still holds its number against the duplicate rule,
+            so the wrong number would go on squatting, invisibly.
+        """
+        self.ensure_one()
+        own = self._laundry_own_contact()
+        if not own:
+            return
+        key = phone_last10(new_phone)
+        if not key:
+            return
+        twin = self.env['res.partner'].with_context(active_test=False).search(
+            [('laundry_phone_last10', '=', key), ('id', '!=', own.id),
+             ('parent_id', '=', False)],
+            limit=1, order='id',
+        )
+        if not twin:
+            if not verified:
+                # Re-numbering our contact onto a number nobody has called
+                # would rebuild the very thing the gate exists to stop: a
+                # contact standing on a number that rings nowhere. Left alone,
+                # the match below finds nothing and the claim is refused with
+                # "call it first", which is the right answer. The twin branch
+                # needs no call - matching a customer already in the book is
+                # not a claim about the number.
+                return
+            own.phone = ph_local_phone(new_phone)
+            return
+        self.created_partner_id = False
+        self.partner_id = twin
+        # The draft the register pushed still points at it (see above), and a
+        # delete would tear the customer off an order that is on screen. The
+        # register re-points that order at the twin a moment from now, but not
+        # from in here, so the stray contact is left for the cleanup it is.
+        if self.env['pos.order'].sudo().search_count([('partner_id', '=', own.id)]):
+            return
+        try:
+            own.unlink()
+        except Exception:
+            # Something references it after all. Leaving it is the safe
+            # ending - the correction itself has already landed on the
+            # transaction, and a stray contact is a cleanup job, not a
+            # wrong order.
+            _logger.warning(
+                'Locker %s: could not remove the contact it created (%s).',
+                self.ref, own.display_name,
+            )
+
     def pos_claim(self, phone=None, customer_name=None, phone_verified=False):
         """Put this transaction on the order being built at the register.
 
         This RESERVES NOTHING. A drop-off stays unbilled and stays in every
         register's picker until an order is actually validated, so the same bag can
-        be picked at two tills and the sale that is rung up first is the one
+        be picked at two registers and the sale that is rung up first is the one
         that takes it (see pos.order._sync_laundry_locker). The cost of that is
         one register occasionally losing a basket it was building; the cost of
         reserving it at the pick was worse - an order abandoned mid-build
@@ -196,6 +305,11 @@ class LaundryLockerTransaction(models.Model):
             corrections['customer_name'] = (customer_name or '').strip() or False
         if phone_verified:
             corrections['phone_verified'] = True
+        if 'phone' in corrections:
+            # Before the write, not after: see _laundry_absorb_correction.
+            self._laundry_absorb_correction(
+                corrections['phone'], verified=bool(phone_verified)
+            )
         if corrections:
             # Writing the phone re-runs the match, so partner_id below is
             # already the answer for the CORRECTED number.
@@ -217,6 +331,9 @@ class LaundryLockerTransaction(models.Model):
                 'phone': ph_local_phone(self.phone),
             })
             self.partner_id = partner
+            # Recorded so a later correction can reach back to THIS record
+            # rather than leaving it behind - see _laundry_own_contact.
+            self.created_partner_id = partner
 
         self._apply_locker_address(partner)
         # The same shape a picker row has, so the modal reads one thing whether
@@ -365,7 +482,7 @@ class LaundryLockerTransaction(models.Model):
     def _laundry_take(self, pos_order):
         """Bill this drop-off on a validated order. First one there wins.
 
-        Two tills can both have this drop-off on an order they are building;
+        Two registers can both have this drop-off on an order they are building;
         only one of them can have sold it. Returns whether `pos_order` is the
         one that got it.
         """
