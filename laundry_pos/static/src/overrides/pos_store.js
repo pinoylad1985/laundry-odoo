@@ -71,7 +71,14 @@ patch(PosStore.prototype, {
      * the modal is shown, so existing orders without a service type are unaffected.
      */
     selectPartner(currentOrder = this.getOrder()) {
-        if (currentOrder?._needsLaundrySetup === false && !currentOrder?.laundry_service_type) {
+        // _laundryPartnerPickAllowed: the New Order modal opening the picker to
+        // take a phone number it is about to require. That is the setup being
+        // done, not a cashier reaching past it, so the guard below stands aside.
+        if (
+            !currentOrder?._laundryPartnerPickAllowed &&
+            currentOrder?._needsLaundrySetup === false &&
+            !currentOrder?.laundry_service_type
+        ) {
             document.dispatchEvent(new CustomEvent("laundry-flash-needed"));
             return false;
         }

@@ -536,7 +536,43 @@ spellings of the rule cannot drift apart).
 - ⚠ **Two people who share one handset now need two numbers** (spouses, a household). That is the
   trade this rule makes - the alternative is a book that silently splits one person's orders, dues
   and points between two contacts.
+- **A number of one repeated digit is not a number** (`len(set(key)) == 1`, v1.5.10) and is
+  skipped by the check. Seven production contacts carry `00000000000` - the counter's way of
+  filling in a number for a walk-in who gave none - and without this the EIGHTH such walk-in
+  could not be saved, refused with a message naming a stranger. The real fix is below: the modal
+  no longer asks for a number where one isn't needed, so a blank is the right answer now.
 - It does **not** clean up the duplicates already in the book; it only stops new ones.
+
+## A phone number is required BY SERVICE TYPE - v1.5.10
+Whether the New Order modal demands a customer phone number depends on the service type:
+**optional** on **Drop-off** and **Self-service**, **required** on **Drop-off & Delivery**,
+**Pickup & Delivery** and **Locker**. One place says so - `PHONE_OPTIONAL_SERVICE_TYPES` in
+`new_order_modal/new_order_modal.js`.
+- **The reasoning:** a number is how the shop gets back in touch, so it is required wherever the
+  laundry leaves the counter or the bag is not handed over in person. A Drop-off or Self-service
+  customer is standing right there and collects in person. Asking for a number anyway is what
+  filled the book with `00000000000` contacts - and a dummy number is **worse than a blank one,
+  because a dummy number matches** (see the one-customer-per-number rule above).
+- **A required number can only come off a real contact** (`phoneOk`): a number typed into the modal
+  and left there would be a number no `res.partner` holds, so the receipt, the order and the
+  backend would each have a different idea of it. So the gate asks for a selected partner *with*
+  a phone, not for a string.
+- **Enforced in `canConfirm`** like every other gap, with `missingPartnerPhone` marking it red only
+  after a failed Continue - same pattern as `missingServices` / `isMissing(field)`.
+- **`addCustomerDetails()` opens the CORE customer picker on top of the modal**, so a number can be
+  added without losing the service type and schedule already keyed in (same nesting the locker
+  picker uses). Create and Edit both live in that picker, which is why ONE method serves a new
+  customer and a returning one whose record has no number. The partner is read back off the
+  **order**, not from the return value - the picker is what sets it there.
+  - ⚠ It sets **`order._laundryPartnerPickAllowed`** for the duration, because
+    `PosStore.selectPartner` (`overrides/pos_store.js`) otherwise blocks the picker on an order
+    with no chosen purpose. Without the flag the button is dead on a *skipped* order being
+    completed (`_needsLaundrySetup === false` + no `laundry_service_type` yet).
+- The selected-customer card moved OUT of the Returning-only branch so it shows for **either**
+  kind - a new customer whose details were just taken has a contact too, and the card is where a
+  missing number has to be visible. It carries the **Edit Details** button when the number is
+  missing and required; the search-result rows keep their own.
+- **Skip for now still skips** - it saves a partial setup by design and is not gated.
 
 ## Important Files NOT to Break
 - `models/pos_order.py` — do NOT add `_load_pos_data_fields`; keep order fields computed (not related).

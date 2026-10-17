@@ -69,7 +69,15 @@ class ResPartner(models.Model):
         blocking that would stop addresses being added at all.
         """
         key = phone_last10(phone)
-        if not key:
+        # A placeholder is not a number. `00000000000` was the counter's way of
+        # filling a required field for a walk-in who gave no number, and seven
+        # contacts in the book carry it - under this rule they would make the
+        # EIGHTH walk-in impossible to save, with a message naming a stranger.
+        # The New Order modal no longer asks for a number on a Drop-off or
+        # Self-service order (PHONE_OPTIONAL_SERVICE_TYPES), so a blank is the
+        # right answer there now; this keeps the old habit from dead-ending a
+        # sale in the meantime. One repeated digit is never a real number.
+        if not key or len(set(key)) == 1:
             return self.browse()
         query = """
             SELECT id

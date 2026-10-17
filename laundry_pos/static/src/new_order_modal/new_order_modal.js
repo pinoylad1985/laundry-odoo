@@ -4,6 +4,7 @@ import { Component, useState } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
 import { usePos } from "@point_of_sale/app/hooks/pos_hook";
+import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_instructions";
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
@@ -49,6 +50,15 @@ const SERVICE_TYPES = [
     { code: "pickup_delivery",   label: "Pickup & Delivery" },
     { code: "locker",            label: "Locker" },
 ];
+
+// Where a phone number is OPTIONAL. A number is how the shop gets back in touch,
+// so it is required wherever the laundry leaves the counter or the customer is not
+// the one standing there: Drop-off & Delivery, Pickup & Delivery, Locker. A plain
+// Drop-off or Self-service customer hands the bag over and collects it in person,
+// and demanding a number there is what filled the book with 00000000000 contacts -
+// a dummy number is worse than a blank one, because a dummy number MATCHES (see
+// the one-customer-per-number rule in models/res_partner.py).
+const PHONE_OPTIONAL_SERVICE_TYPES = new Set(["dropoff", "self_service"]);
 
 export class NewOrderModal extends Component {
     static template = "laundry_pos.NewOrderModal";
@@ -198,6 +208,74 @@ export class NewOrderModal extends Component {
             turnaround: this.turnaroundType,
         });
         this.props.close();
+    }
+
+    // ── The phone number rule ─────────────────────────────────────────────
+
+    get serviceTypeLabel() {
+        const found = SERVICE_TYPES.find((t) => t.code === this.state.serviceType);
+        return found ? found.label : "this service type";
+    }
+
+    get phoneRequired() {
+        return (
+            !!this.state.serviceType &&
+            !PHONE_OPTIONAL_SERVICE_TYPES.has(this.state.serviceType)
+        );
+    }
+
+    // Either field will do: the book carries numbers in both and either can be
+    // called. Trimmed, so a contact holding a space is still treated as blank.
+    partnerPhone(partner) {
+        return String(partner?.phone || partner?.mobile || "").trim();
+    }
+
+    get selectedPartnerPhone() {
+        return this.partnerPhone(this.state.selectedPartner);
+    }
+
+    // A required number can only come off a real contact - typing one into the
+    // modal and leaving it there would give the order a number that no customer
+    // record holds, so the receipt and the backend would disagree with the till.
+    get phoneOk() {
+        if (!this.phoneRequired) {
+            return true;
+        }
+        return !!this.state.selectedPartner && !!this.selectedPartnerPhone;
+    }
+
+    get missingPartnerPhone() {
+        return this.state.showErrors && !this.phoneOk;
+    }
+
+    /**
+     * Open the core customer picker ON TOP of this modal, so a number can be
+     * added without losing the service type and schedule already keyed in.
+     * Create and Edit both live in there, which is why one button serves a new
+     * customer and a returning one whose record has no number.
+     */
+    async addCustomerDetails() {
+        const order = this.pos.getOrder();
+        if (!order) {
+            return;
+        }
+        // Our own selectPartner override blocks the picker on an order with no
+        // chosen purpose (the idle-order guard in overrides/pos_store.js). This
+        // IS that purpose being filled in, so it is waved through for one call.
+        order._laundryPartnerPickAllowed = true;
+        try {
+            await this.pos.selectPartner(order);
+        } finally {
+            order._laundryPartnerPickAllowed = false;
+        }
+        // Read it back off the ORDER rather than the return value: the picker
+        // is what sets it there, and that is the value the rest of the module
+        // treats as the customer.
+        const partner = order.getPartner?.();
+        if (partner) {
+            this.state.selectedPartner = partner;
+            this.state.partnerQuery = "";
+        }
     }
 
     get filteredPartners() {
@@ -509,7 +587,7 @@ export class NewOrderModal extends Component {
     }
 
     get missingCustomer() {
-        return this.missingCustomerType || this.missingPartner;
+        return this.missingCustomerType || this.missingPartner || this.missingPartnerPhone;
     }
 
     get missingServiceType() {
@@ -543,6 +621,8 @@ export class NewOrderModal extends Component {
             (this.state.customerType === "returning" && !!this.state.selectedPartner);
         return !!(
             customerOk &&
+            // A delivery/locker order needs a number to call - see phoneOk.
+            this.phoneOk &&
             (isSelfService || this.hasAnyService) &&
             this.state.serviceType &&
             this.scheduleComplete &&
