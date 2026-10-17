@@ -9,7 +9,12 @@ Run it through `odoo shell`, which hands us `env`:
 
     cd /opt/odoo && docker compose run --rm -T odoo-staging \
         odoo shell -d laundryx_staging --no-http \
-        < tools/make_test_locker_transactions.py
+        < addons-staging/laundry-pos-odoo/tools/make_test_locker_transactions.py
+
+The `cd` and the script path are two different directories, and both
+matter: compose has to run from /opt/odoo, where the project lives, while
+the script is in the repo clone mounted under it. Running it from the
+clone finds no compose project; redirecting from /opt/odoo finds no file.
 
 NOT through `docker exec`. The image entrypoint is what turns the compose
 environment into Odoo's --db_host/--db_user/--db_password arguments, and
@@ -40,7 +45,9 @@ Delete everything by hand when you are done:
 
     env['laundry.locker.transaction'].search(
         [('ref', 'like', 'TEST-%')]).unlink()
-    env['res.partner'].search([('name', 'like', 'TEST Locker %')]).unlink()
+    env['res.partner'].search(
+        ['|', ('name', 'like', 'TEST Locker %'),
+         ('name', 'like', 'TEST Walk-in %')]).unlink()
     env.cr.commit()
 """
 
@@ -57,6 +64,13 @@ REF_PREFIX = 'TEST-'
 # Every contact these rows create inherits this name, which is what makes the
 # cleanup above able to find them. Keep the two in step.
 NAME_PREFIX = 'TEST Locker '
+# Names an EARLIER version of this script gave its rows. Still swept up: the
+# contacts those rows created hold numbers, and a held number is one this
+# script will not reuse - leave them and every round's numbers drift further
+# along (the round that found 'TEST Walk-in One' sitting on ...0004 had to
+# start its own rows at ...0002 and ...0005). Add a prefix here, never rename
+# one, if these rows are ever named differently again.
+LEGACY_NAME_PREFIXES = ('TEST Walk-in ',)
 SITE_CODE = 'RISE'
 SITE_NAME = 'RISE'
 # Not 'Cleared'. A cleared drop-off is deliberately filtered out of the POS
@@ -104,23 +118,33 @@ def unused_numbers(env, count):
     raise SystemExit('could not find %d unused test numbers' % count)
 
 
-def returning_contact(env):
-    """An existing contact with a real number.
+def test_customer(env, number):
+    """The contact that is already in the book when testing starts.
 
-    Used twice: as the number on the Returning row, and as the number the
-    tester types into the "corrected onto a customer already in the book"
-    test. Read out of the database instead of named here, because which
-    contacts exist depends on when staging was last refreshed from production.
+    Used twice: as the number on the Returning row, and as the number typed
+    into the "corrected onto a customer already in the book" test.
+
+    MADE here rather than borrowed from the customer book. That test ends with
+    the drop-off attached to whoever holds the number typed in, and attaching
+    it also stamps the locker as that customer's address when they have none -
+    which is not something to do to a real person's record to check a button.
+    Borrowing also made the test read oddly: whichever contact the search
+    happened to land on became the Returning row's name, so the output named a
+    different customer every round, including, once, a leftover from the round
+    before.
+
+    Reused if it survived a previous round, which only happens when a test
+    order was paid against it - its number is then still its own, and a second
+    contact on a fresh number would be a duplicate of a customer the queue is
+    already pointing at.
     """
-    for partner in env['res.partner'].search(
-        [('phone', '!=', False), ('parent_id', '=', False)],
-        order='id desc', limit=200,
-    ):
-        if (partner.laundry_phone_last10
-                and not is_placeholder_phone(partner.phone)
-                and not partner.name.startswith(NAME_PREFIX)):
-            return partner
-    return env['res.partner'].browse()
+    name = NAME_PREFIX + 'Existing Customer'
+    found = env['res.partner'].with_context(active_test=False).search(
+        [('name', '=', name)], limit=1,
+    )
+    if found:
+        return found
+    return env['res.partner'].create({'name': name, 'phone': number})
 
 
 def clear_previous(env):
@@ -143,8 +167,12 @@ def clear_previous(env):
     if unbilled:
         unbilled.unlink()
 
+    name_domain = ['|'] * (len(LEGACY_NAME_PREFIXES)) + [
+        ('name', 'like', prefix + '%')
+        for prefix in (NAME_PREFIX,) + LEGACY_NAME_PREFIXES
+    ]
     partners = env['res.partner'].with_context(active_test=False).search(
-        [('name', 'like', NAME_PREFIX + '%')]
+        name_domain
     )
     removed = 0
     stuck = []
@@ -182,9 +210,9 @@ def main(env):
     model = env['laundry.locker.transaction']
     now = fields.Datetime.now()
     deposited = now - timedelta(hours=2)
-    numbers = unused_numbers(env, 3 + SPARE_COUNT)
-    row_numbers, spares = numbers[:3], numbers[3:]
-    contact = returning_contact(env)
+    numbers = unused_numbers(env, 4 + SPARE_COUNT)
+    row_numbers, spares = numbers[:3], numbers[4:]
+    contact = test_customer(env, numbers[3])
 
     rows = [
         {
@@ -224,20 +252,19 @@ def main(env):
         },
     ]
 
-    if contact:
-        rows.append({
-            'ref': REF_PREFIX + 'RET',
-            'customer_name': contact.name,
-            # The contact's own number, so the match finds them and the row
-            # reads as Returning with no gate at all.
-            'phone': contact.phone,
-            'service': 'Wash, Dry & Fold',
-            'turnaround': 'Regular',
-            'dirty_door': '05',
-            'phone_verified': True,
-            'pickup_datetime': now + timedelta(hours=5),
-            'delivery_datetime': now + timedelta(days=1, hours=5),
-        })
+    rows.append({
+        'ref': REF_PREFIX + 'RET',
+        'customer_name': contact.name,
+        # The contact's own number, so the match finds them and the row reads
+        # as Returning with no gate at all.
+        'phone': contact.phone,
+        'service': 'Wash, Dry & Fold',
+        'turnaround': 'Regular',
+        'dirty_door': '05',
+        'phone_verified': True,
+        'pickup_datetime': now + timedelta(hours=5),
+        'delivery_datetime': now + timedelta(days=1, hours=5),
+    })
 
     created = model.browse()
     for row in rows:
@@ -274,12 +301,8 @@ def main(env):
     print('TYPE THESE when a test asks you to correct a number:')
     for n, spare in enumerate(spares, start=1):
         print('  spare %d (belongs to nobody)  %s' % (n, spare))
-    if contact:
-        print('  existing customer            %s   (%s)'
-              % (contact.phone, contact.name))
-    else:
-        print('  (no existing contact with a usable number was found, so the')
-        print('   TEST-RET row and the "correct onto a customer" test are out)')
+    print('  existing customer            %s   (%s)'
+          % (contact.phone, contact.name))
     print('')
     print('They are in the register now: New Order -> Locker -> the picker.')
 
