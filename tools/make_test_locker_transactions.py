@@ -27,12 +27,20 @@ cashier a bag nobody dropped off.
 Nothing here touches Firebase. The feed is upserted and never reconciled, so a
 ref that exists only in Odoo is simply never visited by the sync - these rows
 will not be rewritten or removed by the 5-minute cron, and will not appear on
-the dashboard. Re-running the script replaces the rows it made last time.
+the dashboard.
 
-Delete them when you are done:
+RE-RUNNING IS THE NORMAL WAY TO START A FRESH ROUND. It drops the rows it made
+last time (keeping any that have since been billed, which belong to a real POS
+order now) AND the contacts those rows caused - a test that creates a contact
+leaves the number no longer new, so without that cleanup the second round of
+testing is not testing the same thing. Only contacts named with this script's
+own prefix, and only ones nothing has used.
+
+Delete everything by hand when you are done:
 
     env['laundry.locker.transaction'].search(
         [('ref', 'like', 'TEST-%')]).unlink()
+    env['res.partner'].search([('name', 'like', 'TEST Locker %')]).unlink()
     env.cr.commit()
 """
 
@@ -46,18 +54,28 @@ from odoo.addons.laundry_pos.models.res_partner import (
 )
 
 REF_PREFIX = 'TEST-'
+# Every contact these rows create inherits this name, which is what makes the
+# cleanup above able to find them. Keep the two in step.
+NAME_PREFIX = 'TEST Locker '
 SITE_CODE = 'RISE'
 SITE_NAME = 'RISE'
 # Not 'Cleared'. A cleared drop-off is deliberately filtered out of the POS
 # picker (CLEARED_STATUS in laundry_locker_sync), so a test row that used it
 # would simply never show up and look like a bug in the picker.
 STATUS = 'New Laundry'
+# Numbers printed at the end for the tester to TYPE into a correction. They
+# have to be unused for the same reason the rows' own numbers do, and they
+# have to be reserved here rather than invented at the keyboard - a number
+# guessed at the register may well belong to somebody, and the correction
+# would then take the "matched an existing customer" branch instead of the
+# one being tested.
+SPARE_COUNT = 3
 
 
 def unused_numbers(env, count):
-    """`count` mobile numbers no contact holds, for the 'New customer' rows.
+    """`count` mobile numbers no contact holds.
 
-    Generated rather than hard-coded: the point of those rows is that the
+    Generated rather than hard-coded: the point of the New rows is that the
     locker's number finds NOTHING in the customer book, and a number written
     into this file stops being unused the first time somebody tests with it
     and saves the contact.
@@ -87,18 +105,63 @@ def unused_numbers(env, count):
 
 
 def returning_contact(env):
-    """An existing contact with a real number, for the 'Returning' row.
+    """An existing contact with a real number.
 
-    Read out of the database instead of named here, because which contacts
-    exist depends on when staging was last refreshed from production.
+    Used twice: as the number on the Returning row, and as the number the
+    tester types into the "corrected onto a customer already in the book"
+    test. Read out of the database instead of named here, because which
+    contacts exist depends on when staging was last refreshed from production.
     """
     for partner in env['res.partner'].search(
         [('phone', '!=', False), ('parent_id', '=', False)],
         order='id desc', limit=200,
     ):
-        if partner.laundry_phone_last10 and not is_placeholder_phone(partner.phone):
+        if (partner.laundry_phone_last10
+                and not is_placeholder_phone(partner.phone)
+                and not partner.name.startswith(NAME_PREFIX)):
             return partner
     return env['res.partner'].browse()
+
+
+def clear_previous(env):
+    """Drop last round's rows, and the contacts last round's testing created.
+
+    The contacts matter as much as the rows. Claiming a New drop-off creates a
+    contact on that number, so the number is no longer new - run the script
+    again without clearing and the "a number nobody has" tests quietly become
+    "a number somebody has" tests, which pass for the wrong reason.
+
+    Narrow on both sides: rows this script made and has not had billed, and
+    contacts carrying this script's name prefix that nothing has used.
+    """
+    model = env['laundry.locker.transaction']
+    rows = model.with_context(active_test=False).search(
+        [('ref', 'like', REF_PREFIX + '%')]
+    )
+    unbilled = rows.filtered(lambda t: not t.billed)
+    kept = len(rows) - len(unbilled)
+    if unbilled:
+        unbilled.unlink()
+
+    partners = env['res.partner'].with_context(active_test=False).search(
+        [('name', 'like', NAME_PREFIX + '%')]
+    )
+    removed = 0
+    stuck = []
+    for partner in partners:
+        # A test contact that ended up on a real sale is not cleanup any more.
+        if env['pos.order'].search_count([('partner_id', '=', partner.id)]):
+            stuck.append(partner.name)
+            continue
+        if env['account.move'].search_count([('partner_id', '=', partner.id)]):
+            stuck.append(partner.name)
+            continue
+        try:
+            partner.unlink()
+            removed += 1
+        except Exception:
+            stuck.append(partner.name)
+    return len(unbilled), kept, removed, stuck
 
 
 def main(env):
@@ -110,65 +173,70 @@ def main(env):
             'that does not exist.' % db
         )
 
-    model = env['laundry.locker.transaction']
-    old = model.with_context(active_test=False).search([('ref', 'like', REF_PREFIX + '%')])
-    if old:
-        # Only ever the rows this script made. A test row that has since been
-        # BILLED is left alone - it is attached to a real POS order now, and
-        # deleting it would strip the locker reference off that sale.
-        unbilled = old.filtered(lambda t: not t.billed)
-        print('removing %d previous test row(s), keeping %d billed'
-              % (len(unbilled), len(old) - len(unbilled)))
-        unbilled.unlink()
+    dropped_rows, kept_rows, dropped_partners, stuck = clear_previous(env)
+    print('cleanup: removed %d row(s) and %d test contact(s); kept %d billed'
+          % (dropped_rows, dropped_partners, kept_rows))
+    for name in stuck:
+        print('  kept contact (used by an order or invoice): %s' % name)
 
+    model = env['laundry.locker.transaction']
     now = fields.Datetime.now()
-    dropped = now - timedelta(hours=2)
-    phone_one, phone_two = unused_numbers(env, 2)
+    deposited = now - timedelta(hours=2)
+    numbers = unused_numbers(env, 3 + SPARE_COUNT)
+    row_numbers, spares = numbers[:3], numbers[3:]
     contact = returning_contact(env)
 
     rows = [
         {
-            'ref': REF_PREFIX + 'NEW-1',
-            'customer_name': 'TEST Walk-in One',
-            'phone': phone_one,
+            'ref': REF_PREFIX + 'CALL',
+            'customer_name': NAME_PREFIX + 'Call Gate',
+            'phone': row_numbers[0],
             'service': 'Wash, Dry & Fold',
             'turnaround': 'Regular',
             'dirty_door': '12',
-            # Unverified: the register must refuse to create a contact until
-            # someone has called the number and heard it ring.
+            # Unverified, like every row the feed sends: the two-button step
+            # is the thing being tested, so nothing may be answered already.
             'phone_verified': False,
             'pickup_datetime': now + timedelta(hours=2),
             'delivery_datetime': now + timedelta(days=1, hours=2),
         },
         {
-            'ref': REF_PREFIX + 'NEW-2',
-            'customer_name': 'TEST Walk-in Two',
-            # A second unused number, so this row is a DIFFERENT new customer.
-            'phone': phone_two,
+            'ref': REF_PREFIX + 'FREE',
+            'customer_name': NAME_PREFIX + 'Correct To Free',
+            'phone': row_numbers[1],
             'service': 'Wash, Dry & Fold, Press',
             'turnaround': 'Express',
             'dirty_door': '07',
-            # Verified, so this is the row that reaches contact creation - and
-            # therefore the one to try a faked number on.
-            'phone_verified': True,
+            'phone_verified': False,
             'pickup_datetime': now + timedelta(hours=3),
             'delivery_datetime': now + timedelta(hours=21),
+        },
+        {
+            'ref': REF_PREFIX + 'TWIN',
+            'customer_name': NAME_PREFIX + 'Correct To Customer',
+            'phone': row_numbers[2],
+            'service': 'Dry Clean',
+            'turnaround': 'Regular',
+            'dirty_door': '03',
+            'phone_verified': False,
+            'pickup_datetime': now + timedelta(hours=4),
+            'delivery_datetime': now + timedelta(days=2),
         },
     ]
 
     if contact:
         rows.append({
-            'ref': REF_PREFIX + 'RET-1',
+            'ref': REF_PREFIX + 'RET',
             'customer_name': contact.name,
             # The contact's own number, so the match finds them and the row
-            # reads as Returning.
+            # reads as Returning with no gate at all.
             'phone': contact.phone,
-            'service': 'Dry Clean',
+            'service': 'Wash, Dry & Fold',
             'turnaround': 'Regular',
-            'dirty_door': '03',
+            'dirty_door': '05',
             'phone_verified': True,
-            'pickup_datetime': now + timedelta(hours=4),
-            'delivery_datetime': now + timedelta(days=2),
+            'pickup_datetime': now + timedelta(hours=5),
+            'delivery_datetime': now + timedelta(days=1, hours=5),
         })
 
     created = model.browse()
@@ -178,17 +246,17 @@ def main(env):
             'location_name': SITE_NAME,
             'status_code': STATUS,
             'status_label': STATUS,
-            'created_at': dropped,
-            'updated_at': dropped,
+            'created_at': deposited,
+            'updated_at': deposited,
             # What the feed would have sent. Kept equal to the live values so
             # the sync's "did a cashier correct this?" test reads false and
             # nothing here looks hand-edited.
             'source_name': row['customer_name'],
             'source_phone': row['phone'],
             # The moment the bag became laundry. The turnaround on a Locker
-            # order is measured from this, so it has to be set or the modal has
-            # nothing to count from.
-            'new_laundry_at': dropped,
+            # order is measured from this, so it has to be set or the modal
+            # has nothing to count from.
+            'new_laundry_at': deposited,
             'billed': False,
             'active': True,
         })
@@ -197,15 +265,23 @@ def main(env):
     env.cr.commit()
 
     print('')
-    print('created %d test locker transaction(s) on %s:' % (len(created), db))
+    print('created %d test locker drop-off(s) on %s:' % (len(created), db))
     for tx in created:
-        print('  %-14s %-18s %-14s %-9s match=%-9s verified=%s'
+        print('  %-11s %-32s %-15s %-8s match=%s'
               % (tx.ref, tx.customer_name, tx.phone, tx.turnaround,
-                 tx.customer_match, tx.phone_verified))
-    if not contact:
-        print('  (no Returning row - no contact with a usable phone number found)')
+                 tx.customer_match))
     print('')
-    print('They are now in the register: New Order -> Locker -> the picker.')
+    print('TYPE THESE when a test asks you to correct a number:')
+    for n, spare in enumerate(spares, start=1):
+        print('  spare %d (belongs to nobody)  %s' % (n, spare))
+    if contact:
+        print('  existing customer            %s   (%s)'
+              % (contact.phone, contact.name))
+    else:
+        print('  (no existing contact with a usable number was found, so the')
+        print('   TEST-RET row and the "correct onto a customer" test are out)')
+    print('')
+    print('They are in the register now: New Order -> Locker -> the picker.')
 
 
 main(env)  # noqa: F821 - odoo shell provides `env`
