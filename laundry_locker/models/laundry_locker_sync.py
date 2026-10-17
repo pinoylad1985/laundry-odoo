@@ -350,8 +350,8 @@ class LaundryLockerTransaction(models.Model):
         Three things the sync must not undo: a phone number (or name) a cashier
         corrected, because putting the customer's typo back is the whole failure
         this feature exists to stop; a drop-off door already recorded; and
-        anything Odoo owns - billed, pos_order_id, phone_verified and a
-        hand-set partner_id are never in `vals` to begin with.
+        anything Odoo owns - billed, pos_order_id, phone_verified and the
+        matched partner_id are never in `vals` to begin with.
         """
         self.ensure_one()
         writes = dict(vals)

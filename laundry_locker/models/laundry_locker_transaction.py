@@ -110,11 +110,17 @@ class LaundryLockerTransaction(models.Model):
     new_laundry_at = fields.Datetime(string='New Laundry', index=True)
 
     # --- the customer book match ----------------------------------------
+    # readonly=False so the TILL can write it (the contact created from a
+    # verified number in laundry_locker_pos), not so a person can pick it: the
+    # form shows this field read-only. The customer on a transaction has to be
+    # one the phone number earned - either it matched, or the number was called
+    # and confirmed before a contact was made from it. To correct a mistyped
+    # number, fix `phone` and the match re-runs on its own.
     partner_id = fields.Many2one(
         'res.partner', string='Matched Customer', ondelete='set null',
         compute='_compute_partner_id', store=True, readonly=False,
-        help="Matched on the last 10 digits of the phone number. Can be set by "
-             "hand when the locker's number was keyed in wrong.",
+        help="Matched on the last 10 digits of the phone number. To change it, "
+             "correct the phone number - the match re-runs by itself.",
     )
     customer_match = fields.Selection(
         [('returning', 'Returning'), ('new', 'New')],

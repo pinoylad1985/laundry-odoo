@@ -126,7 +126,15 @@
                             <field name="phone"/>
                             <field name="phone_last10" readonly="1"/>
                             <field name="customer_match" widget="badge" readonly="1"/>
-                            <field name="partner_id"/>
+                            <!-- Read-only, and NOT a correction tool. The customer
+                                 on a locker transaction is whoever the PHONE NUMBER
+                                 matches, or the contact created at the till after the
+                                 number was called and confirmed to ring. Hand-picking
+                                 it here would put a bag under a customer nobody
+                                 verified, and would silently bypass that call. The
+                                 sanctioned correction is the phone field above: fix
+                                 the number and the match re-runs by itself. -->
+                            <field name="partner_id" readonly="1" options="{'no_create': True}"/>
                             <!-- Set at the till, when a contact is created
                                  from this number - not tickable here. -->
                             <field name="phone_verified" readonly="1"/>
