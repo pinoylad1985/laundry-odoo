@@ -9,7 +9,7 @@
             and its interval is the latency the counter actually sees.
 
             Every 5 minutes, to match pudopro_orders_sync.py writing /orders at
-            that cadence: any longer and the till waits on a drop-off that is
+            that cadence: any longer and the register waits on a drop-off that is
             already in Firebase. The read is a delta (orderBy updatedAt,
             startAt the last watermark), so a run that finds nothing new costs
             one small request.

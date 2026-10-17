@@ -29,7 +29,7 @@
                          the mapping after the rows were already imported. -->
                     <button name="action_full_resync" type="object" string="Full resync"
                             display="always" class="btn-secondary"
-                            title="Re-reads every locker transaction instead of only the recent ones, so it is slower. Use it after the sync has been taught something new - a drop-off door, say - to fill that in on rows that are already listed. Sync now will never revisit those on its own, because nothing has changed at the locker end. It is safe to run: it cannot overwrite a door already recorded, and it never touches Billed, the order it was sold on, or a phone number corrected at the till."/>
+                            title="Re-reads every locker transaction instead of only the recent ones, so it is slower. Use it after the sync has been taught something new - a drop-off door, say - to fill that in on rows that are already listed. Sync now will never revisit those on its own, because nothing has changed at the locker end. It is safe to run: it cannot overwrite a door already recorded, and it never touches Billed, the order it was sold on, or a phone number corrected at the register."/>
                 </header>
                 <!-- Carried only so decoration-danger can read it; a
                      deleted-at-the-locker row shows red on the rare occasion
@@ -128,14 +128,14 @@
                             <field name="customer_match" widget="badge" readonly="1"/>
                             <!-- Read-only, and NOT a correction tool. The customer
                                  on a locker transaction is whoever the PHONE NUMBER
-                                 matches, or the contact created at the till after the
+                                 matches, or the contact created at the register after the
                                  number was called and confirmed to ring. Hand-picking
                                  it here would put a bag under a customer nobody
                                  verified, and would silently bypass that call. The
                                  sanctioned correction is the phone field above: fix
                                  the number and the match re-runs by itself. -->
                             <field name="partner_id" readonly="1" options="{'no_create': True}"/>
-                            <!-- Set at the till, when a contact is created
+                            <!-- Set at the register, when a contact is created
                                  from this number - not tickable here. -->
                             <field name="phone_verified" readonly="1"/>
                         </group>
@@ -146,7 +146,7 @@
                             <field name="service" readonly="1"/>
                             <field name="turnaround" readonly="1"/>
                             <!-- What the customer picked at the locker; the
-                                 till carries it into the order's schedule. -->
+                                 register carries it into the order's schedule. -->
                             <field name="pickup_datetime" readonly="1"/>
                             <field name="delivery_datetime" readonly="1"/>
                             <!-- Read-only because the sync owns it, and

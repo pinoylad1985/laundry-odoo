@@ -13,7 +13,7 @@ import { useService } from "@web/core/utils/hooks";
 // into the PudoPro screen and do get it wrong, so a correction has to be
 // possible - but only where it is warranted:
 //   - a number that MATCHED a contact on its last 10 digits is settled; the
-//     matched contact is displayed and nothing is editable, or the till would
+//     matched contact is displayed and nothing is editable, or the register would
 //     be free to put a second spelling of a known customer onto the order.
 //   - a number that matched nothing is called first. "It rang" is what lets a
 //     contact be created from it; "wrong number" is the ONLY thing that unlocks
@@ -25,7 +25,7 @@ export class LockerPickerPopup extends Component {
     static props = {
         close: Function,
         getPayload: Function,
-        // Set to re-open on a transaction this till already took, to correct
+        // Set to re-open on a transaction this register already took, to correct
         // the number. The list step is skipped and the billed guard is waived.
         transactionId: { type: Number, optional: true },
     };

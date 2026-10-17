@@ -12,7 +12,7 @@ VALIDATED_STATES = ('paid', 'done', 'invoiced')
 class PosOrder(models.Model):
     _inherit = 'pos.order'
 
-    # Set at the till when a locker transaction is picked, and synced with the
+    # Set at the register when a locker transaction is picked, and synced with the
     # order like the other laundry_* fields (pos.order has no
     # _load_pos_data_fields override, so it loads and syncs automatically).
     laundry_locker_ref = fields.Char(
@@ -66,9 +66,9 @@ class PosOrder(models.Model):
     def _sync_laundry_locker(self):
         """Settle locker drop-offs against the orders that actually took them.
 
-        Picking a drop-off at the till reserves NOTHING: an order still being
+        Picking a drop-off at the register reserves NOTHING: an order still being
         built has taken nothing, so the drop-off stays unbilled and stays in
-        every till's picker, and an abandoned order needs no cleanup. It is
+        every register's picker, and an abandoned order needs no cleanup. It is
         billed here instead, when an order is validated - and whichever order
         is validated first is the one that gets it.
 
@@ -88,7 +88,7 @@ class PosOrder(models.Model):
                     transaction._laundry_take(order)
 
             # Read off the REFUNDED lines, not off this order's own ref: a
-            # refund is built by the till from the original's lines and does
+            # refund is built by the register from the original's lines and does
             # not carry the locker ref across.
             originals = order.lines.refunded_orderline_id.order_id
             for original in originals.filtered('laundry_locker_ref'):

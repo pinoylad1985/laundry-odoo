@@ -13,7 +13,7 @@
 .laundry-locker-picker {
     // No X on the queue. The drop-off IS the order - its ref, its door, its
     // customer and the slot the customer was promised all come off the row,
-    // and none of that can be keyed in at the till from memory - so closing
+    // and none of that can be keyed in at the register from memory - so closing
     // the picker must never be a way INTO a Locker order without one. The way
     // out is the footer button, which says where it lands you and puts the
     // service type back (see new_order_modal_patch).

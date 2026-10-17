@@ -84,7 +84,7 @@ class LaundryLockerTransaction(models.Model):
 
     # The slot the customer chose at the locker: pickup = the bag leaving the
     # locker, delivery = the clean laundry coming back. Carried into the New
-    # Order modal when the drop-off is billed, so the till schedules what the
+    # Order modal when the drop-off is billed, so the register schedules what the
     # customer was promised instead of a cashier re-picking it from memory.
     pickup_datetime = fields.Datetime(string='Pickup', index=True)
     delivery_datetime = fields.Datetime(string='Delivery', index=True)
@@ -110,7 +110,7 @@ class LaundryLockerTransaction(models.Model):
     new_laundry_at = fields.Datetime(string='New Laundry', index=True)
 
     # --- the customer book match ----------------------------------------
-    # readonly=False so the TILL can write it (the contact created from a
+    # readonly=False so the REGISTER can write it (the contact created from a
     # verified number in laundry_locker_pos), not so a person can pick it: the
     # form shows this field read-only. The customer on a transaction has to be
     # one the phone number earned - either it matched, or the number was called
@@ -164,9 +164,9 @@ class LaundryLockerTransaction(models.Model):
     )
 
     # --- billing ---------------------------------------------------------
-    # Set when a POS order carrying this ref is VALIDATED, not when a till
+    # Set when a POS order carrying this ref is VALIDATED, not when a register
     # picks it: until a sale is rung up the drop-off is nobody's, and stays in
-    # every till's picker. Cleared again if that sale is refunded.
+    # every register's picker. Cleared again if that sale is refunded.
     billed = fields.Boolean(string='Billed', index=True, copy=False)
     billed_date = fields.Datetime(string='Billed On', copy=False)
     pos_order_id = fields.Many2one(

@@ -26,7 +26,7 @@ _logger = logging.getLogger(__name__)
 # minutes by pudopro_orders_sync.py. NOT /lockerTransactions, which backs the
 # LOCKER tab and is only refreshed hourly from the PudoPro API. /orders is the
 # fresher of the two and only ever gains a row once the drop-off has reached a
-# status worth billing, which is exactly the queue the till needs. Both nodes
+# status worth billing, which is exactly the queue the register needs. Both nodes
 # key on the same LX- refs, so /lockerDoors and /lockerBilled line up with
 # either one.
 DEFAULT_FIREBASE_URL = (

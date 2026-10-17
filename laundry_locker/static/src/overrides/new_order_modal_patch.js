@@ -135,7 +135,7 @@ patch(NewOrderModal.prototype, {
 
     // Dropping a drop-off is purely local: picking one never took it off
     // anyone, so there is nothing to give back. Unbilling here would be
-    // actively wrong - it would free a drop-off that a DIFFERENT till may
+    // actively wrong - it would free a drop-off that a DIFFERENT register may
     // have meanwhile sold.
     releaseLockerClaim() {
         this.lockerState.claim = null;
@@ -151,7 +151,7 @@ patch(NewOrderModal.prototype, {
     // Closing the queue without taking a drop-off is not a way INTO a Locker
     // order. Everything that makes one is on the row - the ref, the dirty
     // door, the customer the locker screen was keyed with, and the slot that
-    // customer was promised - and none of it can be typed in at the till from
+    // customer was promised - and none of it can be typed in at the register from
     // memory. Left alone, dismissing the picker used to leave the order set to
     // Locker with all of that blank, and the cashier keyed it in by hand.
     //
@@ -229,7 +229,7 @@ patch(NewOrderModal.prototype, {
         return true;
     },
 
-    // The booking is the till's instruction, not a suggestion: the services it
+    // The booking is the register's instruction, not a suggestion: the services it
     // was made for go on the order at one each, and the last one of each
     // cannot be taken back off. A cashier who needs more presses adds them;
     // one who thinks the customer did not book a fold is reading the booking
@@ -259,7 +259,7 @@ patch(NewOrderModal.prototype, {
     },
 
     // The slot the customer picked at the locker is the one they were promised,
-    // so the till READS it and cannot re-pick it. Each leg is judged on its
+    // so the register READS it and cannot re-pick it. Each leg is judged on its
     // own: a booking that carried only a pickup fixes the pickup and still
     // lets the cashier choose the delivery, rather than dead-ending an order
     // that could never be confirmed.

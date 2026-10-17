@@ -236,7 +236,7 @@ export class NewOrderModal extends Component {
 
     // A required number can only come off a real contact - typing one into the
     // modal and leaving it there would give the order a number that no customer
-    // record holds, so the receipt and the backend would disagree with the till.
+    // record holds, so the receipt and the backend would disagree with the register.
     get phoneOk() {
         if (!this.phoneRequired) {
             return true;
@@ -410,7 +410,7 @@ export class NewOrderModal extends Component {
     }
 
     // Whether a leg of the schedule belongs to a booking made outside the
-    // till, so its pickers give way to a plain reading of it. Locked PER LEG,
+    // register, so its pickers give way to a plain reading of it. Locked PER LEG,
     // not for the pair: a booking that carried only one of them still fixes
     // that one, and leaves the cashier able to fill the other rather than
     // dead-ending an order nobody can confirm. Nothing here locks anything;

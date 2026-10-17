@@ -1,6 +1,6 @@
 """Fill in the locker site on orders taken before the field existed.
 
-The site is copied onto the order at the till, the way the door and the ref
+The site is copied onto the order at the register, the way the door and the ref
 are, so a receipt reprinted on a machine that never loaded the drop-off queue
 still prints it. Orders billed BEFORE this version carry no site at all, and
 nothing at reprint time can work one out - which would leave the site on new

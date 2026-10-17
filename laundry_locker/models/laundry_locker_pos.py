@@ -20,7 +20,7 @@ class LaundryLockerTransaction(models.Model):
     # what the POS picker reads
     # ------------------------------------------------------------------
     def _pos_datetime(self, value):
-        """A datetime as the till should read it: local time, 12-hour.
+        """A datetime as the register should read it: local time, 12-hour.
 
         Datetimes are stored UTC-naive, and the POS shows PH time - printing
         the stored value would be 8 hours out.
@@ -54,7 +54,7 @@ class LaundryLockerTransaction(models.Model):
         return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
     def _pos_row(self):
-        """One transaction as the till's picker shows it."""
+        """One transaction as the register's picker shows it."""
         self.ensure_one()
         return {
             'id': self.id,
@@ -143,7 +143,7 @@ class LaundryLockerTransaction(models.Model):
 
     @api.model
     def pos_check_phone(self, phone):
-        """Re-run the Returning/New lookup for a number typed at the till."""
+        """Re-run the Returning/New lookup for a number typed at the register."""
         key = phone_last10(phone)
         partner = self.env['res.partner']
         if key:
@@ -158,16 +158,16 @@ class LaundryLockerTransaction(models.Model):
         }
 
     # ------------------------------------------------------------------
-    # taking one at the till
+    # taking one at the register
     # ------------------------------------------------------------------
     def pos_claim(self, phone=None, customer_name=None, phone_verified=False):
-        """Put this transaction on the order being built at the till.
+        """Put this transaction on the order being built at the register.
 
         This RESERVES NOTHING. A drop-off stays unbilled and stays in every
-        till's picker until an order is actually validated, so the same bag can
+        register's picker until an order is actually validated, so the same bag can
         be picked at two tills and the sale that is rung up first is the one
         that takes it (see pos.order._sync_laundry_locker). The cost of that is
-        one till occasionally losing a basket it was building; the cost of
+        one register occasionally losing a basket it was building; the cost of
         reserving it at the pick was worse - an order abandoned mid-build
         stranded the drop-off, billed against nothing and gone from the queue.
 
@@ -176,7 +176,7 @@ class LaundryLockerTransaction(models.Model):
         """
         self.ensure_one()
         # The only claim still refused: a validated order already took it, and
-        # that is not something a second till can undo from the picker.
+        # that is not something a second register can undo from the picker.
         if self.billed:
             order_ref = self.pos_order_id.pos_reference
             if order_ref:
@@ -187,7 +187,7 @@ class LaundryLockerTransaction(models.Model):
             raise UserError(_('Ref %s has already been billed.') % self.ref)
 
         corrections = {}
-        # A number typed at the till gets the same trunk 0 the feed's does, so
+        # A number typed at the register gets the same trunk 0 the feed's does, so
         # a correction cannot be the one contact spelled without it.
         phone = ph_local_phone(phone) if phone is not None else None
         if phone is not None and (phone or '').strip() != (ph_local_phone(self.phone) or ''):
@@ -260,9 +260,9 @@ class LaundryLockerTransaction(models.Model):
         The locker list is disposable: it is rebuilt from the feed, and rows
         are deleted and resynced whenever the mapping changes. What is NOT
         disposable is the order - `pos.order.laundry_locker_ref` is written at
-        the till, stored, and stays there for the life of the sale. So a row
+        the register, stored, and stays there for the life of the sale. So a row
         arriving from the feed asks the orders about itself, instead of
-        reappearing in every till's picker for a bag that was collected weeks
+        reappearing in every register's picker for a bag that was collected weeks
         ago.
 
         An order is the best answer but not the only one, because not every
