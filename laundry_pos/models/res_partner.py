@@ -18,6 +18,42 @@ def phone_last10(value):
     return digits[-10:] if len(digits) >= 10 else ''
 
 
+def is_placeholder_phone(value):
+    """True when a "number" is obviously not one - a filler typed to get past
+    a required field.
+
+    `00000000000` is the one in the book (seven contacts carry it), from the
+    days when the register asked every walk-in for a number whether the shop
+    needed one or not. A filler is worse than a blank, because a blank is
+    honest and a filler MATCHES: the next walk-in saved under the same zeros
+    joins a stranger's order history, and a number the shop needs to call is
+    satisfied by digits that ring nowhere.
+
+    Deliberately narrow - a rule that guesses would start refusing real
+    numbers, and a refused real number is a customer turned away. Only two
+    shapes are certain: one digit repeated, and a straight run up or down
+    (`1234567890`, `0987654321`). It will not catch a cashier who invents
+    `09171111112`, and it is not meant to: the real fix is that the number
+    is no longer asked for where the shop does not need it.
+    """
+    digits = re.sub('[^0-9]', '', value or '')
+    if not digits:
+        return False
+    # Judged on the whole string AND on its last 10 digits - the same
+    # identifying part the duplicate rule is keyed on - so a filler does not
+    # slip through behind a country code (`+63 000 000 0000`).
+    for run in {digits, phone_last10(digits)} - {''}:
+        if len(set(run)) == 1:
+            return True
+        if len(run) >= 6:
+            # Counted modulo 10 so the 9-to-0 wrap in `1234567890` still
+            # reads as one step up - it is the commonest run of the lot.
+            steps = {(int(b) - int(a)) % 10 for a, b in zip(run, run[1:])}
+            if steps in ({1}, {9}):
+                return True
+    return False
+
+
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
@@ -69,15 +105,7 @@ class ResPartner(models.Model):
         blocking that would stop addresses being added at all.
         """
         key = phone_last10(phone)
-        # A placeholder is not a number. `00000000000` was the counter's way of
-        # filling a required field for a walk-in who gave no number, and seven
-        # contacts in the book carry it - under this rule they would make the
-        # EIGHTH walk-in impossible to save, with a message naming a stranger.
-        # The New Order modal no longer asks for a number on a Drop-off or
-        # Self-service order (PHONE_OPTIONAL_SERVICE_TYPES), so a blank is the
-        # right answer there now; this keeps the old habit from dead-ending a
-        # sale in the meantime. One repeated digit is never a real number.
-        if not key or len(set(key)) == 1:
+        if not key:
             return self.browse()
         query = """
             SELECT id
@@ -98,6 +126,17 @@ class ResPartner(models.Model):
         return self.env['res.partner'].sudo().browse(row[0]) if row else self.browse()
 
     def _laundry_check_phone_duplicate(self, phone, exclude_id=None):
+        # Refused outright, and BEFORE the duplicate check, which would
+        # otherwise answer a filler with a stranger's name ("already used by
+        # STEVEN") - true, useless, and nothing the cashier can act on.
+        if is_placeholder_phone(phone):
+            raise ValidationError(_(
+                "%(phone)s is not a phone number. Enter the number the shop "
+                "would actually call, or leave it blank - a number is only "
+                "required on Drop-off & Delivery, Pickup & Delivery and "
+                "Locker orders, where the laundry leaves the counter.",
+                phone=phone,
+            ))
         twin = self._laundry_phone_twin(phone, exclude_id=exclude_id)
         if not twin:
             return
@@ -122,7 +161,16 @@ class ResPartner(models.Model):
         # straight past it. Only when the number itself is being set, and
         # never against the record's own number.
         if vals.get('phone'):
+            new_digits = re.sub('[^0-9]', '', vals['phone'])
             for partner in self:
+                # A save that does not actually CHANGE the number is waved
+                # through. The POS customer form re-sends `phone` whatever was
+                # touched, so without this the seven contacts already holding
+                # `00000000000` could never be edited again - not even to give
+                # them a real number - and the rule would be punishing a
+                # cashier for a value somebody typed years ago.
+                if re.sub('[^0-9]', '', partner.phone or '') == new_digits:
+                    continue
                 if not vals.get('parent_id', partner.parent_id):
                     self._laundry_check_phone_duplicate(
                         vals['phone'], exclude_id=partner.id

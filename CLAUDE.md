@@ -536,12 +536,30 @@ spellings of the rule cannot drift apart).
 - ⚠ **Two people who share one handset now need two numbers** (spouses, a household). That is the
   trade this rule makes - the alternative is a book that silently splits one person's orders, dues
   and points between two contacts.
-- **A number of one repeated digit is not a number** (`len(set(key)) == 1`, v1.5.10) and is
-  skipped by the check. Seven production contacts carry `00000000000` - the counter's way of
-  filling in a number for a walk-in who gave none - and without this the EIGHTH such walk-in
-  could not be saved, refused with a message naming a stranger. The real fix is below: the modal
-  no longer asks for a number where one isn't needed, so a blank is the right answer now.
-- It does **not** clean up the duplicates already in the book; it only stops new ones.
+- **A FILLER number is refused outright** - `is_placeholder_phone()`, v1.5.11, checked
+  **before** the duplicate lookup. Seven production contacts carry `00000000000`, from when the
+  register asked every walk-in for a number whether the shop needed one or not.
+  - ⚠ **v1.5.10 got this backwards and EXEMPTED fillers from the duplicate check.** That let
+    `00000000000` be saved freely - which satisfied the required-phone gate below on a Pickup &
+    Delivery or Locker order with digits that ring nowhere, i.e. exactly the thing both rules
+    exist to stop. A filler is **worse than a blank**: a blank is honest, and a filler *matches*.
+  - Refused before the duplicate check because the duplicate message would otherwise answer a
+    filler with a stranger's name ("already used by STEVEN") - true, useless, and nothing a
+    cashier can act on. The message instead says to leave it blank and names where a number is
+    actually required.
+  - **Deliberately narrow:** one digit repeated, or a straight run up or down (`1234567890`,
+    `0987654321`, min 6 digits, counted **mod 10** so the 9-to-0 wrap still reads as one step).
+    Judged on the whole string **and** on its last 10 digits, so a filler can't hide behind a
+    country code (`+63 000 000 0000`). It will NOT catch an invented `09171111112` and is not
+    meant to - a rule that guesses starts refusing real numbers, and a refused real number is a
+    customer turned away. The real defence is that the number is no longer asked for where the
+    shop doesn't need it.
+  - ⚠ **A save that doesn't CHANGE the number is waved through** (digits compared against the
+    record's own). The POS customer form re-sends `phone` whatever was edited, so without this
+    the seven existing contacts could never be edited again - not even to give them a real
+    number.
+- It does **not** clean up the duplicates already in the book; it only stops new ones. The seven
+  `00000000000` contacts keep that value until someone blanks it.
 
 ## A phone number is required BY SERVICE TYPE - v1.5.10
 Whether the New Order modal demands a customer phone number depends on the service type:
@@ -573,6 +591,10 @@ Whether the New Order modal demands a customer phone number depends on the servi
   missing number has to be visible. It carries the **Edit Details** button when the number is
   missing and required; the search-result rows keep their own.
 - **Skip for now still skips** - it saves a partial setup by design and is not gated.
+- **A faked number is refused on BOTH kinds of order, required or not** - that is the server-side
+  `is_placeholder_phone()` rule above, not this one. The two halves have to be read together:
+  this rule stops a number being *demanded* where the shop has no use for it, and that one stops
+  a demand being *satisfied* with digits that ring nowhere. Either on its own is useless.
 
 ## Important Files NOT to Break
 - `models/pos_order.py` — do NOT add `_load_pos_data_fields`; keep order fields computed (not related).
