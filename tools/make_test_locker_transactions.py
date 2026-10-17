@@ -7,9 +7,16 @@ testing, so this script writes a few directly.
 
 Run it through `odoo shell`, which hands us `env`:
 
-    docker exec -i odoo-odoo-staging-1 \
-        odoo shell -c /etc/odoo/odoo.conf -d laundryx_staging --no-http \
+    cd /opt/odoo && docker compose run --rm -T odoo-staging \
+        odoo shell -d laundryx_staging --no-http \
         < tools/make_test_locker_transactions.py
+
+NOT through `docker exec`. The image entrypoint is what turns the compose
+environment into Odoo's --db_host/--db_user/--db_password arguments, and
+`docker exec` runs straight past it: Odoo then looks for Postgres on a unix
+socket inside its own container and dies with "database: default@default".
+`compose run` goes through the entrypoint - which is why the deploy script
+uses it too.
 
 It REFUSES to run on any database whose name does not end in `_staging`. The
 guard is the whole reason this is a committed file rather than a command
@@ -26,6 +33,7 @@ Delete them when you are done:
 
     env['laundry.locker.transaction'].search(
         [('ref', 'like', 'TEST-%')]).unlink()
+    env.cr.commit()
 """
 
 from datetime import timedelta
