@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="laundry_pos.PhoneTwinDialog">
-        <Dialog title="'This number is already in the book'" size="'md'">
+        <Dialog title="'Duplicate phone number'" size="'md'">
             <div>This phone number is already used by:</div>
             <div class="my-2 p-2 border rounded-3">
                 <div t-foreach="props.lines" t-as="line" t-key="line_index"
@@ -20,11 +20,6 @@
             </div>
             <div t-if="canConfirm">Click <b>Confirm</b> to <t t-esc="props.confirmHint"/></div>
             <div>Click <b>Cancel</b> to <t t-esc="props.cancelHint"/></div>
-            <div class="text-muted mt-2">
-                Two contacts for one person split their orders, points and
-                dues between them, and nothing afterwards puts them back
-                together.
-            </div>
             <t t-set-slot="footer">
                 <button t-if="canConfirm" class="btn btn-primary"
                         t-on-click="() => this.choose('confirm')">Confirm</button>
