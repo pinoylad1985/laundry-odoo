@@ -97,7 +97,7 @@ export async function laundryPhoneTwinChoice({
     if (info.refused) {
         await new Promise((resolve) => {
             dialog.add(AlertDialog, {
-                title: "That number cannot be used",
+                title: "Invalid number",
                 body: info.message,
             }, { onClose: resolve });
         });

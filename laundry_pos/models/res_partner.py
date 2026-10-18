@@ -271,41 +271,42 @@ class ResPartner(models.Model):
         the same sentence both times - two wordings of one rule read as two
         rules, and invite a second guess about which one is really in force.
 
-        Every message names the way out as well as the problem. "That is
-        wrong" is not an instruction; "leave it blank" is, and on a Drop-off
-        or Self-service order it is the correct answer.
+        TWO SHORT LINES: what is wrong, then what to do. It was a paragraph
+        until v1.5.19 - the problem, the reasoning behind the rule, and where
+        a number is required - and the owner's call is that nobody reads a
+        paragraph at a counter with a customer waiting. The reasoning lives in
+        CLAUDE.md, where it is read once by whoever maintains the rule, rather
+        than every time somebody mistypes a number.
+
+        It still names the way out, because "that is wrong" is not an
+        instruction. "Or leave it blank" stays in: on a Drop-off or
+        Self-service order a blank is the CORRECT answer, and a cashier who
+        does not know that will invent a number instead - which is how the
+        book filled up with 00000000000 in the first place.
         """
         problem = phone_problem(phone)
         if not problem:
             return ''
-        tail = _(
-            "Enter the number the shop would actually call, or leave it blank "
-            "- a number is only required on Drop-off & Delivery, Pickup & "
-            "Delivery and Locker orders, where the laundry leaves the counter."
-        )
+        tail = _("Enter a valid number, or leave it blank.")
         if problem == 'letters':
             head = _(
                 "%(phone)s is not a phone number - a phone number is digits "
-                "and nothing else. Anything worth remembering about this "
-                "customer belongs in their notes, not in the phone field.",
+                "only.",
                 phone=phone,
             )
         elif problem == 'short':
             head = _(
-                "%(phone)s is too short for a phone number: %(count)s digits, "
-                "where a mobile number has %(minimum)s (09171234567).",
+                "%(phone)s is too short - a mobile number has %(minimum)s "
+                "digits (09171234567).",
                 phone=phone,
-                count=len(re.sub('[^0-9]', '', phone or '')),
                 minimum=PHONE_MIN_DIGITS,
             )
         else:
             head = _(
-                "%(phone)s does not look like a real phone number - it is "
-                "the same few digits over and over, or a straight run up the "
-                "keypad.",
+                "%(phone)s does not look like a real phone number.",
                 phone=phone,
             )
-        return '%s %s' % (head, tail)
+        return '\n'.join((head, tail))
 
     def _laundry_check_phone(self, phone, exclude_id=None):
         # Refused outright, and BEFORE the duplicate check, which would

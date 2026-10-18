@@ -542,6 +542,16 @@ all: **digits only, and at least 11 of them** (`PHONE_MIN_DIGITS`). One function
   `{'refused': True, 'message': ...}` where it used to answer `{'placeholder': True}`), and by the
   locker's `pos_check_phone`. Two wordings of one rule read as two rules, and invite a guess about
   which is really in force.
+  - **TWO SHORT LINES: what is wrong, then what to do** (v1.5.19) - `<number> is too short - a
+    mobile number has 11 digits (09171234567).` / `Enter a valid number, or leave it blank.` It was
+    a paragraph until then, carrying the reasoning behind the rule and the list of service types
+    that require a number; the owner's call is that nobody reads a paragraph at a counter with a
+    customer waiting. The reasoning lives here instead, read once by whoever maintains the rule.
+  - **"or leave it blank" stays in.** On a Drop-off or Self-service order a blank is the CORRECT
+    answer, and a cashier who doesn't know that invents a number instead - which is how the book
+    filled up with `00000000000`. The dialog that carries it is titled **Invalid number**.
+  - The two lines are joined with a newline and survive because core's `AlertDialog` body is
+    `class="text-prewrap"` (`web/.../confirmation_dialog.xml`); a `ValidationError` keeps them too.
 - **The locker catches it at the Check button, and on the row itself.** `pos_check_phone` returns
   `problem` and NO match, and `_pos_row` carries `phone_problem` so choosing a row whose feed
   number is unusable opens the correction fields immediately. Otherwise the cashier would call an
