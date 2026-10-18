@@ -65,6 +65,29 @@ patch(PosStore.prototype, {
     },
 
     /**
+     * A customer created at the register is a PERSON.
+     *
+     * The register's "new customer" is the back-office contact form, which
+     * opens on whatever `is_company` defaults to in this database - and a
+     * default set years ago, or by Studio, is invisible from here. A laundry
+     * customer is a person; a cashier who does not notice the toggle files
+     * one as a company, and a company has no first or last name and reads
+     * wrongly everywhere the module prints a contact.
+     *
+     * Forced rather than assumed, because core passes an EMPTY context
+     * (pos_store.editPartnerContext returns {}), so there is nothing else
+     * holding this. Defaults only apply to a contact being CREATED - editing
+     * an existing company is untouched.
+     */
+    editPartnerContext() {
+        return {
+            ...super.editPartnerContext(...arguments),
+            default_is_company: false,
+            default_company_type: "person",
+        };
+    },
+
+    /**
      * Hand back the customer the cashier CHOSE at the duplicate-number
      * dialog, instead of the one they were typing.
      *

@@ -88,29 +88,41 @@
 
                 <!-- The selected customer, for EITHER kind: a new customer whose
                      details were just taken has a contact too, and the card is
-                     where its missing number has to be visible. -->
+                     where its missing details have to be visible. -->
                 <div t-if="state.selectedPartner"
                      class="mt-2 p-3 border rounded d-flex align-items-start gap-3"
-                     t-att-class="missingPartnerPhone ? 'laundry-invalid' : ''"
+                     t-att-class="missingContactDetails ? 'laundry-invalid' : ''"
                      style="background:#f0fdf4;border-color:#86efac !important;">
                     <div class="flex-grow-1">
                         <div class="fw-bold fs-6" t-esc="state.selectedPartner.name"/>
                         <div t-if="selectedPartnerPhone" class="text-muted small mt-1"
                              t-esc="selectedPartnerPhone"/>
-                        <!-- A delivery order with no number to call is the one the
-                             counter cannot finish, so it is said on the customer
-                             and the way to fix it put next to it. -->
-                        <div t-if="!selectedPartnerPhone and phoneRequired"
-                             class="text-danger small fw-semibold mt-1">
-                            No phone number — required for <t t-esc="serviceTypeLabel"/>.
-                        </div>
                         <div t-if="partnerAddress(state.selectedPartner)"
                              class="text-muted small">
                             <t t-esc="partnerAddress(state.selectedPartner)"/>
                         </div>
+                        <!-- Tags are shown here and not only in the search rows,
+                             because on a Locker order one of them is what
+                             Continue is waiting for - and an empty space says
+                             nothing. -->
+                        <div t-if="partnerTags(state.selectedPartner).length"
+                             class="mt-1 d-flex flex-wrap gap-1">
+                            <span t-foreach="partnerTags(state.selectedPartner)" t-as="tag"
+                                  t-key="tag_index" class="badge text-bg-secondary fw-normal">
+                                <t t-esc="tag"/>
+                            </span>
+                        </div>
+                        <!-- An order the counter cannot finish is said ON the
+                             customer, naming every gap at once, with the way to
+                             fix them right beside it. -->
+                        <div t-if="missingContactLabels.length"
+                             class="text-danger small fw-semibold mt-1">
+                            Missing for <t t-esc="serviceTypeLabel"/>:
+                            <t t-esc="missingContactLabels.join(', ')"/>.
+                        </div>
                     </div>
                     <div class="d-flex flex-column gap-2 flex-shrink-0">
-                        <button t-if="!selectedPartnerPhone and phoneRequired"
+                        <button t-if="missingContactLabels.length"
                                 class="btn btn-primary"
                                 t-on-click="addCustomerDetails">
                             Edit Details
@@ -122,25 +134,26 @@
                     </div>
                 </div>
 
-                <!-- A new customer has no contact at all until one is taken. On a
-                     Drop-off or Self-service that is the normal case and nothing is
-                     asked for; on the service types that need calling, the number
-                     is what Continue is waiting for, so the way to add it is here
-                     rather than behind the Customer control button. -->
+                <!-- A new customer has no contact at all until one is taken, and
+                     every service type needs one - an address at the very least.
+                     So what the order is going to ask for is named HERE, before
+                     the picker opens, rather than found out one refusal at a
+                     time; and the way to add it sits next to it rather than
+                     behind the Customer control button. -->
                 <div t-if="state.customerType === 'new' and !state.selectedPartner" class="mt-3">
                     <p class="small mb-2"
-                       t-att-class="missingPartnerPhone ? 'text-danger fw-semibold' : 'text-muted'">
-                        <t t-if="phoneRequired">
-                            A phone number is required for <t t-esc="serviceTypeLabel"/> —
-                            take the customer's details to continue.
+                       t-att-class="missingContactDetails ? 'text-danger fw-semibold' : 'text-muted'">
+                        <t t-if="requiredContactLabels.length">
+                            <t t-esc="serviceTypeLabel"/> needs the customer on file:
+                            <t t-esc="requiredContactLabels.join(', ')"/>. Take their
+                            details to continue.
                         </t>
                         <t t-else="">
-                            No phone number needed for <t t-esc="serviceTypeLabel"/>. Take the
-                            customer's details only if they want to be on file.
+                            Take the customer's details only if they want to be on file.
                         </t>
                     </p>
                     <button class="btn"
-                            t-att-class="missingPartnerPhone ? 'btn-primary' : 'btn-outline-primary'"
+                            t-att-class="missingContactDetails ? 'btn-primary' : 'btn-outline-primary'"
                             t-on-click="addCustomerDetails">
                         Add Customer Details
                     </button>
