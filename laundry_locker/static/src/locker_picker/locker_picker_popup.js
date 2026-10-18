@@ -42,6 +42,10 @@ export class LockerPickerPopup extends Component {
             customerName: "",
             match: null,          // 'returning' | 'new' | null
             partnerName: "",
+            // The matched customer as name / phone / address, built
+            // server-side by laundry_pos so this reads the same as the
+            // customer block in the Orders list.
+            partnerLines: [],
             // The call's two outcomes, and the only two ways out of the gate:
             // verified = it rang, editing = it did not and the number is being
             // corrected. Both false = nobody has called it yet.
@@ -100,6 +104,7 @@ export class LockerPickerPopup extends Component {
         this.state.customerName = row.customer_name || "";
         this.state.match = row.customer_match || "new";
         this.state.partnerName = row.partner_name || "";
+        this.state.partnerLines = row.partner_lines || [];
         this.state.verified = !!row.phone_verified;
         // A recheck opens straight into the correction: the cashier got here
         // by pressing "Correct number", which says the same thing as answering
@@ -125,6 +130,7 @@ export class LockerPickerPopup extends Component {
         // half-typed correction must not keep claiming "Returning".
         this.state.match = null;
         this.state.partnerName = "";
+        this.state.partnerLines = [];
     }
 
     // Re-run the Returning/New lookup for the corrected number.
@@ -139,6 +145,7 @@ export class LockerPickerPopup extends Component {
             );
             this.state.match = result.customer_match;
             this.state.partnerName = result.partner_name || "";
+            this.state.partnerLines = result.partner_lines || [];
         } finally {
             this.state.checking = false;
         }
@@ -173,6 +180,31 @@ export class LockerPickerPopup extends Component {
 
     get canEditCustomer() {
         return this.state.editing;
+    }
+
+    // The matched customer's three lines. The fallback is for a row read
+    // before this register's assets were updated, where the name is all the
+    // server sent.
+    get returningLines() {
+        if (this.state.partnerLines.length) {
+            return this.state.partnerLines;
+        }
+        return [this.state.partnerName, this.state.phone].filter((l) => l);
+    }
+
+    // The contact Confirm is about to CREATE, in the same three lines a
+    // matched customer is shown in. The address is not a guess: a contact
+    // created from a locker drop-off is given the locker as its address when
+    // it has none (_apply_locker_address), and a brand-new contact never has
+    // one - so this is what will be in the book, shown before it is written
+    // rather than found afterwards.
+    get newContactLines() {
+        const site = this.selectedRow ? this.selectedRow.location_name : "";
+        return [
+            this.state.customerName,
+            this.state.phone,
+            site ? site + " LOCKER" : "",
+        ].filter((line) => line);
     }
 
     // A new customer is only created off a number someone has called.

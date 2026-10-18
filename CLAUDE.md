@@ -561,6 +561,61 @@ spellings of the rule cannot drift apart).
 - It does **not** clean up the duplicates already in the book; it only stops new ones. The seven
   `00000000000` contacts keep that value until someone blanks it.
 
+## The twin is OFFERED, not just refused - v1.5.12
+The one-customer-per-number rule above still refuses a duplicate server-side, and has to - it is
+what covers imports, the locker and anything else that writes a contact. But a refusal is the
+wrong thing to show a cashier: the number being in the book means there IS a customer to serve,
+so both places a number gets typed now **ASK** first and offer that customer.
+- **One lookup answers both screens** - `res.partner.laundry_phone_twin_info(phone, exclude_id)`
+  (`@api.model`): `False` when the number is free, `{'placeholder': True}` for a filler, else
+  `{id, name, lines, archived}`. `lines` is **`_laundry_contact_block()`** - name, phone, address,
+  the same three lines in the same order as `laundry_customer_block` on `pos.order`. The refusal
+  message prints them too: "already used by MARY" is not something anyone can act on, because the
+  book holds several people called MARY and the address is what tells them apart.
+- **One dialog asks it** - `static/src/phone_twin/phone_twin_dialog.{js,xml}` plus
+  `laundryPhoneTwinChoice({orm, dialog, phone, excludeId, confirmHint, cancelHint})`, which
+  returns `{status: 'free'|'placeholder'|'confirm'|'cancel', twin}`. Closing the dialog counts as
+  Cancel, the gentler of the two.
+- **ONE form controller serves the register AND the back office**, because they are the same form:
+  `PosStore.editPartner` opens `point_of_sale.res_partner_action_edit_pos`, whose `view_id` is
+  **`base.view_partner_form`** with `target="new"` - the very view `views/res_partner_views.xml`
+  hangs `js_class="laundry_partner_form"` on. Hence
+  `static/src/phone_twin/partner_form_controller.js`, and hence the folder:
+  ⚠ **`phone_twin/` must stay loaded by BOTH bundles** (the POS glob picks it up; the manifest adds
+  it to `web.assets_backend` by hand). Moved under `backend/`, the POS bundle's
+  `('remove', 'backend/**')` would strip it and the register would open a view whose `js_class`
+  resolves to nothing.
+- **Hooked on `onWillSaveRecord`** (core: "if it returns false, it will prevent the save"), not on
+  the phone field - the question is only worth asking about a number somebody has finished typing,
+  and a field-level check would put it to them between a 0 and a 9.
+- **Confirm means different things in the two places, so each passes its own `confirmHint`:**
+  at the register "use that customer" = put them on the order; in the back office there is no
+  order, so it = open their record and discard what was typed (no second prompt - they have just
+  been shown who holds the number and answered that it is them).
+- ⚠ **The register's answer travels through `PosStore.editPartner`**, which is overridden to return
+  the customer named by `pos._laundryPhoneTwinPick`. Confirm stops the save, which leaves core
+  reading back the form's own record: **nothing** on a new contact (the choice would be dropped) or,
+  on an existing one being re-numbered, **the contact that was being edited** - which the customer
+  list would then put on the order in place of the twin. The flag puts the choice back on core's
+  path, so the list selects it exactly as if it had been tapped.
+- **A save that does not CHANGE the number is waved through**, like the server rule - and judged by
+  re-reading the stored `phone`, not the form's dirty state, because that is the value the rule is
+  really about. Without it the seven `00000000000` contacts could never be edited again.
+- **An archived twin gets no Confirm**, only Cancel and "restore it before using it": it was taken
+  out of the book deliberately, and restoring it is for whoever can see why. Said rather than
+  hidden - an archived twin is invisible to the cashier's search, which is how a second record for
+  somebody already in the book gets made.
+- **A filler gets a plain alert, never a Confirm.** There is no customer behind `00000000000` to put
+  on an order, only a number to fix, and answering it with the stranger who holds those zeros would
+  be true and useless.
+- **The locker picker shows the same three lines** (v1.1.17, `laundry_locker`): `_pos_row()` and
+  `pos_check_phone()` carry `partner_lines` (built by `_laundry_contact_block`), and one
+  `laundry_locker.ContactBlock` sub-template renders them for BOTH the matched customer and the
+  contact a confirmation is about to create. The new contact's third line is the locker site + the
+  word LOCKER - not a guess: `_apply_locker_address` gives a contact with no address exactly that,
+  and a brand-new contact never has one, so it is shown before it is written rather than found
+  afterwards.
+
 ## A phone number is required BY SERVICE TYPE - v1.5.10
 Whether the New Order modal demands a customer phone number depends on the service type:
 **optional** on **Drop-off** and **Self-service**, **required** on **Drop-off & Delivery**,

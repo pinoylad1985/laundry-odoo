@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The contact form asks about a duplicate number instead of refusing it.
+         See static/src/phone_twin/ for the why; this only hangs our form
+         controller on the view.
+
+         Nothing else in Odoo 19 puts a js_class on a res.partner form (checked
+         against the container), so there is none to displace - but a module
+         installed later could, and the last inherit to load would win. Check
+         here first if contact forms ever stop behaving. -->
+    <record id="view_partner_form_laundry_phone" model="ir.ui.view">
+        <field name="name">res.partner.form.laundry.phone.twin</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="attributes">
+                <attribute name="js_class">laundry_partner_form</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>

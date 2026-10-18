@@ -125,6 +125,51 @@ class ResPartner(models.Model):
         # an answer anyone can act on.
         return self.env['res.partner'].sudo().browse(row[0]) if row else self.browse()
 
+    def _laundry_contact_block(self):
+        """A contact the way the POS Orders list shows one: name, then phone,
+        then address, each on its own line.
+
+        The refusal below printed the name alone until v1.5.12, which is not
+        enough to act on - the book holds several people called MARY, and a
+        cashier told only "already used by MARY" has been told no and nothing
+        else. The phone is what the rule matched on and the address is what
+        tells two people of the same name apart, so both belong in the answer.
+
+        Same three lines, in the same order, as `laundry_customer_block` on
+        pos.order. Deliberately: the cashier has already learned to read that
+        block in the Orders list.
+        """
+        self.ensure_one()
+        address = ' '.join(filter(None, [self.street, self.street2])).strip()
+        return [line for line in (self.display_name, self.phone, address) if line]
+
+    @api.model
+    def laundry_phone_twin_info(self, phone, exclude_id=None):
+        """Who already holds this number - asked BEFORE a save, not after.
+
+        The server rule below refuses; this is what lets the register and the
+        contact form ASK first, so they can offer that customer instead of
+        rejecting work the cashier has already typed. One method for both, so
+        the two screens can never disagree about who the twin is.
+
+        Returns False when the number is free. `placeholder` is reported
+        separately because a filler is refused outright and has no twin to
+        offer - the caller has nothing to confirm, only something to fix.
+        """
+        if is_placeholder_phone(phone):
+            return {'placeholder': True}
+        twin = self._laundry_phone_twin(phone, exclude_id=exclude_id)
+        if not twin:
+            return False
+        # Already sudo - see _laundry_phone_twin.
+        return {
+            'placeholder': False,
+            'id': twin.id,
+            'name': twin.display_name,
+            'lines': twin._laundry_contact_block(),
+            'archived': not twin.active,
+        }
+
     def _laundry_check_phone_duplicate(self, phone, exclude_id=None):
         # Refused outright, and BEFORE the duplicate check, which would
         # otherwise answer a filler with a stranger's name ("already used by
@@ -140,12 +185,15 @@ class ResPartner(models.Model):
         twin = self._laundry_phone_twin(phone, exclude_id=exclude_id)
         if not twin:
             return
+        # Already sudo - see _laundry_phone_twin.
+        details = twin._laundry_contact_block()
+        if not twin.active:
+            details.append(_('(archived - restore it to use it)'))
         raise ValidationError(_(
-            "This phone number is already used by %(name)s%(archived)s. "
+            "This phone number is already used by:\n\n%(details)s\n\n"
             "Open that customer instead of creating a new one - two contacts "
             "for one person split their orders, points and dues between them.",
-            name=twin.display_name,
-            archived='' if twin.active else _(' (archived - restore it to use it)'),
+            details='\n'.join(details),
         ))
 
     @api.model_create_multi

@@ -71,6 +71,17 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': self.customer_match or 'new',
             'partner_id': self.partner_id.id or False,
             'partner_name': self.partner_id.name or '',
+            # The matched customer the way the POS Orders list shows one -
+            # name, then phone, then address. The picker printed the name
+            # alone until v1.1.17, which does not say WHICH customer the
+            # number landed on: the book holds several people called MARY,
+            # and a bag put on the wrong one is not noticed again until
+            # somebody comes to claim it. Built by laundry_pos so the register
+            # and the contact form cannot describe one customer two ways.
+            'partner_lines': (
+                self.partner_id._laundry_contact_block()
+                if self.partner_id else []
+            ),
             'phone_verified': self.phone_verified,
             'new_laundry_at': self._pos_datetime(self.new_laundry_at),
             'created_at': self._pos_datetime(self.created_at),
@@ -155,6 +166,11 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': 'returning' if partner else 'new',
             'partner_id': partner.id or False,
             'partner_name': partner.name or '',
+            # Same three lines as the row above, for the same reason: the
+            # cashier is about to hand a bag to whoever this is.
+            'partner_lines': (
+                partner._laundry_contact_block() if partner else []
+            ),
         }
 
     # ------------------------------------------------------------------

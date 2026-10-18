@@ -65,6 +65,53 @@ patch(PosStore.prototype, {
     },
 
     /**
+     * Hand back the customer the cashier CHOSE at the duplicate-number
+     * dialog, instead of the one they were typing.
+     *
+     * The register's "edit customer" is the back-office contact form opened
+     * through an action (core editPartner), so our form controller
+     * (static/src/phone_twin/) is what asks "this number is already used by
+     * ... use that customer?". Answering yes stops the save - there is nothing
+     * to save, that customer already exists - and leaves core here reading
+     * back whatever record the form held. On a NEW contact that is nothing, so
+     * the choice would simply be dropped; on an EXISTING one being re-numbered
+     * it is the contact that was being EDITED, which would then be put on the
+     * order in place of the twin the cashier picked.
+     *
+     * So the controller leaves the chosen id here and this returns that
+     * customer, which puts the answer back on core's own path: the customer
+     * list selects it exactly as if it had been tapped in the list.
+     */
+    async editPartner(partner) {
+        this._laundryPhoneTwinPick = null;
+        let result;
+        try {
+            result = await super.editPartner(...arguments);
+        } catch (error) {
+            // A save that never happened can leave core reading an id that is
+            // not there. Only swallowed when the dialog was closed BY the
+            // choice - any other failure is still a real one.
+            if (!this._laundryPhoneTwinPick) {
+                throw error;
+            }
+        }
+        const twinId = this._laundryPhoneTwinPick;
+        this._laundryPhoneTwinPick = null;
+        if (!twinId) {
+            return result;
+        }
+        // Fetched from the server, like the locker picker's matched customer:
+        // the twin need not be one of the customers this session pre-loaded.
+        await this.data.callRelated("res.partner", "get_new_partner", [
+            this.config.id,
+            [["id", "=", twinId]],
+            0,
+        ]);
+        return (this.models["res.partner"]?.getAll() ?? []).find((p) => p.id === twinId)
+            || result;
+    },
+
+    /**
      * Block the Customer button when laundry setup was skipped.
      * Fires a DOM event so ProductScreen can flash the banner.
      * _needsLaundrySetup is explicitly set to false (not undefined) only after

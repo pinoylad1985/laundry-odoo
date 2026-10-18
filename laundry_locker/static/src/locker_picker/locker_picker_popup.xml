@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
+    <!-- A contact in three lines - name, then phone, then address - the way
+         the POS Orders list prints one (laundry_customer_block). ONE
+         sub-template, used for the customer the number matched AND for the
+         contact a confirmation is about to create: those are the two answers
+         to the same question, who is this bag for, and a cashier should not
+         have to read them in two different shapes.
+
+         The lines come from the server (res.partner._laundry_contact_block in
+         laundry_pos), so the register, the contact form and the Orders list
+         cannot describe one customer three ways. -->
+    <t t-name="laundry_locker.ContactBlock">
+        <div t-foreach="lines" t-as="line" t-key="line_index"
+             t-att-class="line_index == 0 ? 'fs-4 fw-bold' : 'text-muted'">
+            <t t-esc="line"/>
+        </div>
+    </t>
+
     <t t-name="laundry_locker.LockerPickerPopup">
         <Dialog title="'Locker Drop-offs'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
             <!-- Step 1: pick the drop-off -->
@@ -112,8 +129,10 @@
 
                     <t t-elif="isReturning">
                         <span class="badge text-bg-success">Returning</span>
-                        <div class="fs-4 fw-bold mt-1"><t t-esc="state.partnerName"/></div>
-                        <div class="text-muted"><t t-esc="state.phone"/></div>
+                        <div class="mt-1">
+                            <t t-set="lines" value="returningLines"/>
+                            <t t-call="laundry_locker.ContactBlock"/>
+                        </div>
                         <small class="text-muted d-block mt-1">
                             Matched on the last 10 digits — the drop-off was keyed in
                             as “<t t-esc="state.customerName"/>”.
@@ -171,9 +190,11 @@
                              moment the cashier is still looking. -->
                         <div t-if="state.verified" class="text-success mt-2">
                             <i class="fa fa-check me-1"/>Number confirmed. Confirm will
-                            create a new contact:
-                            <b><t t-esc="state.customerName"/></b> -
-                            <b><t t-esc="state.phone"/></b>.
+                            create this new contact:
+                            <div class="mt-1 text-body">
+                                <t t-set="lines" value="newContactLines"/>
+                                <t t-call="laundry_locker.ContactBlock"/>
+                            </div>
                         </div>
                     </t>
                 </div>

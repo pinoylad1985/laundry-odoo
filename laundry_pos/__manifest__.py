@@ -1,6 +1,6 @@
 {
     'name': 'Laundry POS',
-    'version': '1.5.11',
+    'version': '1.5.12',
     'author': 'laundryx',
     'summary': 'Custom laundry service workflow for Point of Sale',
     'category': 'Point of Sale',
@@ -14,6 +14,7 @@
         'views/pos_order_pending_views.xml',
         'views/product_attribute_views.xml',
         'views/hr_employee_views.xml',
+        'views/res_partner_views.xml',
     ],
     'assets': {
         'point_of_sale._assets_pos': [
@@ -27,6 +28,13 @@
             'laundry_pos/static/src/backend/**/*.scss',
             'laundry_pos/static/src/backend/**/*.js',
             'laundry_pos/static/src/backend/**/*.xml',
+            # Loaded in BOTH bundles (the POS glob above already picks it up).
+            # The duplicate-number question is the same question at the
+            # register and on the contact form, so it is one dialog asking it
+            # and one server method answering it - two copies would be two
+            # chances to describe one customer differently.
+            'laundry_pos/static/src/phone_twin/**/*.js',
+            'laundry_pos/static/src/phone_twin/**/*.xml',
         ],
     },
     'installable': True,
