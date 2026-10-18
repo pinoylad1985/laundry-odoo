@@ -1,7 +1,7 @@
 import re
 
 from odoo import _, api, fields, models
-from odoo.exceptions import ValidationError
+from odoo.exceptions import UserError, ValidationError
 
 
 def phone_last10(value):
@@ -232,6 +232,32 @@ class ResPartner(models.Model):
             'lines': twin._laundry_contact_block(),
             'archived': not twin.active,
         }
+
+    @api.model
+    def laundry_restore_phone_twin(self, partner_id):
+        """Put an archived twin back in the book, so it can be used.
+
+        The duplicate dialog used to refuse an archived twin outright and say
+        to restore it elsewhere, on the reasoning that it was taken out of the
+        book deliberately. In the shop that reads as a dead end: the cashier
+        has a customer in front of them, has been shown that customer's own
+        record, and is being sent to find somebody with backend access. The
+        owner's call is to let them restore it from there - the alternative is
+        a SECOND contact for the same person, which is the exact thing this
+        whole rule exists to prevent.
+
+        NOT sudo: restoring is the cashier's own action, taken on their own
+        rights, and it is written in the record's history as theirs. Reading
+        the twin's NAME is sudo (see _laundry_phone_twin) because a cashier
+        cannot act on "it exists but I cannot tell you which one"; that
+        reasoning does not stretch to writing.
+        """
+        partner = self.browse(int(partner_id)).exists()
+        if not partner:
+            raise UserError(_("That contact no longer exists."))
+        if not partner.active:
+            partner.active = True
+        return True
 
     @api.model
     def laundry_phone_problem_message(self, phone):

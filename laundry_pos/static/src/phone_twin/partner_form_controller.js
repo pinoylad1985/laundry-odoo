@@ -93,6 +93,9 @@ export class LaundryPartnerFormController extends FormController {
             confirmHint: inPos
                 ? "put that customer on this order. Nothing is saved here."
                 : "open that customer. What you typed here is discarded.",
+            restoreHint: inPos
+                ? "put that customer back in the book and on this order. Nothing is saved here."
+                : "put that contact back in the book and open it. What you typed here is discarded.",
             cancelHint: inPos
                 ? "come back here and give this customer a different number."
                 : "stay here and give this contact a different number.",
@@ -115,11 +118,21 @@ export class LaundryPartnerFormController extends FormController {
         // and Confirm does nothing at all. Deferring runs the work once
         // save() has returned and the mutex is free again.
         const twinId = answer.twin.id;
-        setTimeout(() => {
+        // Restored FIRST, before anything tries to use it: an archived
+        // contact is invisible to the customer list, to get_new_partner and
+        // to an ordinary read, so using it in either place would quietly find
+        // nothing.
+        const restore = !!answer.twin.archived;
+        setTimeout(async () => {
+            if (restore) {
+                await this.laundryOrm.call(
+                    "res.partner", "laundry_restore_phone_twin", [twinId]
+                );
+            }
             if (inPos) {
-                this._laundryUseTwinInPos(twinId);
+                await this._laundryUseTwinInPos(twinId);
             } else {
-                this._laundryOpenTwin(twinId);
+                await this._laundryOpenTwin(twinId);
             }
         });
         return false;

@@ -9,20 +9,21 @@
                     <t t-esc="line"/>
                 </div>
             </div>
-            <!-- An archived contact is one somebody deliberately took out of
-                 the book, so it is not offered for use with one tap - it has
-                 to be restored first, by whoever can see why it was archived.
-                 Said rather than hidden: an archived twin is invisible to the
-                 cashier's search, which is exactly how a second record for
-                 somebody already in the book gets made. -->
+            <!-- An archived twin is SAID, never hidden: it is invisible to
+                 the cashier's search, which is exactly how a second record
+                 for somebody already in the book gets made. It is offered
+                 too - the button restores it and then uses it - because
+                 sending the cashier away to find backend access, with the
+                 customer standing in front of them, is how that second
+                 record gets made anyway. -->
             <div t-if="props.archived" class="text-danger mb-2">
-                That contact is archived. Restore it before using it.
+                That contact is archived.
             </div>
-            <div t-if="canConfirm">Click <b>Confirm</b> to <t t-esc="props.confirmHint"/></div>
+            <div t-if="canConfirm">Click <b><t t-esc="confirmLabel"/></b> to <t t-esc="activeHint"/></div>
             <div>Click <b>Cancel</b> to <t t-esc="props.cancelHint"/></div>
             <t t-set-slot="footer">
                 <button t-if="canConfirm" class="btn btn-primary"
-                        t-on-click="() => this.choose('confirm')">Confirm</button>
+                        t-on-click="() => this.choose('confirm')"><t t-esc="confirmLabel"/></button>
                 <button class="btn btn-secondary"
                         t-on-click="() => this.choose('cancel')">Cancel</button>
             </t>

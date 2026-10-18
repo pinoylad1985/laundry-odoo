@@ -670,10 +670,22 @@ so both places a number gets typed now **ASK** first and offer that customer.
   10 digits** (`laundryPhoneKey`, the browser's spelling of `phone_last10`), and judged by
   re-reading the stored `phone`, not the form's dirty state, because that is the value the rule is
   really about. Without it the seven `00000000000` contacts could never be edited again.
-- **An archived twin gets no Confirm**, only Cancel and "restore it before using it": it was taken
-  out of the book deliberately, and restoring it is for whoever can see why. Said rather than
-  hidden - an archived twin is invisible to the cashier's search, which is how a second record for
-  somebody already in the book gets made.
+- **An archived twin is OFFERED too, under its own button: `Restore and use`** (v1.5.18). It used
+  to get Cancel only, on the reasoning that it was taken out of the book deliberately and restoring
+  it belongs to whoever can see why. In the shop that is a dead end - the cashier has the customer
+  in front of them and is being sent to find backend access - and the way out of a dead end is a
+  SECOND contact for the same person, the exact thing this rule exists to prevent. The owner's call.
+  - The button is **named for what it does**, and the hint is its own sentence (`restoreHint`,
+    beside `confirmHint`), so a contact never goes back in the book behind a tap labelled Confirm.
+  - **Restored BEFORE it is used** - `res.partner.laundry_restore_phone_twin(id)`, called from the
+    controller's deferred block. An archived contact is invisible to the customer list, to
+    `get_new_partner` and to an ordinary read, so using it first would quietly find nothing.
+  - **Not sudo**, unlike the twin's name: restoring is the cashier's own action on their own
+    rights, and the record's history should say so. "I cannot tell you who holds it" is useless to
+    a cashier, which is why the READ is elevated; that reasoning does not stretch to writing.
+  - Still **said rather than hidden** ("That contact is archived."): an archived twin is invisible
+    to the cashier's search, which is how a second record for somebody already in the book gets
+    made in the first place.
 - **A filler gets a plain alert, never a Confirm.** There is no customer behind `00000000000` to put
   on an order, only a number to fix, and answering it with the stranger who holds those zeros would
   be true and useless.

@@ -31,15 +31,32 @@ export class PhoneTwinDialog extends Component {
         // asking the cashier to guess which.
         confirmHint: String,
         cancelHint: String,
-        // An archived twin cannot simply be used, so the choice is not
-        // offered - see the note in the template.
+        // The same sentence for an ARCHIVED twin, where using it restores it
+        // first. Said separately rather than bolted onto confirmHint, because
+        // what the button does is genuinely a different thing and the cashier
+        // is about to put a contact back in the book.
+        restoreHint: { type: String, optional: true },
         allowConfirm: { type: Boolean, optional: true },
         onChoice: Function,
         close: Function,
     };
 
     get canConfirm() {
-        return this.props.allowConfirm !== false && !this.props.archived;
+        return this.props.allowConfirm !== false;
+    }
+
+    // An archived twin is offered too, under its own name: the button says
+    // what it is about to do, so putting a contact back in the book is never
+    // something that just happens behind a tap labelled Confirm.
+    get confirmLabel() {
+        return this.props.archived ? "Restore and use" : "Confirm";
+    }
+
+    get activeHint() {
+        if (this.props.archived && this.props.restoreHint) {
+            return this.props.restoreHint;
+        }
+        return this.props.confirmHint;
     }
 
     choose(choice) {
@@ -53,8 +70,14 @@ export class PhoneTwinDialog extends Component {
 // Returns {status: 'free'} | {status: 'refused'} | {status, twin} where
 // status is 'confirm' (use that customer) or 'cancel' (give a different
 // number). Closing the dialog counts as Cancel: the gentler of the two.
+//
+// `twin.archived` comes back with it, and the CALLER has to act on it: a
+// confirmed archived twin must be restored (res.partner
+// .laundry_restore_phone_twin) before it is any use, since nothing else can
+// see it.
 export async function laundryPhoneTwinChoice({
-    orm, dialog, phone, excludeId, confirmHint, cancelHint, allowConfirm,
+    orm, dialog, phone, excludeId, confirmHint, cancelHint, restoreHint,
+    allowConfirm,
 }) {
     const info = await orm.call(
         "res.partner", "laundry_phone_twin_info", [phone, excludeId || false]
@@ -87,6 +110,7 @@ export async function laundryPhoneTwinChoice({
             archived: !!info.archived,
             confirmHint,
             cancelHint,
+            restoreHint: restoreHint || confirmHint,
             onChoice: (value) => {
                 answered = value;
             },
