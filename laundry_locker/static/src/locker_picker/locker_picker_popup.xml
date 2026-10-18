@@ -130,7 +130,7 @@
                     <t t-elif="isReturning">
                         <span class="badge text-bg-success">Returning</span>
                         <div class="mt-1">
-                            <t t-set="lines" value="returningLines"/>
+                            <t t-set="lines" t-value="returningLines"/>
                             <t t-call="laundry_locker.ContactBlock"/>
                         </div>
                         <small class="text-muted d-block mt-1">
@@ -192,7 +192,7 @@
                             <i class="fa fa-check me-1"/>Number confirmed. Confirm will
                             create this new contact:
                             <div class="mt-1 text-body">
-                                <t t-set="lines" value="newContactLines"/>
+                                <t t-set="lines" t-value="newContactLines"/>
                                 <t t-call="laundry_locker.ContactBlock"/>
                             </div>
                         </div>
