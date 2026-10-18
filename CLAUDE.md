@@ -648,6 +648,14 @@ so both places a number gets typed now **ASK** first and offer that customer.
 - **Hooked on `onWillSaveRecord`** (core: "if it returns false, it will prevent the save"), not on
   the phone field - the question is only worth asking about a number somebody has finished typing,
   and a field-level check would put it to them between a 0 and a 9.
+- ⚠ **Confirm's work is DEFERRED out of the hook** (`setTimeout`, v1.5.17). The hook runs inside
+  `record.save()`, which core wraps in the model's mutex (`save()` = `mutex.exec(() =>
+  this._save())`, and `_save` is what calls the hook - `web/.../relational_model/record.js`).
+  `discard()` queues on that same mutex, so awaiting it from the hook waits for a lock the call
+  itself is holding: the hook never returns, the save hangs with the form still dirty, and
+  **Confirm does nothing at all** (the v1.5.12-1.5.16 bug). The hook now returns `false` and the
+  navigation runs after `save()` has unwound. Anything else added here that touches the record
+  has to be deferred the same way.
 - **Confirm means different things in the two places, so each passes its own `confirmHint`:**
   at the register "use that customer" = put them on the order; in the back office there is no
   order, so it = open their record and discard what was typed (no second prompt - they have just

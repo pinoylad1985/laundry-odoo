@@ -106,11 +106,22 @@ export class LaundryPartnerFormController extends FormController {
             // number has to be retyped.
             return false;
         }
-        if (inPos) {
-            await this._laundryUseTwinInPos(answer.twin.id);
-        } else {
-            await this._laundryOpenTwin(answer.twin.id);
-        }
+        // The save is stopped FIRST and the twin opened after, never the other
+        // way round. This hook runs INSIDE record.save(), which core wraps in
+        // the model's mutex (`save()` = `mutex.exec(() => this._save())`, and
+        // `_save` is what calls us) - and `discard()` queues on that same
+        // mutex. Awaiting it from here waits for a lock this very call holds:
+        // the hook never returns, the save hangs with the form still dirty,
+        // and Confirm does nothing at all. Deferring runs the work once
+        // save() has returned and the mutex is free again.
+        const twinId = answer.twin.id;
+        setTimeout(() => {
+            if (inPos) {
+                this._laundryUseTwinInPos(twinId);
+            } else {
+                this._laundryOpenTwin(twinId);
+            }
+        });
         return false;
     }
 
