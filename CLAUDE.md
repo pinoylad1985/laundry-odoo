@@ -512,7 +512,7 @@ Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml
 - **A refund order locks the hub:** navbar getter `laundryIsRefund` (`is_refund` / has refund lines) disables
   BOTH New Order and Settle Order.
 
-## A number has to BE a number - v1.5.14
+## A number has to BE a number - v1.5.14 (variety rule v1.5.15)
 Before anything asks whether a number is a duplicate, it is asked whether it is a phone number at
 all: **digits only, and at least 11 of them** (`PHONE_MIN_DIGITS`). One function decides -
 `phone_problem()` in `laundry_pos/models/res_partner.py`, which returns a short code
@@ -528,6 +528,11 @@ all: **digits only, and at least 11 of them** (`PHONE_MIN_DIGITS`). One function
   digits and the characters people separate them with (`+ ( ) . / -` and spaces) and nothing else,
   so `09171234567 (Globe)` is refused even though it holds 11 digits. The field is read by
   somebody about to dial it.
+- **Eleven digits is not enough on its own.** `09111111111` clears the length floor and is still
+  somebody leaning on the keypad, so `is_placeholder_phone` (above) also refuses a number built
+  from fewer than **4 different digits** - the third of its three shapes, added in v1.5.15. The
+  two tests answer different questions and both are needed: the floor catches a number that is
+  *incomplete*, the variety test one that is *invented*.
 - **A BLANK is still fine.** It is the honest answer when the shop has no number, and the one both
   phone rules deliberately leave open - see the service-type rule below. Every refusal message
   says so, because "that is wrong" is not an instruction and "leave it blank" is.
@@ -591,13 +596,18 @@ spellings of the rule cannot drift apart).
     filler with a stranger's name ("already used by STEVEN") - true, useless, and nothing a
     cashier can act on. The message instead says to leave it blank and names where a number is
     actually required.
-  - **Deliberately narrow:** one digit repeated, or a straight run up or down (`1234567890`,
-    `0987654321`, min 6 digits, counted **mod 10** so the 9-to-0 wrap still reads as one step).
-    Judged on the whole string **and** on its last 10 digits, so a filler can't hide behind a
-    country code (`+63 000 000 0000`). It will NOT catch an invented `09171111112` and is not
-    meant to - a rule that guesses starts refusing real numbers, and a refused real number is a
-    customer turned away. The real defence is that the number is no longer asked for where the
-    shop doesn't need it.
+  - **Deliberately narrow - three shapes:** one digit repeated; **fewer than
+    `PHONE_MIN_UNIQUE_DIGITS` (4) different digits in it** (v1.5.15 - `09111111111`,
+    `09090909090`, `09999900000`; min 6 digits, so three-out-of-four stays ordinary); or a
+    straight run up or down (`1234567890`, `0987654321`, min 6 digits, counted **mod 10** so the
+    9-to-0 wrap still reads as one step). Judged on the whole string **and** on its last 10
+    digits, so a filler can't hide behind a country code (`+63 000 000 0000`).
+    - **4, not 5.** A PH mobile opens `09`, so the other nine digits must bring at least two
+      more between them - every real number does. 5 would refuse `0909 999 9999`, the kind of
+      number somebody pays to own, and a refused real number is a customer turned away.
+    - It will NOT catch an invented `09171111112` (five different digits) and is not meant to -
+      a rule that guesses starts refusing real numbers. The real defence is that the number is
+      no longer asked for where the shop doesn't need it.
   - ⚠ **A save that doesn't CHANGE the number is waved through** - judged on the **last 10
     digits**, the one key this module compares numbers on anywhere. The POS customer form
     re-sends `phone` whatever was edited, so without this the seven existing contacts could

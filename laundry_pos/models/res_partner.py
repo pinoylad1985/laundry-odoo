@@ -18,6 +18,14 @@ def phone_last10(value):
     return digits[-10:] if len(digits) >= 10 else ''
 
 
+# How many DIFFERENT digits a real number has to contain. A PH mobile opens
+# `09`, so the remaining nine digits have to bring at least two more between
+# them - which every real number does and `09111111111` does not. Four rather
+# than five because `0909 999 9999` is the kind of number somebody pays to
+# own, and refusing a real number is worse than letting one filler through.
+PHONE_MIN_UNIQUE_DIGITS = 4
+
+
 def is_placeholder_phone(value):
     """True when a "number" is obviously not one - a filler typed to get past
     a required field.
@@ -30,11 +38,20 @@ def is_placeholder_phone(value):
     satisfied by digits that ring nowhere.
 
     Deliberately narrow - a rule that guesses would start refusing real
-    numbers, and a refused real number is a customer turned away. Only two
-    shapes are certain: one digit repeated, and a straight run up or down
-    (`1234567890`, `0987654321`). It will not catch a cashier who invents
-    `09171111112`, and it is not meant to: the real fix is that the number
-    is no longer asked for where the shop does not need it.
+    numbers, and a refused real number is a customer turned away. Three shapes
+    are certain:
+
+    * one digit repeated (`00000000000`);
+    * **fewer than PHONE_MIN_UNIQUE_DIGITS different digits in it** - a number
+      built out of three digits or fewer is somebody leaning on the keypad
+      (`09111111111`, `09090909090`, `09999900000`). An eleven-digit number
+      can be a filler just as easily as a short one, which is what the digit
+      count on its own misses;
+    * a straight run up or down (`1234567890`, `0987654321`).
+
+    It will not catch a cashier who invents `09171111112` (five different
+    digits), and it is not meant to: the real fix is that the number is no
+    longer asked for where the shop does not need it.
     """
     digits = re.sub('[^0-9]', '', value or '')
     if not digits:
@@ -46,6 +63,12 @@ def is_placeholder_phone(value):
         if len(set(run)) == 1:
             return True
         if len(run) >= 6:
+            # The variety test needs enough digits to be a judgement rather
+            # than an accident: three different digits out of four is a
+            # perfectly ordinary thing, out of eleven it is not. Same floor
+            # the run test uses below.
+            if len(set(run)) < PHONE_MIN_UNIQUE_DIGITS:
+                return True
             # Counted modulo 10 so the 9-to-0 wrap in `1234567890` still
             # reads as one step up - it is the commonest run of the lot.
             steps = {(int(b) - int(a)) % 10 for a, b in zip(run, run[1:])}
@@ -250,7 +273,12 @@ class ResPartner(models.Model):
                 minimum=PHONE_MIN_DIGITS,
             )
         else:
-            head = _("%(phone)s is not a phone number.", phone=phone)
+            head = _(
+                "%(phone)s does not look like a real phone number - it is "
+                "the same few digits over and over, or a straight run up the "
+                "keypad.",
+                phone=phone,
+            )
         return '%s %s' % (head, tail)
 
     def _laundry_check_phone(self, phone, exclude_id=None):
