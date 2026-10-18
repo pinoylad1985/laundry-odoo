@@ -18,4 +18,41 @@
             </xpath>
         </field>
     </record>
+
+    <!-- What the ORDER needs from this contact, marked the way Studio's
+         Required marks a field: pink box, refused save, "Invalid fields"
+         notice. Core's own mechanism, so there is nothing new for a cashier
+         to learn and the empty box itself is what gets pointed at.
+
+         Driven by CONTEXT, never by the field: the demand belongs to the
+         order, not to res.partner. The keys are set only while the form was
+         opened FOR an order that needs them (PosStore.editPartnerContext,
+         from utils/contact_requirements.js) - so the back-office Contacts
+         form and the register's own Customer button ask for nothing, and a
+         half-finished contact still saves. A form that always refuses is what
+         makes a cashier invent a value to get past it.
+
+         ⚠ Each xpath hits the FIRST field of that name in the form, which is
+         the main contact's own. The later copies belong to the nested
+         child-contact form on the Contacts tab, where a parent's address is
+         legitimately inherited and must not be demanded. -->
+    <record id="view_partner_form_laundry_required" model="ir.ui.view">
+        <field name="name">res.partner.form.laundry.required</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='phone']" position="attributes">
+                <attribute name="required">context.get('laundry_require_phone')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='category_id']" position="attributes">
+                <attribute name="required">context.get('laundry_require_tags')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='street']" position="attributes">
+                <attribute name="required">context.get('laundry_require_street')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='street2']" position="attributes">
+                <attribute name="required">context.get('laundry_require_street2')</attribute>
+            </xpath>
+        </field>
+    </record>
 </odoo>

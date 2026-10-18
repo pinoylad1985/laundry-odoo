@@ -711,11 +711,10 @@ so both places a number gets typed now **ASK** first and offer that customer.
   and a brand-new contact never has one, so it is shown before it is written rather than found
   afterwards.
 
-## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.21 (phone rule v1.5.10)
-The New Order modal decides what the contact on an order must hold, and it depends on the
-service type. ONE table says so - **`contactRequirements`** in
-`new_order_modal/new_order_modal.js`, fed by `PHONE_OPTIONAL_SERVICE_TYPES` and
-`TAGS_REQUIRED_SERVICE_TYPES`:
+## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.22 (phone rule v1.5.10)
+What the contact on an order must hold depends on the service type. ONE table says so -
+**`CONTACT_REQUIREMENTS`** in `static/src/utils/contact_requirements.js`, fed by
+`PHONE_OPTIONAL_SERVICE_TYPES` and `TAGS_REQUIRED_SERVICE_TYPES`:
 
 | | Drop-off | Drop-off & Delivery | Pickup & Delivery | Locker | Self-service |
 |---|---|---|---|---|---|
@@ -723,66 +722,89 @@ service type. ONE table says so - **`contactRequirements`** in
 | Tag | - | - | - | yes | - |
 | Address line 1 **and** 2 | yes | yes | yes | yes | yes |
 
-- **NOTHING is required on the contact FORM, in either place it is opened** (the back-office
-  Contacts form and the register's customer form are the same view - see the twin rule above).
-  A form that refuses a save is what makes a cashier invent a value to get past it, which is
-  where the seven `00000000000` contacts came from. A contact may always be saved half
-  finished; the **ORDER** is what asks, because the order is what actually needs the values.
-  - ⚠ That is enforced in the **database, not in this module**: `phone` was flagged Required on
-    `res.partner` (Studio, pre-dating the module), which is why clearing one of the seven filler
-    numbers was refused with a pink field and a red triangle and never reached the server. The
-    owner untick it in Studio. If a contact ever refuses to save again with no message from our
-    rules, look there first - nothing in `laundry_pos` makes a partner field required.
-- **An address is required on ALL FIVE types, so every order now needs a selected contact** -
-  there is no anonymous walk-in order any more. The address is what a bag is delivered,
-  collected and re-booked to, and the line that tells two customers of the same name apart
-  everywhere this module prints a contact (`_laundry_contact_block`, the Orders list, the
-  duplicate dialog). **Both lines**, because this shop writes the kind of place on the first
-  (`RESIDENCE`, `OFFICE`) and the address itself on the second - one without the other is half
-  an address. **Skip for now still skips**, so a rush order is still takeable and completed later.
+- **The CONTACT FORM is where it is enforced, at Save** (v1.5.22 - the owner's call; v1.5.21 asked
+  at the New Order modal's Continue and refused nothing on the form). A gap in a contact is a gap
+  in a *field*, and the field is on the form - so the refusal happens there, in Odoo's own
+  required UI: the box turns pink, the save is refused, and core's "Invalid fields" notice names
+  it. A message at Continue could only *describe* the gap, a screen away from the box that holds
+  it.
+- **Required BY CONTEXT, so the back office still requires nothing** -
+  `views/res_partner_views.xml` (`view_partner_form_laundry_required`) hangs
+  `required="context.get('laundry_require_phone')"` and its three siblings on `phone`,
+  `category_id`, `street` and `street2` in `base.view_partner_form`.
+  - **A view modifier may read `context`** - core evaluates it with `getBasicEvalContext()`
+    (`web/.../relational_model/utils.js`), which puts `context` in scope, and core's own
+    `account` views already do it. Verified against 19.0 - re-check on upgrade.
+  - So the fields are required **only** when the form was opened FOR an order that needs them.
+    Opened from Contacts, from a child contact, from an import - no keys, nothing required. That
+    keeps the owner's "no required fields in Contacts" and still refuses the save where it counts.
+  - ⚠ the **first** xpath match wins, which is the MAIN contact's field; the second copy of
+    each (further down `base.view_partner_form`) belongs to the nested child-contact form, where a
+    parent's address is legitimately inherited. Don't make those xpaths more specific.
+- **ONE wrapper puts the keys in and takes them out** - `PosStore.withLaundryContactNeeds(serviceType,
+  action)` (`overrides/pos_store.js`), which `editPartnerContext()` spreads into the action's
+  context. ⚠ it clears in a `finally` - a key left behind would make **the next contact
+  anybody edited, anywhere in Odoo** refuse to save. Three paths open that form while an order is
+  being set up and all three go through it: the modal's `addCustomerDetails()` (the picker), its
+  `editSelectedPartner()` (straight into the chosen customer's form), and
+  `product_screen_patch`'s re-open after the modal hands back `editPartner`.
+- **The required boxes are marked BLUE before anything is wrong** -
+  `static/src/contact_form/laundry_required_fields.scss`, a blue border and tint on an empty
+  required `phone` / `street` / `street2` / `category_id`. Core only ever paints a field pink
+  *after* a refused save; the cashier should know which boxes are being asked for while they are
+  still filling them in. The tint drops away as soon as the box has something in it
+  (`:not(:placeholder-shown)`), and core's pink wins over it (`:not(.o_field_invalid)`).
+  - It is **self-scoping**: base Odoo makes none of those four fields required, so
+    `.o_required_modifier` on them can only have come from our context keys. That is what keeps
+    the blue out of the rest of Odoo.
+  - ⚠ the folder must stay loaded by **both** bundles (the POS glob picks it up; the
+    manifest adds it to `web.assets_backend` by hand) - the register's customer form IS the
+    back-office form.
+- **Continue hands over the FIELDS, not a complaint.** With a customer chosen who is short of
+  something, `confirm()` opens their contact form (`editSelectedPartner`) instead of only marking
+  the card red, and does not confirm for them - the cashier presses Continue again. The card still
+  names the gaps (`missingContactLabels`), and a *new* customer with no contact yet is told what
+  the form is about to ask for (`requiredContactLabels`) before the picker opens.
+- **NOTHING is required on the contact form by the DATABASE.** `phone` was flagged Required on
+  `res.partner` in Studio, pre-dating the module, which is why clearing one of the seven filler
+  numbers was refused before the request ever reached the server. The owner unticked it. If a
+  contact ever refuses to save with no message from our rules and no context keys in play, look
+  there first - nothing in `laundry_pos` makes a partner field required unconditionally.
+- **An address is required on ALL FIVE types, so every order needs a selected contact** - there is
+  no anonymous walk-in order any more. The address is what a bag is delivered, collected and
+  re-booked to, and the line that tells two customers of the same name apart everywhere this
+  module prints a contact (`_laundry_contact_block`, the Orders list, the duplicate dialog).
+  **Both lines**, because this shop writes the kind of place on the first (`RESIDENCE`, `OFFICE`)
+  and the address itself on the second - one without the other is half an address.
 - **A tag on Locker only.** A tag is how this shop classifies a customer and the one
   classification that reaches the receipt (`res.partner.pos_tag_names`). A locker bag is handed
   to a machine rather than to a cashier, so on that service type it is the only thing on the
   order that says what kind of customer left it.
-- **The gaps are NAMED, with the contact form's own words** (`Phone number`, `Tag`,
-  `Address line 1`, `Address line 2`) - `missingContactLabels` on the selected-customer card,
-  and `requiredContactLabels` on a new customer who has no contact yet, which says what the
-  picker is about to ask for **before** it opens instead of letting it be found out one refusal
-  at a time. Both red only after a failed Continue, like every other gap.
-- **A customer created at the REGISTER defaults to Person** - `PosStore.editPartnerContext`
-  (`overrides/pos_store.js`) forces `default_is_company: false`. Core passes an empty context,
-  so whatever `is_company` defaults to in this database was what the form opened on; a laundry
-  customer is a person, and one filed as a company has no first or last name and reads wrongly
-  everywhere the module prints a contact.
-- **The reasoning:** a number is how the shop gets back in touch, so it is required wherever the
-  laundry leaves the counter or the bag is not handed over in person. A Drop-off or Self-service
-  customer is standing right there and collects in person. Asking for a number anyway is what
-  filled the book with `00000000000` contacts - and a dummy number is **worse than a blank one,
-  because a dummy number matches** (see the one-customer-per-number rule above).
-- **A required number can only come off a real contact** (`phoneOk`): a number typed into the modal
-  and left there would be a number no `res.partner` holds, so the receipt, the order and the
-  backend would each have a different idea of it. So the gate asks for a selected partner *with*
-  a phone, not for a string.
-- **Enforced in `canConfirm`** like every other gap, with `missingPartnerPhone` marking it red only
-  after a failed Continue - same pattern as `missingServices` / `isMissing(field)`.
-- **`addCustomerDetails()` opens the CORE customer picker on top of the modal**, so a number can be
-  added without losing the service type and schedule already keyed in (same nesting the locker
+- **The reasoning for the phone column:** a number is how the shop gets back in touch, so it is
+  required wherever the laundry leaves the counter or the bag is not handed over in person. A
+  Drop-off or Self-service customer is standing right there and collects in person. Asking for a
+  number anyway is what filled the book with `00000000000` contacts - and a dummy number is
+  **worse than a blank one, because a dummy number matches** (see the one-customer-per-number rule
+  above). A faked number is refused on either kind of order by `is_placeholder_phone()`; the two
+  halves have to be read together - this rule stops a number being *demanded* where the shop has
+  no use for it, that one stops a demand being *satisfied* with digits that ring nowhere.
+- **A customer created at the REGISTER defaults to Person** - `editPartnerContext` forces
+  `default_is_company: false`. Core passes an empty context, so whatever `is_company` defaults to
+  in this database was what the form opened on; a laundry customer is a person, and one filed as a
+  company has no first or last name and reads wrongly everywhere the module prints a contact.
+- **The modal still asks too**, in `canConfirm` via `contactOk` - the form's `required` covers a
+  contact being *saved*, and this covers one that was already in the book half finished. Both read
+  the one table, so they cannot disagree.
+- **`addCustomerDetails()` opens the CORE customer picker on top of the modal**, so details can be
+  added without losing the service type and schedule already keyed in (the same nesting the locker
   picker uses). Create and Edit both live in that picker, which is why ONE method serves a new
-  customer and a returning one whose record has no number. The partner is read back off the
-  **order**, not from the return value - the picker is what sets it there.
-  - ⚠ It sets **`order._laundryPartnerPickAllowed`** for the duration, because
-    `PosStore.selectPartner` (`overrides/pos_store.js`) otherwise blocks the picker on an order
-    with no chosen purpose. Without the flag the button is dead on a *skipped* order being
-    completed (`_needsLaundrySetup === false` + no `laundry_service_type` yet).
-- The selected-customer card moved OUT of the Returning-only branch so it shows for **either**
-  kind - a new customer whose details were just taken has a contact too, and the card is where a
-  missing number has to be visible. It carries the **Edit Details** button when the number is
-  missing and required; the search-result rows keep their own.
+  customer and a returning one whose record is short of something. The partner is read back off
+  the **order**, not from the return value - the picker is what sets it there.
+  - ⚠ it sets **`order._laundryPartnerPickAllowed`** for the duration, because
+    `PosStore.selectPartner` otherwise blocks the picker on an order with no chosen purpose.
+    Without the flag the button is dead on a *skipped* order being completed
+    (`_needsLaundrySetup === false` + no `laundry_service_type` yet).
 - **Skip for now still skips** - it saves a partial setup by design and is not gated.
-- **A faked number is refused on BOTH kinds of order, required or not** - that is the server-side
-  `is_placeholder_phone()` rule above, not this one. The two halves have to be read together:
-  this rule stops a number being *demanded* where the shop has no use for it, and that one stops
-  a demand being *satisfied* with digits that ring nowhere. Either on its own is useless.
 
 ## Important Files NOT to Break
 - `models/pos_order.py` — do NOT add `_load_pos_data_fields`; keep order fields computed (not related).

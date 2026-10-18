@@ -122,9 +122,12 @@
                         </div>
                     </div>
                     <div class="d-flex flex-column gap-2 flex-shrink-0">
+                        <!-- Straight into THIS customer's form, where the
+                             fields it is short of are marked - the picker
+                             would be a list to walk past first. -->
                         <button t-if="missingContactLabels.length"
                                 class="btn btn-primary"
-                                t-on-click="addCustomerDetails">
+                                t-on-click="() => this.editSelectedPartner()">
                             Edit Details
                         </button>
                         <button class="btn btn-outline-secondary"

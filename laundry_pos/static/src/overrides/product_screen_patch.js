@@ -336,7 +336,11 @@ patch(ProductScreen.prototype, {
         });
 
         if (result.editPartner) {
-            await this.pos.selectPartner(order);
+            // Opened with this order's required contact fields marked, like
+            // every other way into the form from the modal.
+            await this.pos.withLaundryContactNeeds(result.serviceType, () =>
+                this.pos.selectPartner(order)
+            );
         } else if (result.partner) {
             this.pos.setPartnerToCurrentOrder(result.partner);
         }

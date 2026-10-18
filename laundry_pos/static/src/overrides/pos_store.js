@@ -15,6 +15,7 @@ import { ReprintCopiesPopup } from "@laundry_pos/reprint_picker/reprint_copies_p
 import { allowWdfQty } from "@laundry_pos/overrides/pos_order_line_patch";
 import { consumeWdfWeight, consumeLaundryNote } from "@laundry_pos/overrides/product_configurator_popup_patch";
 import { RiderSignoffPopup } from "@laundry_pos/rider_signoff/rider_signoff_popup";
+import { contactNeedsContext } from "@laundry_pos/utils/contact_requirements";
 
 patch(PosStore.prototype, {
     /**
@@ -84,7 +85,33 @@ patch(PosStore.prototype, {
             ...super.editPartnerContext(...arguments),
             default_is_company: false,
             default_company_type: "person",
+            // What the ORDER being set up needs from this contact, as the keys
+            // the contact form's own `required` modifiers read
+            // (views/res_partner_views.xml). Set only for as long as the form
+            // was opened FOR such an order - see withLaundryContactNeeds.
+            ...(this._laundryContactNeeds || {}),
         };
+    },
+
+    /**
+     * Open the customer picker or the contact form WITH an order's
+     * requirements in force, and take them back off again afterwards.
+     *
+     * Three places open that form while a service type is being chosen - the
+     * New Order modal's Edit Details, its Add customer details, and the
+     * product screen re-opening the picker after the modal handed it an "edit
+     * this customer" answer - and all three have to leave the form in the
+     * same state. One wrapper, so none of them can forget to clear it: a key
+     * left behind would make the next contact anybody edited, anywhere,
+     * refuse to save.
+     */
+    async withLaundryContactNeeds(serviceType, action) {
+        this._laundryContactNeeds = contactNeedsContext(serviceType);
+        try {
+            return await action();
+        } finally {
+            this._laundryContactNeeds = null;
+        }
     },
 
     /**

@@ -9,6 +9,12 @@ import { LAUNDRY_MENU, LONG_SERVICE_CODES } from "@laundry_pos/utils/laundry_ins
 import { findLaundryProduct, laundryCodeForProduct } from "@laundry_pos/utils/laundry_products";
 import { partnerMatchesQuery, buildPartnerSearchDomain } from "@laundry_pos/utils/partner_search";
 import { DateWheel, fmtDateLabel } from "@laundry_pos/new_order_modal/date_wheel";
+import {
+    missingContactFields,
+    partnerPhone as contactPhone,
+    partnerTagNames as contactTagNames,
+    requiredContactFields,
+} from "@laundry_pos/utils/contact_requirements";
 
 // Buttons are styled like the POS numpad (core's `.numpad-button`): every unselected
 // key is plain grey and the SELECTED one goes solid primary, so colour carries one
@@ -51,22 +57,6 @@ const SERVICE_TYPES = [
     { code: "locker",            label: "Locker" },
 ];
 
-// Where a phone number is OPTIONAL. A number is how the shop gets back in touch,
-// so it is required wherever the laundry leaves the counter or the customer is not
-// the one standing there: Drop-off & Delivery, Pickup & Delivery, Locker. A plain
-// Drop-off or Self-service customer hands the bag over and collects it in person,
-// and demanding a number there is what filled the book with 00000000000 contacts -
-// a dummy number is worse than a blank one, because a dummy number MATCHES (see
-// the one-customer-per-number rule in models/res_partner.py).
-const PHONE_OPTIONAL_SERVICE_TYPES = new Set(["dropoff", "self_service"]);
-
-// Where a customer TAG is required. A tag is how this shop classifies a
-// customer, and it is the one classification that travels with the order to
-// the receipt (res.partner.pos_tag_names). Locker only, by the owner's rule:
-// a locker bag is handed to a machine rather than to a cashier, so the tag is
-// the only thing on the order that says what kind of customer left it. The
-// other four put a person in front of someone who can see them.
-const TAGS_REQUIRED_SERVICE_TYPES = new Set(["locker"]);
 
 export class NewOrderModal extends Component {
     static template = "laundry_pos.NewOrderModal";
@@ -225,107 +215,45 @@ export class NewOrderModal extends Component {
         return found ? found.label : "this service type";
     }
 
-    get phoneRequired() {
-        return (
-            !!this.state.serviceType &&
-            !PHONE_OPTIONAL_SERVICE_TYPES.has(this.state.serviceType)
-        );
+    // The rules themselves live in utils/contact_requirements.js, read from
+    // here and from the contact form alike. These only put this modal's
+    // service type to them.
+
+    get requiredContactLabels() {
+        // Named BEFORE any details are taken, for a new customer with no
+        // contact yet: the cashier is told what the form is going to ask for
+        // instead of finding out one pink box at a time.
+        return requiredContactFields(this.state.serviceType).map((r) => r.label);
     }
 
-    get tagsRequired() {
-        return (
-            !!this.state.serviceType &&
-            TAGS_REQUIRED_SERVICE_TYPES.has(this.state.serviceType)
-        );
+    get missingContactLabels() {
+        // And named again AFTER, as the gaps left on the contact chosen.
+        return missingContactFields(
+            this.state.selectedPartner,
+            this.state.serviceType
+        ).map((r) => r.label);
     }
 
-    // EVERY service type, with no exceptions. The address is what a bag is
-    // delivered, collected and re-booked to, and it is the line that tells two
-    // customers of the same name apart everywhere this module prints a contact
-    // (_laundry_contact_block, the Orders list, the duplicate dialog). Both
-    // lines, because this shop writes the kind of place on the first
-    // ("RESIDENCE", "OFFICE") and the address itself on the second - one
-    // without the other is half an address.
-    get addressRequired() {
-        return !!this.state.serviceType;
-    }
-
-    // Either field will do: the book carries numbers in both and either can be
-    // called. Trimmed, so a contact holding a space is still treated as blank.
     partnerPhone(partner) {
-        return String(partner?.phone || partner?.mobile || "").trim();
+        return contactPhone(partner);
     }
 
     get selectedPartnerPhone() {
-        return this.partnerPhone(this.state.selectedPartner);
+        return contactPhone(this.state.selectedPartner);
     }
 
-    partnerStreet(partner, key) {
-        return String(partner?.[key] || "").trim();
+    partnerTags(partner) {
+        return contactTagNames(partner);
     }
 
-    /**
-     * What a contact has to carry before this order can be taken, listed in the
-     * order the contact form shows the fields.
-     *
-     * ONE table, so the three rules are read together: they are per service
-     * type and they are not the same per type, which is impossible to see when
-     * each is written as its own getter somewhere else in the file. Changing
-     * what an order demands is changing `needed` here and nothing else.
-     *
-     * None of them is enforced on the contact FORM - a contact can always be
-     * saved half-finished, and deliberately: a form that refuses is what makes
-     * a cashier invent a value to get past it (the seven 00000000000 contacts).
-     * The ORDER is what asks, because the order is what actually needs them.
-     */
-    get contactRequirements() {
-        return [
-            {
-                label: "Phone number",
-                needed: this.phoneRequired,
-                has: (p) => !!this.partnerPhone(p),
-            },
-            {
-                label: "Tag",
-                needed: this.tagsRequired,
-                has: (p) => this.partnerTags(p).length > 0,
-            },
-            {
-                label: "Address line 1",
-                needed: this.addressRequired,
-                has: (p) => !!this.partnerStreet(p, "street"),
-            },
-            {
-                label: "Address line 2",
-                needed: this.addressRequired,
-                has: (p) => !!this.partnerStreet(p, "street2"),
-            },
-        ];
-    }
-
-    // Named BEFORE any details have been taken, for a new customer who has no
-    // contact yet: the cashier is told what the picker is going to ask for,
-    // instead of finding out one refusal at a time.
-    get requiredContactLabels() {
-        return this.contactRequirements.filter((r) => r.needed).map((r) => r.label);
-    }
-
-    // And named again AFTER, as the gaps that are left on the contact chosen.
-    get missingContactLabels() {
-        const partner = this.state.selectedPartner;
-        return this.contactRequirements
-            .filter((r) => r.needed && !(partner && r.has(partner)))
-            .map((r) => r.label);
-    }
-
-    // All of it can only come off a REAL contact - a number or an address typed
-    // into this modal and left here would be held by no res.partner, so the
-    // receipt, the order and the backend would each have a different idea of
-    // it. So the gate asks for a selected partner that CARRIES the values, not
-    // for strings.
+    // All of it can only come off a REAL contact - a number or an address
+    // typed into this modal and left here would be held by no res.partner, so
+    // the receipt, the order and the backend would each have a different idea
+    // of it. So the gate asks for a selected partner that CARRIES the values,
+    // not for strings.
     get contactOk() {
-        // Nothing is asked before a service type is chosen: every rule above is
-        // per-type, so until one is picked there is no question to answer.
+        // Nothing is asked before a service type is chosen: every rule is per
+        // type, so until one is picked there is no question to answer.
         if (!this.state.serviceType) {
             return true;
         }
@@ -352,7 +280,13 @@ export class NewOrderModal extends Component {
         // IS that purpose being filled in, so it is waved through for one call.
         order._laundryPartnerPickAllowed = true;
         try {
-            await this.pos.selectPartner(order);
+            // The contact form opens with this order's required fields marked
+            // (PosStore.withLaundryContactNeeds), so the gaps are shown in the
+            // boxes they belong to and the save is refused there - rather than
+            // being reported back here, a screen away from the fields.
+            await this.pos.withLaundryContactNeeds(this.state.serviceType, () =>
+                this.pos.selectPartner(order)
+            );
         } finally {
             order._laundryPartnerPickAllowed = false;
         }
@@ -363,6 +297,30 @@ export class NewOrderModal extends Component {
         if (partner) {
             this.state.selectedPartner = partner;
             this.state.partnerQuery = "";
+        }
+    }
+
+    /**
+     * Straight into the CHOSEN customer's form, with this order's required
+     * fields marked. Used by Edit Details and by Continue when the contact is
+     * short of something - the picker would be a list to walk past first, and
+     * the customer has already been chosen.
+     */
+    async editSelectedPartner() {
+        const partner = this.state.selectedPartner;
+        if (!partner) {
+            return;
+        }
+        const edited = await this.pos.withLaundryContactNeeds(
+            this.state.serviceType,
+            () => this.pos.editPartner(partner)
+        );
+        // Read back, because the form may hand back a DIFFERENT customer: the
+        // duplicate-number dialog offers the contact that already holds the
+        // number (see overrides/pos_store.js editPartner).
+        if (edited) {
+            this.state.selectedPartner = edited;
+            this.pos.setPartnerToCurrentOrder(edited);
         }
     }
 
@@ -387,14 +345,6 @@ export class NewOrderModal extends Component {
             .map((v) => String(v || "").trim())
             .filter(Boolean)
             .join(", ");
-    }
-
-    partnerTags(partner) {
-        // pos_tag_names is a comma-joined string computed server-side, so it is
-        // available for both pre-loaded and on-demand partners (unlike the
-        // category_id relation, whose category records aren't all loaded).
-        const names = String(partner?.pos_tag_names || "");
-        return names ? names.split(",").map((s) => s.trim()).filter(Boolean) : [];
     }
 
     // ── Step 2: Services (pills add unconfigured products to the order) ────
@@ -736,7 +686,18 @@ export class NewOrderModal extends Component {
         };
     }
 
-    confirm() {
+    async confirm() {
+        // A chosen customer who is short of what this service type needs opens
+        // their contact form, rather than being marked red here. The gap is in
+        // their record and the form is where it is filled, so Continue hands
+        // the cashier the fields - with the required ones marked - instead of
+        // a complaint about a screen they then have to find their way back to.
+        if (this.state.selectedPartner && this.missingContactLabels.length) {
+            await this.editSelectedPartner();
+            // Not confirmed for them: the cashier presses Continue again, and
+            // reads the modal once more before the order is taken.
+            return;
+        }
         // Continue stays enabled when the form is incomplete: a dead button says
         // nothing about WHY. Pressing it marks every unfilled section in red instead.
         if (!this.canConfirm) {

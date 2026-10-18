@@ -1,6 +1,6 @@
 {
     'name': 'Laundry POS',
-    'version': '1.5.21',
+    'version': '1.5.22',
     'author': 'laundryx',
     'summary': 'Custom laundry service workflow for Point of Sale',
     'category': 'Point of Sale',
@@ -35,6 +35,10 @@
             # chances to describe one customer differently.
             'laundry_pos/static/src/phone_twin/**/*.js',
             'laundry_pos/static/src/phone_twin/**/*.xml',
+            # Same reason: the contact form is one form, opened from the
+            # register and from the back office, and an order's required
+            # fields have to look the same in both.
+            'laundry_pos/static/src/contact_form/**/*.scss',
         ],
     },
     'installable': True,
