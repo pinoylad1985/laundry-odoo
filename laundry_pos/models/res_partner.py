@@ -279,15 +279,17 @@ class ResPartner(models.Model):
         than every time somebody mistypes a number.
 
         It still names the way out, because "that is wrong" is not an
-        instruction. "Or leave it blank" stays in: on a Drop-off or
-        Self-service order a blank is the CORRECT answer, and a cashier who
-        does not know that will invent a number instead - which is how the
-        book filled up with 00000000000 in the first place.
+        instruction - but only the way out of THIS: enter a number that is
+        one. It said "or leave it blank" until v1.5.20; the owner's call is
+        that where a number is optional is something a cashier learns from
+        the New Order modal, which asks for one on exactly three service
+        types and does not on the other two. A refusal is not the place to
+        teach a rule it is not enforcing.
         """
         problem = phone_problem(phone)
         if not problem:
             return ''
-        tail = _("Enter a valid number, or leave it blank.")
+        tail = _("Enter a valid number.")
         if problem == 'letters':
             head = _(
                 "%(phone)s is not a phone number - a phone number is digits "

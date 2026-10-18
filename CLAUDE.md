@@ -543,13 +543,17 @@ all: **digits only, and at least 11 of them** (`PHONE_MIN_DIGITS`). One function
   locker's `pos_check_phone`. Two wordings of one rule read as two rules, and invite a guess about
   which is really in force.
   - **TWO SHORT LINES: what is wrong, then what to do** (v1.5.19) - `<number> is too short - a
-    mobile number has 11 digits (09171234567).` / `Enter a valid number, or leave it blank.` It was
-    a paragraph until then, carrying the reasoning behind the rule and the list of service types
-    that require a number; the owner's call is that nobody reads a paragraph at a counter with a
-    customer waiting. The reasoning lives here instead, read once by whoever maintains the rule.
-  - **"or leave it blank" stays in.** On a Drop-off or Self-service order a blank is the CORRECT
-    answer, and a cashier who doesn't know that invents a number instead - which is how the book
-    filled up with `00000000000`. The dialog that carries it is titled **Invalid number**.
+    mobile number has 11 digits (09171234567).` / `Enter a valid number.` It was a paragraph until
+    then, carrying the reasoning behind the rule and the list of service types that require a
+    number; the owner's call is that nobody reads a paragraph at a counter with a customer waiting.
+    The reasoning lives here instead, read once by whoever maintains the rule. The dialog that
+    carries it is titled **Invalid number**.
+  - **It does NOT say "or leave it blank"** (v1.5.20, dropped from 1.5.19's wording). Where a
+    number is optional is something the cashier learns from the New Order modal, which asks for one
+    on three service types and not on the other two - a refusal is not the place to teach a rule it
+    isn't enforcing. ⚠ The risk this accepts is the one that filled the book with `00000000000`: a
+    cashier who thinks a number is compulsory invents one. What stands against it now is the modal
+    not asking, plus `is_placeholder_phone` refusing the invention.
   - The two lines are joined with a newline and survive because core's `AlertDialog` body is
     `class="text-prewrap"` (`web/.../confirmation_dialog.xml`); a `ValidationError` keeps them too.
 - **The locker catches it at the Check button, and on the row itself.** `pos_check_phone` returns
