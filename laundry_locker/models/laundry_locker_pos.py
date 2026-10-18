@@ -82,6 +82,20 @@ class LaundryLockerTransaction(models.Model):
                 self.partner_id._laundry_contact_block()
                 if self.partner_id else []
             ),
+            # Why this row's number cannot become a contact, if it cannot -
+            # the feed sends whatever was keyed in at the locker, and a number
+            # with letters in it or missing digits arrives here like any other.
+            # Carried on the row so the picker can open the correction fields
+            # the moment the row is chosen, instead of letting the cashier
+            # call an unusable number, answer that it rang, and be refused by
+            # res.partner.create at Confirm. Empty on a matched row, where the
+            # contact already exists and nothing is about to be created.
+            'phone_problem': (
+                '' if self.partner_id
+                else self.env['res.partner'].laundry_phone_problem_message(
+                    ph_local_phone(self.phone)
+                )
+            ),
             'phone_verified': self.phone_verified,
             'new_laundry_at': self._pos_datetime(self.new_laundry_at),
             'created_at': self._pos_datetime(self.created_at),
@@ -154,7 +168,29 @@ class LaundryLockerTransaction(models.Model):
 
     @api.model
     def pos_check_phone(self, phone):
-        """Re-run the Returning/New lookup for a number typed at the register."""
+        """Re-run the Returning/New lookup for a number typed at the register.
+
+        A number the shop's own rules refuse - letters in it, too few digits,
+        a filler - is answered with WHY and no lookup at all. Looking it up
+        anyway would report "New", which is true and leads straight into a
+        trap: the cashier would call it, answer that it rang, press Confirm,
+        and only then be refused by res.partner.create - having by then lost
+        the one thing Confirm was going to do. The message is the server's own
+        (res.partner.laundry_phone_problem_message), so the counter and the
+        contact form state the rule in the same words.
+        """
+        message = self.env['res.partner'].laundry_phone_problem_message(phone)
+        if message:
+            return {
+                'problem': message,
+                'last10': '',
+                # Not 'new'. No match either way, which is also what keeps
+                # Confirm disabled while the number is unusable.
+                'customer_match': False,
+                'partner_id': False,
+                'partner_name': '',
+                'partner_lines': [],
+            }
         key = phone_last10(phone)
         partner = self.env['res.partner']
         if key:

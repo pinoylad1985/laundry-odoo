@@ -50,7 +50,7 @@ export class PhoneTwinDialog extends Component {
 
 // Ask who holds this number, and let the caller's screen act on the answer.
 //
-// Returns {status: 'free'} | {status: 'placeholder'} | {status, twin} where
+// Returns {status: 'free'} | {status: 'refused'} | {status, twin} where
 // status is 'confirm' (use that customer) or 'cancel' (give a different
 // number). Closing the dialog counts as Cancel: the gentler of the two.
 export async function laundryPhoneTwinChoice({
@@ -62,23 +62,23 @@ export async function laundryPhoneTwinChoice({
     if (!info) {
         return { status: "free" };
     }
-    // A filler is refused, not offered: there is no customer behind
-    // `00000000000` to put on an order, only a number to fix. Answering it
-    // with the stranger who happens to hold those zeros would be true and
-    // useless.
-    if (info.placeholder) {
+    // A number the shop's rules refuse - letters in it, too few digits, or a
+    // filler - is told, not offered. There is no customer behind it to put on
+    // an order, only a number to fix, and answering `00000000000` with the
+    // stranger who happens to hold those zeros would be true and useless.
+    //
+    // The sentence is the SERVER'S (res.partner.laundry_phone_problem_message,
+    // which the refusal itself raises), not one written here: a cashier who
+    // gets past this dialog and is then refused on save must not be reading
+    // two different accounts of one rule.
+    if (info.refused) {
         await new Promise((resolve) => {
             dialog.add(AlertDialog, {
-                title: "That is not a phone number",
-                body:
-                    phone + " is not a phone number. Enter the number the " +
-                    "shop would actually call, or leave it blank - a number " +
-                    "is only required on Drop-off & Delivery, Pickup & " +
-                    "Delivery and Locker orders, where the laundry leaves " +
-                    "the counter.",
+                title: "That number cannot be used",
+                body: info.message,
             }, { onClose: resolve });
         });
-        return { status: "placeholder" };
+        return { status: "refused" };
     }
     const choice = await new Promise((resolve) => {
         let answered = "cancel";

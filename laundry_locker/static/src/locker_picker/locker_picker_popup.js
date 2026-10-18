@@ -111,8 +111,20 @@ export class LockerPickerPopup extends Component {
         // that it did not ring. Claiming the row already created its contact, so
         // it would otherwise read as a settled match and lock them out of the
         // one screen they opened to fix.
-        this.state.editing = this.isRecheck;
-        this.state.error = "";
+        //
+        // So does a row whose number the shop's rules refuse. The number came
+        // off the feed exactly as somebody keyed it at the locker, and there
+        // is no point asking anyone to call a number that is missing digits:
+        // the only way forward is to correct it, so the fields open on it and
+        // say why.
+        this.state.error = row.phone_problem || "";
+        this.state.editing = this.isRecheck || !!row.phone_problem;
+        if (row.phone_problem) {
+            // The row claims "New", which is true of the number and useless:
+            // nothing can be created from it. Cleared so Confirm stays
+            // disabled until Check has been pressed on a number that works.
+            this.state.match = null;
+        }
     }
 
     back() {
@@ -131,6 +143,10 @@ export class LockerPickerPopup extends Component {
         this.state.match = null;
         this.state.partnerName = "";
         this.state.partnerLines = [];
+        // And a refusal belongs to the number that earned it. Cleared as soon
+        // as the cashier starts fixing it, so the complaint goes away with
+        // the thing complained about instead of hanging over the next try.
+        this.state.error = "";
     }
 
     // Re-run the Returning/New lookup for the corrected number.
@@ -139,16 +155,29 @@ export class LockerPickerPopup extends Component {
             return;
         }
         this.state.checking = true;
+        let result;
         try {
-            const result = await this.orm.call(
+            result = await this.orm.call(
                 "laundry.locker.transaction", "pos_check_phone", [this.state.phone]
             );
-            this.state.match = result.customer_match;
-            this.state.partnerName = result.partner_name || "";
-            this.state.partnerLines = result.partner_lines || [];
         } finally {
             this.state.checking = false;
         }
+        // A number the shop's rules refuse is not a lookup result, so the
+        // fields stay OPEN on it: the cashier is being asked to fix the
+        // number, and closing the one input that can be fixed would leave
+        // them reading a complaint with nothing to do about it.
+        if (result.problem) {
+            this.state.error = result.problem;
+            this.state.match = null;
+            this.state.partnerName = "";
+            this.state.partnerLines = [];
+            return;
+        }
+        this.state.error = "";
+        this.state.match = result.customer_match;
+        this.state.partnerName = result.partner_name || "";
+        this.state.partnerLines = result.partner_lines || [];
         // The correction has been answered, so the fields close again: a match
         // is settled, and a number that still matches nothing has to be called
         // in its own right before it can become a contact.

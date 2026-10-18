@@ -54,6 +54,43 @@ def is_placeholder_phone(value):
     return False
 
 
+# A mobile number in the Philippines is 11 digits (`09171234567`); written
+# with the country code it is 12 (`+639171234567`). So 11 is the floor, and
+# the one number length the shop actually deals in.
+PHONE_MIN_DIGITS = 11
+
+# What a phone number is allowed to be made of: digits, and the characters
+# people separate them with. Everything else - letters above all - is refused,
+# because this field is read by somebody about to dial it.
+PHONE_ALLOWED_RE = re.compile(r'[^0-9+()./\s-]')
+
+
+def phone_problem(value):
+    """Why this is not a usable phone number: a short code, or None.
+
+    One entry point for every way a number can be wrong, in the order the
+    tests get less obvious: `'letters'` (characters a phone does not have),
+    `'short'` (fewer than PHONE_MIN_DIGITS digits), `'placeholder'` (a filler -
+    see is_placeholder_phone). The caller turns the code into a sentence; the
+    code itself is kept free of wording so the register, the locker and the
+    server refusal can all print the SAME sentence.
+
+    A BLANK is not a problem. It is the honest answer when the shop has no
+    number for somebody, and the one the phone rules deliberately leave open -
+    a number is only required where the laundry leaves the counter.
+    """
+    raw = (value or '').strip()
+    if not raw:
+        return None
+    if PHONE_ALLOWED_RE.search(raw):
+        return 'letters'
+    if len(re.sub('[^0-9]', '', raw)) < PHONE_MIN_DIGITS:
+        return 'short'
+    if is_placeholder_phone(raw):
+        return 'placeholder'
+    return None
+
+
 class ResPartner(models.Model):
     _inherit = 'res.partner'
 
@@ -152,36 +189,78 @@ class ResPartner(models.Model):
         rejecting work the cashier has already typed. One method for both, so
         the two screens can never disagree about who the twin is.
 
-        Returns False when the number is free. `placeholder` is reported
-        separately because a filler is refused outright and has no twin to
-        offer - the caller has nothing to confirm, only something to fix.
+        Returns False when the number is free. A number the shape rules
+        REFUSE is reported separately, as `{'refused': True, 'message': ...}`:
+        there is no twin to offer behind it, only a number to fix, and the
+        message is the server's own so the dialog cannot word the rule
+        differently from the refusal.
         """
-        if is_placeholder_phone(phone):
-            return {'placeholder': True}
+        message = self.laundry_phone_problem_message(phone)
+        if message:
+            return {'refused': True, 'message': message}
         twin = self._laundry_phone_twin(phone, exclude_id=exclude_id)
         if not twin:
             return False
         # Already sudo - see _laundry_phone_twin.
         return {
-            'placeholder': False,
+            'refused': False,
             'id': twin.id,
             'name': twin.display_name,
             'lines': twin._laundry_contact_block(),
             'archived': not twin.active,
         }
 
-    def _laundry_check_phone_duplicate(self, phone, exclude_id=None):
-        # Refused outright, and BEFORE the duplicate check, which would
-        # otherwise answer a filler with a stranger's name ("already used by
-        # STEVEN") - true, useless, and nothing the cashier can act on.
-        if is_placeholder_phone(phone):
-            raise ValidationError(_(
-                "%(phone)s is not a phone number. Enter the number the shop "
-                "would actually call, or leave it blank - a number is only "
-                "required on Drop-off & Delivery, Pickup & Delivery and "
-                "Locker orders, where the laundry leaves the counter.",
+    @api.model
+    def laundry_phone_problem_message(self, phone):
+        """What to tell whoever typed this number, or '' when it is fine.
+
+        ONE wording, built here and used by all three places that ask: the
+        server refusal below, the register's twin dialog
+        (laundry_phone_twin_info) and the locker picker's Check button
+        (laundry.locker.transaction.pos_check_phone). A cashier refused at the
+        counter and then refused again on the contact form should be reading
+        the same sentence both times - two wordings of one rule read as two
+        rules, and invite a second guess about which one is really in force.
+
+        Every message names the way out as well as the problem. "That is
+        wrong" is not an instruction; "leave it blank" is, and on a Drop-off
+        or Self-service order it is the correct answer.
+        """
+        problem = phone_problem(phone)
+        if not problem:
+            return ''
+        tail = _(
+            "Enter the number the shop would actually call, or leave it blank "
+            "- a number is only required on Drop-off & Delivery, Pickup & "
+            "Delivery and Locker orders, where the laundry leaves the counter."
+        )
+        if problem == 'letters':
+            head = _(
+                "%(phone)s is not a phone number - a phone number is digits "
+                "and nothing else. Anything worth remembering about this "
+                "customer belongs in their notes, not in the phone field.",
                 phone=phone,
-            ))
+            )
+        elif problem == 'short':
+            head = _(
+                "%(phone)s is too short for a phone number: %(count)s digits, "
+                "where a mobile number has %(minimum)s (09171234567).",
+                phone=phone,
+                count=len(re.sub('[^0-9]', '', phone or '')),
+                minimum=PHONE_MIN_DIGITS,
+            )
+        else:
+            head = _("%(phone)s is not a phone number.", phone=phone)
+        return '%s %s' % (head, tail)
+
+    def _laundry_check_phone(self, phone, exclude_id=None):
+        # Refused outright, and BEFORE the duplicate check, which would
+        # otherwise answer a number that is not one with a stranger's name
+        # ("already used by STEVEN") - true, useless, and nothing the cashier
+        # can act on.
+        message = self.laundry_phone_problem_message(phone)
+        if message:
+            raise ValidationError(message)
         twin = self._laundry_phone_twin(phone, exclude_id=exclude_id)
         if not twin:
             return
@@ -200,7 +279,7 @@ class ResPartner(models.Model):
     def create(self, vals_list):
         for vals in vals_list:
             if vals.get('phone') and not vals.get('parent_id'):
-                self._laundry_check_phone_duplicate(vals['phone'])
+                self._laundry_check_phone(vals['phone'])
         return super().create(vals_list)
 
     def write(self, vals):
@@ -232,8 +311,21 @@ class ResPartner(models.Model):
                 # filler check below.
                 if new_key and phone_last10(partner.phone) == new_key:
                     continue
+                # And so is a save that re-sends the stored value CHARACTER
+                # FOR CHARACTER. The test above cannot see that, because a
+                # number the shape rule refuses has no key to compare: a
+                # contact whose number somebody once typed as `N/A` would
+                # otherwise be locked out of the POS customer form for good -
+                # that form re-sends `phone` whatever was edited, so every
+                # attempt to fix the NAME would be refused over the number,
+                # and the cashier would be stuck unless they happened to have
+                # the customer's real number to hand. The rule is about a
+                # number being entered; re-sending an untouched one is not
+                # entering it.
+                if vals['phone'] == (partner.phone or ''):
+                    continue
                 if not vals.get('parent_id', partner.parent_id):
-                    self._laundry_check_phone_duplicate(
+                    self._laundry_check_phone(
                         vals['phone'], exclude_id=partner.id
                     )
         return super().write(vals)

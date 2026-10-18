@@ -69,11 +69,17 @@ export class LaundryPartnerFormController extends FormController {
             const typedKey = laundryPhoneKey(phone);
             // Both sides must HAVE a key - see the server rule. Two numbers
             // too short for one are not thereby the same number, and calling
-            // them the same would skip the filler check.
+            // them the same would skip the checks that refuse them.
+            //
+            // The character-for-character test is the escape valve for a
+            // number the rules refuse and that is ALREADY in the book (`N/A`,
+            // say): it has no key, so without this the form would refuse every
+            // save of that contact, including the one fixing its name. Same
+            // reasoning, and the same pair of tests, as res.partner.write.
             if (
                 stored.length &&
-                typedKey &&
-                laundryPhoneKey(stored[0].phone) === typedKey
+                ((typedKey && laundryPhoneKey(stored[0].phone) === typedKey) ||
+                    phone === (stored[0].phone || ""))
             ) {
                 return;
             }
@@ -95,8 +101,9 @@ export class LaundryPartnerFormController extends FormController {
             return;
         }
         if (answer.status !== "confirm") {
-            // Cancel, or a filler number: the save is stopped and the form is
-            // left exactly as typed, so only the number has to be retyped.
+            // Cancel, or a number the rules refuse outright: the save is
+            // stopped and the form is left exactly as typed, so only the
+            // number has to be retyped.
             return false;
         }
         if (inPos) {

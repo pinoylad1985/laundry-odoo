@@ -512,6 +512,49 @@ Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml
 - **A refund order locks the hub:** navbar getter `laundryIsRefund` (`is_refund` / has refund lines) disables
   BOTH New Order and Settle Order.
 
+## A number has to BE a number - v1.5.14
+Before anything asks whether a number is a duplicate, it is asked whether it is a phone number at
+all: **digits only, and at least 11 of them** (`PHONE_MIN_DIGITS`). One function decides -
+`phone_problem()` in `laundry_pos/models/res_partner.py`, which returns a short code
+(`'letters'` / `'short'` / `'placeholder'`) or `None`, in that order.
+- **11 because that is the length the shop deals in.** A PH mobile is 11 digits (`09171234567`),
+  or 12 written with the country code (`+639171234567`), so 11 is the floor that accepts both
+  spellings of one number.
+  - ⚠ **A Manila landline is 10 digits** (`02 8123 4567`) and is therefore REFUSED. That is the
+    trade: the shop reaches customers on mobiles, and the alternative floor (10) would accept a
+    mobile with a digit missing. A corporate contact on a landline has to carry it somewhere
+    other than the phone field.
+- **Letters are refused, not just "unlikely to pass the digit count".** `PHONE_ALLOWED_RE` permits
+  digits and the characters people separate them with (`+ ( ) . / -` and spaces) and nothing else,
+  so `09171234567 (Globe)` is refused even though it holds 11 digits. The field is read by
+  somebody about to dial it.
+- **A BLANK is still fine.** It is the honest answer when the shop has no number, and the one both
+  phone rules deliberately leave open - see the service-type rule below. Every refusal message
+  says so, because "that is wrong" is not an instruction and "leave it blank" is.
+- **ONE sentence per problem, built server-side** - `res.partner.laundry_phone_problem_message()`.
+  It is used by the refusal itself (`_laundry_check_phone`, renamed from
+  `_laundry_check_phone_duplicate`), by `laundry_phone_twin_info` (which now answers
+  `{'refused': True, 'message': ...}` where it used to answer `{'placeholder': True}`), and by the
+  locker's `pos_check_phone`. Two wordings of one rule read as two rules, and invite a guess about
+  which is really in force.
+- **The locker catches it at the Check button, and on the row itself.** `pos_check_phone` returns
+  `problem` and NO match, and `_pos_row` carries `phone_problem` so choosing a row whose feed
+  number is unusable opens the correction fields immediately. Otherwise the cashier would call an
+  unusable number, answer that it rang, press Confirm, and only then be refused by
+  `res.partner.create` - having lost the thing Confirm was going to do. `customer_match` is
+  cleared to `null` in both paths, which is what keeps Confirm disabled.
+- ⚠ **Two waivers, not one, on `write`** - a save is waved through when the **last 10 digits**
+  match the stored number, **or** when the value is re-sent **character for character**. The second
+  exists because of this rule: a number it refuses has no last-10 key, so a contact whose phone
+  somebody once typed as `N/A` would be locked out of the POS customer form for good - that form
+  re-sends `phone` whatever was edited, so every attempt to fix the NAME would be refused over the
+  number. The rule is about a number being *entered*; re-sending an untouched one is not entering
+  it. `partner_form_controller.js` carries the same pair.
+- **Not applied to a number ALREADY in the book.** `PHONE_OPTIONAL_SERVICE_TYPES`' `phoneOk` gate
+  still asks only whether the selected partner has a phone, so a Pickup & Delivery order can still
+  be taken for a legacy contact whose stored number is 10 digits. Tightening that would block the
+  counter on data nobody can fix mid-order; this rule stops new ones arriving.
+
 ## One customer per phone number - v1.5.9
 A contact cannot be CREATED, and its number cannot be SET, when another contact already holds the
 same **last 10 digits** - `phone_last10()` in `laundry_pos/models/res_partner.py`, the same key
@@ -537,7 +580,8 @@ spellings of the rule cannot drift apart).
   trade this rule makes - the alternative is a book that silently splits one person's orders, dues
   and points between two contacts.
 - **A FILLER number is refused outright** - `is_placeholder_phone()`, v1.5.11, checked
-  **before** the duplicate lookup. Seven production contacts carry `00000000000`, from when the
+  **before** the duplicate lookup (and, since v1.5.14, after the shape rule above - both are
+  decided by the one `phone_problem()`). Seven production contacts carry `00000000000`, from when the
   register asked every walk-in for a number whether the shop needed one or not.
   - ⚠ **v1.5.10 got this backwards and EXEMPTED fillers from the duplicate check.** That let
     `00000000000` be saved freely - which satisfied the required-phone gate below on a Pickup &
