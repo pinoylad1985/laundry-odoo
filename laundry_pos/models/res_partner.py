@@ -209,7 +209,7 @@ class ResPartner(models.Model):
         # straight past it. Only when the number itself is being set, and
         # never against the record's own number.
         if vals.get('phone'):
-            new_digits = re.sub('[^0-9]', '', vals['phone'])
+            new_key = phone_last10(vals['phone'])
             for partner in self:
                 # A save that does not actually CHANGE the number is waved
                 # through. The POS customer form re-sends `phone` whatever was
@@ -217,7 +217,20 @@ class ResPartner(models.Model):
                 # `00000000000` could never be edited again - not even to give
                 # them a real number - and the rule would be punishing a
                 # cashier for a value somebody typed years ago.
-                if re.sub('[^0-9]', '', partner.phone or '') == new_digits:
+                #
+                # Judged on the LAST 10 DIGITS, the one key this module
+                # compares numbers on anywhere. `0917 123 4567` and
+                # `+639171234567` are one number, so retyping one as the other
+                # is not a change and nothing should be asked about it. Judged
+                # on every digit instead (as it was until v1.5.13) the two read
+                # as different numbers, which is the opposite of what the
+                # duplicate rule itself says.
+                #
+                # Both sides must HAVE a key: a number too short for one gives
+                # '' on either side, and treating '' as a match would wave a
+                # change from one short number to another straight past the
+                # filler check below.
+                if new_key and phone_last10(partner.phone) == new_key:
                     continue
                 if not vals.get('parent_id', partner.parent_id):
                     self._laundry_check_phone_duplicate(

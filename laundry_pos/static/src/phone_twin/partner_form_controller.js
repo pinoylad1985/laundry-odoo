@@ -6,7 +6,14 @@ import { FormController } from "@web/views/form/form_controller";
 import { useService } from "@web/core/utils/hooks";
 import { laundryPhoneTwinChoice } from "@laundry_pos/phone_twin/phone_twin_dialog";
 
-const laundryDigits = (value) => (value || "").replace(/[^0-9]/g, "");
+// The comparison key for a phone number: its last 10 digits - the same key
+// phone_last10() uses on the server, and the only way numbers are compared
+// anywhere in this module. `0917 123 4567` and `+639171234567` are one number
+// and have to read as one here too.
+const laundryPhoneKey = (value) => {
+    const digits = (value || "").replace(/[^0-9]/g, "");
+    return digits.length >= 10 ? digits.slice(-10) : "";
+};
 
 // The contact form, asking about a duplicate number instead of being refused
 // one.
@@ -59,7 +66,15 @@ export class LaundryPartnerFormController extends FormController {
             const stored = await this.laundryOrm.read(
                 "res.partner", [record.resId], ["phone"]
             );
-            if (stored.length && laundryDigits(stored[0].phone) === laundryDigits(phone)) {
+            const typedKey = laundryPhoneKey(phone);
+            // Both sides must HAVE a key - see the server rule. Two numbers
+            // too short for one are not thereby the same number, and calling
+            // them the same would skip the filler check.
+            if (
+                stored.length &&
+                typedKey &&
+                laundryPhoneKey(stored[0].phone) === typedKey
+            ) {
                 return;
             }
         }

@@ -554,10 +554,16 @@ spellings of the rule cannot drift apart).
     meant to - a rule that guesses starts refusing real numbers, and a refused real number is a
     customer turned away. The real defence is that the number is no longer asked for where the
     shop doesn't need it.
-  - ⚠ **A save that doesn't CHANGE the number is waved through** (digits compared against the
-    record's own). The POS customer form re-sends `phone` whatever was edited, so without this
-    the seven existing contacts could never be edited again - not even to give them a real
-    number.
+  - ⚠ **A save that doesn't CHANGE the number is waved through** - judged on the **last 10
+    digits**, the one key this module compares numbers on anywhere. The POS customer form
+    re-sends `phone` whatever was edited, so without this the seven existing contacts could
+    never be edited again - not even to give them a real number. It compared EVERY digit until
+    v1.5.13, which read `0917 123 4567` and `+639171234567` as different numbers - the opposite
+    of what the duplicate rule itself says. (Harmless as it happened, since the lookup that then
+    ran excludes the record's own id, but two tests on one question must not disagree.) Both
+    sides must HAVE a key: a number too short for one gives `''` on either side, and treating
+    `''` as a match would wave a change from one short number to another straight past the
+    filler check.
 - It does **not** clean up the duplicates already in the book; it only stops new ones. The seven
   `00000000000` contacts keep that value until someone blanks it.
 
@@ -598,7 +604,8 @@ so both places a number gets typed now **ASK** first and offer that customer.
   on an existing one being re-numbered, **the contact that was being edited** - which the customer
   list would then put on the order in place of the twin. The flag puts the choice back on core's
   path, so the list selects it exactly as if it had been tapped.
-- **A save that does not CHANGE the number is waved through**, like the server rule - and judged by
+- **A save that does not CHANGE the number is waved through**, like the server rule - on the **last
+  10 digits** (`laundryPhoneKey`, the browser's spelling of `phone_last10`), and judged by
   re-reading the stored `phone`, not the form's dirty state, because that is the value the rule is
   really about. Without it the seven `00000000000` contacts could never be edited again.
 - **An archived twin gets no Confirm**, only Cancel and "restore it before using it": it was taken
