@@ -303,21 +303,60 @@
                              moment the cashier is still looking. -->
                         <div t-if="state.verified" class="text-success mt-2">
                             <i class="fa fa-check me-1"/>Number confirmed. Confirm will
-                            create this new contact, at this address:
-                            <div t-if="newContactAddressLines.length" class="mt-1 text-body">
-                                <div t-foreach="newContactAddressLines" t-as="line"
-                                     t-key="line_index">
-                                    <t t-esc="line"/>
+                            create this new contact:
+                            <!-- EVERY detail Confirm is about to write, not
+                                 just the address (v1.1.37). The cashier is
+                                 about to create a customer out of a bag and a
+                                 phone call, and this is the last screen before
+                                 it happens; a summary that showed two of the
+                                 four facts left the other two to be checked on
+                                 the contact form afterwards, which is where a
+                                 mis-keyed name or a missing tag then has to be
+                                 chased.
+                                 Labels down the left, values down the right,
+                                 so the four read as one block. They are the
+                                 same four a Locker order asks of a contact
+                                 (contact_requirements.js in laundry_pos) - the
+                                 summary IS that list, answered. -->
+                            <div class="laundry-new-contact mt-1 text-body">
+                                <div class="laundry-new-contact-label">Name</div>
+                                <div t-if="state.customerName.trim()">
+                                    <t t-esc="state.customerName"/>
                                 </div>
-                            </div>
-                            <!-- Said here rather than found out later: every
-                                 service type needs an address on the contact,
-                                 and this is the one drop-off that cannot
-                                 supply one. -->
-                            <div t-else="" class="mt-1 text-danger">
-                                This drop-off carries no locker site, so the contact
-                                gets no address. Add one on the contact before the
-                                order can be taken.
+                                <div t-else="" class="text-danger">Not keyed in yet</div>
+
+                                <div class="laundry-new-contact-label">Phone</div>
+                                <div><t t-esc="state.phone"/></div>
+
+                                <div class="laundry-new-contact-label">Address</div>
+                                <div t-if="newContactAddressLines.length">
+                                    <div t-foreach="newContactAddressLines" t-as="line"
+                                         t-key="line_index">
+                                        <t t-esc="line"/>
+                                    </div>
+                                </div>
+                                <!-- Said here rather than found out later:
+                                     every service type needs an address on the
+                                     contact, and this is the one drop-off that
+                                     cannot supply one. -->
+                                <div t-else="" class="text-danger">
+                                    This drop-off carries no locker site, so the
+                                    contact gets no address. Add one on the contact
+                                    before the order can be taken.
+                                </div>
+
+                                <div class="laundry-new-contact-label">Tags</div>
+                                <!-- Filled in from the box below as tags are
+                                     picked. Printed as a row even while it is
+                                     empty, like the em-dash in the table cells:
+                                     a line that is simply absent cannot be told
+                                     apart from one nobody printed. Not red -
+                                     red is for a Confirm that has been refused,
+                                     and nothing has been refused yet. -->
+                                <div t-if="selectedTags.length">
+                                    <t t-esc="selectedTagNames"/>
+                                </div>
+                                <div t-else="" class="text-muted">Not picked yet</div>
                             </div>
 
                             <!-- A tag on the contact, chosen here, because a

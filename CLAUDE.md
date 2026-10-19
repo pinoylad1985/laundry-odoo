@@ -722,9 +722,21 @@ so both places a number gets typed now **ASK** first and offer that customer.
   (v1.1.20). `_apply_locker_address` writes the locker site on **Street Address 1** and the word
   **LOCKER** on **Street Address 2**, onto an empty address block only - a customer the shop
   already knows by an address is not re-housed by a drop-off.
-  - The two lines are PREVIEWED before they are written ("Confirm will create this new contact, at
-    this address:"), and a drop-off with **no `location_name` says so in red** - the contact would
-    get no address at all, and every service type needs one.
+  - **The whole contact is SUMMARISED before it is written** ("Confirm will create this new
+    contact:") - **Name / Phone / Address / Tags**, labels down one column and values down the
+    other (`.laundry-new-contact`). It showed the two address lines ALONE until v1.1.37; the
+    cashier is about to create a customer out of a bag and a phone call, and this is the last
+    screen before it happens, so the other two facts were left to be checked on the contact form
+    afterwards - which is where a mis-keyed name or a missing tag then has to be chased.
+    - The four are the same four a Locker order asks of a contact (`CONTACT_REQUIREMENTS` in
+      `laundry_pos`). The summary IS that list, answered.
+    - **Tags fill in from the box BELOW as they are picked** (`selectedTagNames`, joined the way
+      `pos_tag_names` joins them). The row prints "Not picked yet" rather than vanishing - same
+      reasoning as the em-dash in the table cells - and in muted grey, not red: red is for a
+      Confirm that has been refused, and nothing has been refused yet.
+    - A drop-off with **no `location_name` says so in red** in the Address row - the contact
+      would get no address at all, and every service type needs one. A name not keyed in says so
+      the same way.
   - **The TAG is asked for in the picker**, below the address lines, and is used ONLY on a contact
     `pos_claim` creates (`tag_ids`); a returning customer's own tags are the book's answer, not
     this screen's. Locker is the one service type that requires a tag (`CONTACT_REQUIREMENTS`) and

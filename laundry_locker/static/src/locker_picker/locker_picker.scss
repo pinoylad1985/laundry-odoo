@@ -71,6 +71,21 @@
         min-height: 9.5rem;
     }
 
+    // The summary of the contact Confirm is about to create: labels down one
+    // column, values down the other, so the four facts line up and the block
+    // can be read down rather than hunted through. `auto` on the labels keeps
+    // the values hard against the longest one.
+    .laundry-new-contact {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.15rem 1rem;
+    }
+
+    .laundry-new-contact-label {
+        color: var(--bs-secondary-color, #6c757d);
+        font-weight: 600;
+    }
+
     // The tags field, shaped like the contact form's: chips sitting INSIDE
     // the box with the caret on the right, and the list hanging under it.
     // Written out rather than borrowed because the web client's

@@ -483,6 +483,13 @@ export class LockerPickerPopup extends Component {
             .filter((tag) => tag);
     }
 
+    // The picked tags as one line, for the summary of the contact about to be
+    // created - joined the way res.partner.pos_tag_names joins them, so the
+    // summary and the receipt spell one customer's tags the same way.
+    get selectedTagNames() {
+        return this.selectedTags.map((tag) => tag.name).join(", ");
+    }
+
     // What is left to pick, narrowed by what has been typed. A tag already
     // in the box is out of the list: it is in the box.
     //
