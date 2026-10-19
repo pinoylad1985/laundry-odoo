@@ -153,20 +153,20 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': self.customer_match or 'new',
             'partner_id': self.partner_id.id or False,
             'partner_name': self.partner_id.name or '',
-            # The matched customer the way the POS Orders list shows one -
-            # name, then phone, then address. The picker printed the name
-            # alone until v1.1.17, which does not say WHICH customer the
-            # number landed on: the book holds several people called MARY,
-            # and a bag put on the wrong one is not noticed again until
-            # somebody comes to claim it. Built by laundry_pos so the register
-            # and the contact form cannot describe one customer two ways.
-            # with_tags: the tag is the one thing a Locker order asks of a
-            # contact that this screen can still do something about, so the
-            # matched customer's is read here rather than found out when the
-            # modal refuses to continue.
-            'partner_lines': (
-                self.partner_id._laundry_contact_block(with_tags=True)
-                if self.partner_id else []
+            # The matched customer as labelled facts - name, phone, the two
+            # address lines, tags. The picker printed the name alone until
+            # v1.1.17, which does not say WHICH customer the number landed
+            # on: the book holds several people called MARY, and a bag put on
+            # the wrong one is not noticed again until somebody comes to
+            # claim it. Built by laundry_pos so the register, the contact form
+            # and the Orders list cannot describe one customer three ways.
+            # The tag is in there because it is the one thing a Locker order
+            # asks of a contact that this screen can still do something
+            # about - read here rather than found out when the modal refuses
+            # to continue.
+            'partner_parts': (
+                self.partner_id._laundry_contact_parts()
+                if self.partner_id else {}
             ),
             # Why this row's number cannot become a contact, if it cannot -
             # the feed sends whatever was keyed in at the locker, and a number
@@ -275,7 +275,7 @@ class LaundryLockerTransaction(models.Model):
                 'customer_match': False,
                 'partner_id': False,
                 'partner_name': '',
-                'partner_lines': [],
+                'partner_parts': {},
             }
         key = phone_last10(phone)
         partner = self.env['res.partner']
@@ -288,11 +288,11 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': 'returning' if partner else 'new',
             'partner_id': partner.id or False,
             'partner_name': partner.name or '',
-            # Same lines as the row above, for the same reason: the cashier
-            # is about to hand a bag to whoever this is - the tag included,
-            # since Locker is the service type that requires one.
-            'partner_lines': (
-                partner._laundry_contact_block(with_tags=True) if partner else []
+            # The same parts as the row above, for the same reason: the
+            # cashier is about to hand a bag to whoever this is - the tag
+            # included, since Locker is the service type that requires one.
+            'partner_parts': (
+                partner._laundry_contact_parts() if partner else {}
             ),
         }
 

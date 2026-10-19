@@ -185,7 +185,7 @@ class ResPartner(models.Model):
         # an answer anyone can act on.
         return self.env['res.partner'].sudo().browse(row[0]) if row else self.browse()
 
-    def _laundry_contact_block(self, with_tags=False):
+    def _laundry_contact_block(self):
         """A contact the way the POS Orders list shows one: name, then phone,
         then address, each on its own line.
 
@@ -199,21 +199,43 @@ class ResPartner(models.Model):
         pos.order. Deliberately: the cashier has already learned to read that
         block in the Orders list.
 
-        `with_tags` adds a FOURTH line, under the address, and is off by
-        default so the places that only have to say WHICH customer this is
-        still print the same three. It is on in the locker picker, where the
-        tag is not background: a Locker order requires one
-        (CONTACT_REQUIREMENTS), so whether the matched customer already
-        carries a tag decides whether the order can be taken at all. It says
-        "No tag" rather than dropping the line, because a line that is simply
-        absent cannot be told apart from one nobody printed.
+        Three lines, with no tag among them: the places that print this
+        block - the duplicate refusal and the phone-twin dialog - only have
+        to say WHICH customer holds the number. The locker picker needs the
+        tag as well, and needs its facts LABELLED, so it reads
+        `_laundry_contact_parts` below instead.
         """
         self.ensure_one()
         address = ' '.join(filter(None, [self.street, self.street2])).strip()
-        lines = [line for line in (self.display_name, self.phone, address) if line]
-        if with_tags:
-            lines.append(self.pos_tag_names or _("No tag"))
-        return lines
+        return [line for line in (self.display_name, self.phone, address) if line]
+
+    def _laundry_contact_parts(self):
+        """The same contact, LABELLED - name, phone, the two address lines and
+        the tags, each as its own named part instead of run together as lines.
+
+        `_laundry_contact_block` above DROPS a line the contact does not have,
+        so its lines cannot be labelled by position: on a contact with no
+        phone, the address comes second. The locker picker needs the labels,
+        because it prints the contact it is about to CREATE the same way and
+        the cashier should be reading one layout either way. Named here, in
+        the same file and the same order as the block, so one customer is
+        still described in one place.
+
+        The address stays TWO parts: this shop writes the kind of place on the
+        first line and the address itself on the second, and one without the
+        other is half an address.
+
+        Nothing is substituted for a part the contact does not carry - what to
+        say about a gap belongs to the screen printing it, and the two screens
+        in the picker say different things.
+        """
+        self.ensure_one()
+        return {
+            'name': self.display_name or '',
+            'phone': self.phone or '',
+            'address': [line for line in (self.street, self.street2) if line],
+            'tags': self.pos_tag_names or '',
+        }
 
     @api.model
     def laundry_phone_twin_info(self, phone, exclude_id=None):

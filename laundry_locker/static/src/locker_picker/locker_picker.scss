@@ -71,17 +71,21 @@
         min-height: 9.5rem;
     }
 
-    // The summary of the contact Confirm is about to create: labels down one
-    // column, values down the other, so the four facts line up and the block
-    // can be read down rather than hunted through. `auto` on the labels keeps
-    // the values hard against the longest one.
-    .laundry-new-contact {
+    // A contact as four labelled facts: labels down one column, values down
+    // the other, so they line up and the block can be read down rather than
+    // hunted through. `auto` on the labels keeps the values hard against the
+    // longest one.
+    //
+    // One block for BOTH the contact Confirm is about to create and the
+    // customer the number matched (v1.1.38), so the cashier reads the same
+    // shape either way.
+    .laundry-contact-facts {
         display: grid;
         grid-template-columns: auto 1fr;
         gap: 0.15rem 1rem;
     }
 
-    .laundry-new-contact-label {
+    .laundry-contact-facts-label {
         color: var(--bs-secondary-color, #6c757d);
         font-weight: 600;
     }

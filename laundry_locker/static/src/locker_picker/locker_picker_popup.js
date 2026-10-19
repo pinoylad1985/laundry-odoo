@@ -88,10 +88,11 @@ export class LockerPickerPopup extends Component {
             nameBeforeBook: "",
             match: null,          // 'returning' | 'new' | null
             partnerName: "",
-            // The matched customer as name / phone / address, built
-            // server-side by laundry_pos so this reads the same as the
-            // customer block in the Orders list.
-            partnerLines: [],
+            // The matched customer as labelled facts - name, phone, the
+            // two address lines, tags - built server-side by laundry_pos so
+            // the register, the contact form and the Orders list cannot
+            // describe one customer three ways.
+            partnerParts: {},
             // The tags the shop keeps, and the ones picked for a contact
             // about to be created. res.partner.category is NOT loaded into
             // the POS (pos_tag_names exists precisely because the relation
@@ -246,7 +247,7 @@ export class LockerPickerPopup extends Component {
         this.state.nameBeforeBook = "";
         this.state.match = row.customer_match || "new";
         this.state.partnerName = row.partner_name || "";
-        this.state.partnerLines = row.partner_lines || [];
+        this.state.partnerParts = row.partner_parts || {};
         this.state.verified = !!row.phone_verified;
         // Picked per drop-off, so backing out of one row and into another
         // cannot tag the second customer with the first one's answer.
@@ -339,7 +340,7 @@ export class LockerPickerPopup extends Component {
         // half-typed correction must not keep claiming "Returning".
         this.state.match = null;
         this.state.partnerName = "";
-        this.state.partnerLines = [];
+        this.state.partnerParts = {};
         // The name came out of the book with the match, so it goes back when
         // the match does - unless the cashier has since typed over it, which
         // makes it theirs again.
@@ -376,7 +377,7 @@ export class LockerPickerPopup extends Component {
             this.state.error = result.problem;
             this.state.match = null;
             this.state.partnerName = "";
-            this.state.partnerLines = [];
+            this.state.partnerParts = {};
             return;
         }
         // The Check button lives only in the correction, so a lookup that
@@ -385,7 +386,7 @@ export class LockerPickerPopup extends Component {
         this.state.error = "";
         this.state.match = result.customer_match;
         this.state.partnerName = result.partner_name || "";
-        this.state.partnerLines = result.partner_lines || [];
+        this.state.partnerParts = result.partner_parts || {};
         // A corrected number that lands on somebody already in the book
         // brings their NAME with it. The name in the box was typed against
         // the old number, so once that number turns out to belong to a known
@@ -436,14 +437,86 @@ export class LockerPickerPopup extends Component {
         return this.state.editing;
     }
 
-    // The matched customer's three lines. The fallback is for a row read
-    // before this register's assets were updated, where the name is all the
-    // server sent.
-    get returningLines() {
-        if (this.state.partnerLines.length) {
-            return this.state.partnerLines;
-        }
-        return [this.state.partnerName, this.state.phone].filter((l) => l);
+    // THE FOUR FACTS, twice over.
+    //
+    // A contact is printed on this screen in two places - the one the number
+    // MATCHED, and the one Confirm is about to CREATE - and from v1.1.38 both
+    // are printed in the same labelled shape (the owner's call). The cashier
+    // reads one layout whether the customer is new or known, so there is
+    // nothing to re-learn halfway through the job, and the four facts are the
+    // four a Locker order asks of a contact (CONTACT_REQUIREMENTS in
+    // laundry_pos) - the block IS that list, answered.
+    //
+    // Built here rather than in the template because the two fillings differ
+    // only in what each says where a fact is MISSING, and a missing fact has
+    // to say so rather than leave a gap: a line that is simply absent cannot
+    // be told apart from one nobody printed (the same reasoning as the
+    // em-dash in the table cells). `muted` is for a gap the cashier is about
+    // to fill on this very screen; everything else is red, because it is
+    // something the order will be refused over later.
+
+    // The customer in the book. The fallback is for a row read before this
+    // register's assets were updated, where the name is all the server sent.
+    get returningFacts() {
+        const parts = this.state.partnerParts || {};
+        return [
+            {
+                label: "Name",
+                lines: [parts.name || this.state.partnerName].filter((l) => l),
+                missing: "No name",
+            },
+            {
+                label: "Phone",
+                lines: [parts.phone || this.state.phone].filter((l) => l),
+                missing: "No number",
+            },
+            {
+                label: "Address",
+                lines: parts.address || [],
+                missing: "No address on this contact",
+            },
+            {
+                label: "Tags",
+                lines: [parts.tags].filter((l) => l),
+                missing: "No tag",
+            },
+        ];
+    }
+
+    // The contact Confirm is about to create. Reads off the state, so the
+    // Tags row fills in as the keys below are tapped.
+    get newContactFacts() {
+        return [
+            {
+                label: "Name",
+                lines: [this.state.customerName.trim()].filter((l) => l),
+                missing: "Not keyed in yet",
+            },
+            {
+                label: "Phone",
+                lines: [this.state.phone].filter((l) => l),
+                missing: "No number",
+            },
+            {
+                label: "Address",
+                lines: this.newContactAddressLines,
+                // Said here rather than found out later: every service type
+                // needs an address on the contact, and this is the one
+                // drop-off that cannot supply one.
+                missing:
+                    "This drop-off carries no locker site, so the contact gets " +
+                    "no address. Add one on the contact before the order can " +
+                    "be taken.",
+            },
+            {
+                label: "Tags",
+                lines: [this.selectedTagNames].filter((l) => l),
+                // Grey, not red: nothing has been refused yet, and the box
+                // that answers this is directly below.
+                missing: "Not picked yet",
+                muted: true,
+            },
+        ];
     }
 
     // The ADDRESS the contact Confirm is about to create will carry - the one
@@ -483,9 +556,10 @@ export class LockerPickerPopup extends Component {
             .filter((tag) => tag);
     }
 
-    // The picked tags as one line, for the summary of the contact about to be
-    // created - joined the way res.partner.pos_tag_names joins them, so the
-    // summary and the receipt spell one customer's tags the same way.
+    // The picked tags as one line, for the summary of the contact about to
+    // be created - joined the way res.partner.pos_tag_names joins them, so
+    // the new contact's tags, the matched customer's (which come from that
+    // very field) and the receipt are all spelled the same way.
     get selectedTagNames() {
         return this.selectedTags.map((tag) => tag.name).join(", ");
     }

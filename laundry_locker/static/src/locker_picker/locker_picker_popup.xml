@@ -1,23 +1,40 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
-    <!-- A contact in three lines - name, then phone, then address - the way
-         the POS Orders list prints one (laundry_customer_block). Used for the
-         customer the number MATCHED: that is a record in the book, and WHICH
-         record it is is not something the columns above can say.
+    <!-- A contact as FOUR LABELLED FACTS - name, phone, the two address
+         lines, tags - with the labels down one column and the values down the
+         other.
 
-         The contact a confirmation is about to CREATE no longer uses this. Its
-         name and phone are what the columns already show, and printing them
-         again under a heading of their own read as a second, possibly
-         different answer (v1.1.20) - so only the part the columns do NOT
-         carry, the address, is previewed there.
+         Written ONCE and called twice (v1.1.38, the owner's call): for the
+         customer the number MATCHED, and for the contact Confirm is about to
+         CREATE. The cashier reads the same block whether the customer is new
+         or known, so there is one layout to learn and never a question about
+         which fact is which. The four are the four a Locker order asks of a
+         contact (CONTACT_REQUIREMENTS in laundry_pos) - the block IS that
+         list, answered.
 
-         The lines come from the server (res.partner._laundry_contact_block in
-         laundry_pos), so the register, the contact form and the Orders list
-         cannot describe one customer three ways. -->
-    <t t-name="laundry_locker.ContactBlock">
-        <div t-foreach="lines" t-as="line" t-key="line_index"
-             t-att-class="line_index == 0 ? 'fs-4 fw-bold' : 'text-muted'">
-            <t t-esc="line"/>
+         A fact the contact does not carry PRINTS what is missing instead of
+         leaving a gap, the same reasoning as the em-dash in the table cells:
+         a line that is simply absent cannot be told apart from one nobody
+         printed. The rows come from the component (`facts`), which is where
+         the two fillings differ - see returningFacts / newContactFacts.
+
+         The matched customer's values are built server-side
+         (res.partner._laundry_contact_parts in laundry_pos), so the register,
+         the contact form and the Orders list cannot describe one customer
+         three ways. -->
+    <t t-name="laundry_locker.ContactFacts">
+        <div class="laundry-contact-facts mt-1 text-body">
+            <t t-foreach="facts" t-as="fact" t-key="fact.label">
+                <div class="laundry-contact-facts-label"><t t-esc="fact.label"/></div>
+                <div t-if="fact.lines.length">
+                    <div t-foreach="fact.lines" t-as="line" t-key="line_index">
+                        <t t-esc="line"/>
+                    </div>
+                </div>
+                <div t-else="" t-att-class="fact.muted ? 'text-muted' : 'text-danger'">
+                    <t t-esc="fact.missing"/>
+                </div>
+            </t>
         </div>
     </t>
 
@@ -238,10 +255,8 @@
                              record itself: the columns say the number is
                              known, not WHOSE it is. -->
                         <div class="fw-bold mb-1">The customer in the book</div>
-                        <div class="mt-1">
-                            <t t-set="lines" t-value="returningLines"/>
-                            <t t-call="laundry_locker.ContactBlock"/>
-                        </div>
+                        <t t-set="facts" t-value="returningFacts"/>
+                        <t t-call="laundry_locker.ContactFacts"/>
                         <small class="text-muted d-block mt-1">
                             Matched on the last 10 digits — the drop-off was keyed in
                             as “<t t-esc="selectedRow.customer_name_source"/>”.
@@ -313,51 +328,14 @@
                                  the contact form afterwards, which is where a
                                  mis-keyed name or a missing tag then has to be
                                  chased.
-                                 Labels down the left, values down the right,
-                                 so the four read as one block. They are the
-                                 same four a Locker order asks of a contact
-                                 (contact_requirements.js in laundry_pos) - the
-                                 summary IS that list, answered. -->
-                            <div class="laundry-new-contact mt-1 text-body">
-                                <div class="laundry-new-contact-label">Name</div>
-                                <div t-if="state.customerName.trim()">
-                                    <t t-esc="state.customerName"/>
-                                </div>
-                                <div t-else="" class="text-danger">Not keyed in yet</div>
 
-                                <div class="laundry-new-contact-label">Phone</div>
-                                <div><t t-esc="state.phone"/></div>
-
-                                <div class="laundry-new-contact-label">Address</div>
-                                <div t-if="newContactAddressLines.length">
-                                    <div t-foreach="newContactAddressLines" t-as="line"
-                                         t-key="line_index">
-                                        <t t-esc="line"/>
-                                    </div>
-                                </div>
-                                <!-- Said here rather than found out later:
-                                     every service type needs an address on the
-                                     contact, and this is the one drop-off that
-                                     cannot supply one. -->
-                                <div t-else="" class="text-danger">
-                                    This drop-off carries no locker site, so the
-                                    contact gets no address. Add one on the contact
-                                    before the order can be taken.
-                                </div>
-
-                                <div class="laundry-new-contact-label">Tags</div>
-                                <!-- Filled in from the box below as tags are
-                                     picked. Printed as a row even while it is
-                                     empty, like the em-dash in the table cells:
-                                     a line that is simply absent cannot be told
-                                     apart from one nobody printed. Not red -
-                                     red is for a Confirm that has been refused,
-                                     and nothing has been refused yet. -->
-                                <div t-if="selectedTags.length">
-                                    <t t-esc="selectedTagNames"/>
-                                </div>
-                                <div t-else="" class="text-muted">Not picked yet</div>
-                            </div>
+                                 The same block as the matched customer above
+                                 (v1.1.38) - one layout for a contact, whether
+                                 it is in the book already or about to be. The
+                                 Tags row fills in from the box below as tags
+                                 are picked. -->
+                            <t t-set="facts" t-value="newContactFacts"/>
+                            <t t-call="laundry_locker.ContactFacts"/>
 
                             <!-- A tag on the contact, chosen here, because a
                                  locker bag is handed to a machine rather than

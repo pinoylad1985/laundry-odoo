@@ -703,33 +703,49 @@ so both places a number gets typed now **ASK** first and offer that customer.
 - **A filler gets a plain alert, never a Confirm.** There is no customer behind `00000000000` to put
   on an order, only a number to fix, and answering it with the stranger who holds those zeros would
   be true and useless.
-- **The locker picker shows the same three lines - plus the TAG, a fourth** (v1.1.17; the tag
-  v1.1.28, `laundry_locker`): `_pos_row()` and `pos_check_phone()` carry `partner_lines` (built by
-  `_laundry_contact_block`), and the `laundry_locker.ContactBlock` sub-template renders them for
-  **the customer the number MATCHED** - the columns say the number is known, not WHOSE it is.
-  - **`_laundry_contact_block(with_tags=True)`** appends the customer's `pos_tag_names` under the
-    address, and **only the two locker call sites pass it**. Everywhere else - the phone-twin
-    dialog, the duplicate refusal - the block only has to say WHICH customer this is, and a tag
-    does not help with that. Here it does: **Locker is the one service type that REQUIRES a tag**
+- **The locker picker prints a contact as FOUR LABELLED FACTS - Name / Phone / Address / Tags -
+  and prints BOTH contacts that way** (v1.1.17, labelled v1.1.38, `laundry_locker`): the customer
+  the number MATCHED, and the contact Confirm is about to CREATE. ONE sub-template,
+  `laundry_locker.ContactFacts`, called twice; labels down one column and values down the other
+  (`.laundry-contact-facts`). The cashier reads the same shape whether the customer is new or
+  known, so there is one layout to learn and never a question about which fact is which - and the
+  four are the four a Locker order asks of a contact (`CONTACT_REQUIREMENTS` in `laundry_pos`), so
+  the block IS that list, answered. The matched customer printed as three unlabelled lines (plus a
+  tag line, v1.1.28) until 1.1.38, and the new contact's two address lines alone until v1.1.37.
+  - **The matched customer's values come from the server** -
+    `res.partner._laundry_contact_parts()` (`laundry_pos`), carried by `_pos_row()` and
+    `pos_check_phone()` as **`partner_parts`**: `{name, phone, address: [street, street2], tags}`.
+    The register, the contact form and the Orders list must not describe one customer three ways.
+  - ⚠ **`_laundry_contact_block()`'s lines cannot be labelled by position** - it DROPS a line the
+    contact does not have, so a contact with no phone returns the address second. That is why the
+    labelled parts are a second method rather than a re-read of the block, and why
+    `with_tags=True` is gone (v1.1.38) - the picker was its only caller. The block itself stays as
+    it was for the duplicate refusal and the phone-twin dialog, which only have to say WHICH
+    customer holds a number.
+  - **The tag is in the block because Locker is the one service type that REQUIRES one**
     (`CONTACT_REQUIREMENTS`), so whether the matched customer already carries one decides whether
-    the order can be taken, and this screen is where a cashier can still act on it. Without the
-    line the only news of a gap is the New Order modal refusing to continue, a screen later.
-  - It prints **"No tag"** rather than dropping the line, the same reasoning as the em-dash in the
-    table cells: a line that is simply absent cannot be told apart from one nobody printed.
-  - ⚠ The tag keys asked for below are for a contact the picker CREATES. This line is about one
-    the book ALREADY holds, whose own tags are the book's answer and are not re-picked here.
+    the order can be taken - and this screen is where a cashier can still act on it. Without it
+    the only news of a gap is the New Order modal refusing to continue, a screen later.
+  - **A fact the contact does not carry PRINTS what is missing** - "No tag", "No address on this
+    contact" - the same reasoning as the em-dash in the table cells: a line that is simply absent
+    cannot be told apart from one nobody printed. Red, because it is something the order will be
+    refused over later; the ONE exception is `muted`, for a gap the cashier is about to fill on
+    this very screen (the new contact's "Not picked yet" tags).
+  - **The two fillings are built in the component** (`returningFacts` / `newContactFacts`), not in
+    the template, because what each says about a MISSING fact is the only thing they differ in.
+  - ⚠ The tag keys asked for below are for a contact the picker CREATES. The matched customer's
+    Tags row is about one the book ALREADY holds, whose own tags are the book's answer and are not
+    re-picked here.
 - **A contact the picker CREATES gets the locker as its address, and its tag is picked there**
   (v1.1.20). `_apply_locker_address` writes the locker site on **Street Address 1** and the word
   **LOCKER** on **Street Address 2**, onto an empty address block only - a customer the shop
   already knows by an address is not re-housed by a drop-off.
   - **The whole contact is SUMMARISED before it is written** ("Confirm will create this new
-    contact:") - **Name / Phone / Address / Tags**, labels down one column and values down the
-    other (`.laundry-new-contact`). It showed the two address lines ALONE until v1.1.37; the
-    cashier is about to create a customer out of a bag and a phone call, and this is the last
-    screen before it happens, so the other two facts were left to be checked on the contact form
-    afterwards - which is where a mis-keyed name or a missing tag then has to be chased.
-    - The four are the same four a Locker order asks of a contact (`CONTACT_REQUIREMENTS` in
-      `laundry_pos`). The summary IS that list, answered.
+    contact:") - the same four labelled facts as the matched customer above (`ContactFacts`,
+    `newContactFacts`). It showed the two address lines ALONE until v1.1.37; the cashier is about
+    to create a customer out of a bag and a phone call, and this is the last screen before it
+    happens, so the other two facts were left to be checked on the contact form afterwards -
+    which is where a mis-keyed name or a missing tag then has to be chased.
     - **Tags fill in from the box BELOW as they are picked** (`selectedTagNames`, joined the way
       `pos_tag_names` joins them). The row prints "Not picked yet" rather than vanishing - same
       reasoning as the em-dash in the table cells - and in muted grey, not red: red is for a
