@@ -1,4 +1,5 @@
 import logging
+import re
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
@@ -53,6 +54,36 @@ class LaundryLockerTransaction(models.Model):
         minutes = f'{local:%M}' if exact else '00'
         return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
+    def _pos_source_phone(self):
+        """The number the locker sent, the way the picker should read it.
+
+        `source_phone` is written by the sync beside `phone` and is what the
+        cashier-correction guard compares against (_sync_writes), so it is the
+        original by definition. Falls back to `phone` for a row that has none -
+        a row nobody has corrected, where the two are the same number anyway.
+        """
+        self.ensure_one()
+        return ph_local_phone(self.source_phone or self.phone) or ''
+
+    def _pos_corrected_phone(self):
+        """The number the register put in place of the locker's, if any.
+
+        Compared on DIGITS, not on the string: `0917 555 0002` and
+        `09175550002` are one number, and showing the second as a correction of
+        the first would invent a correction out of spacing. The same reasoning
+        as phone_last10, on the whole number rather than its last ten - this is
+        asking whether somebody CHANGED it, not whether two records are the
+        same customer.
+        """
+        self.ensure_one()
+        current = ph_local_phone(self.phone) or ''
+        source = self._pos_source_phone()
+        if not current:
+            return ''
+        if re.sub(r'\D', '', current) == re.sub(r'\D', '', source):
+            return ''
+        return current
+
     def _pos_row(self):
         """One transaction as the register's picker shows it."""
         self.ensure_one()
@@ -63,7 +94,21 @@ class LaundryLockerTransaction(models.Model):
             'customer_name': self.customer_name or '',
             # Normalised on the way out as well as on the way in, so a row
             # that predates the trunk-0 rule still reads right in the picker.
+            #
+            # Three keys, because a corrected number is TWO facts and the
+            # picker shows both: what the customer keyed in at the locker, and
+            # what the register put in its place. `phone` is the number in
+            # force - what gets called, matched and written onto the contact -
+            # and every other reader of this row still uses it.
             'phone': ph_local_phone(self.phone) or '',
+            # What the locker sent. The columns call this one "Phone", because
+            # that is the number ON the drop-off; the correction is the shop's
+            # own note against it, not a replacement for it.
+            'phone_source': self._pos_source_phone(),
+            # Blank, not a repeat, when nothing was corrected - the picker
+            # prints an em-dash there. Repeating the number in both columns
+            # would read as a correction that changed nothing.
+            'phone_corrected': self._pos_corrected_phone(),
             'service': self.service or '',
             'turnaround': self.turnaround or '',
             'dirty_door': self.dirty_door or '',

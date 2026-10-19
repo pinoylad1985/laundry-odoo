@@ -729,16 +729,36 @@ so both places a number gets typed now **ASK** first and offer that customer.
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
     unbillable over something the cashier cannot fix from the picker.
-- **Step 2 is the chosen drop-off as a ROW of the same table, in the same 12 columns** (v1.1.20).
-  It was a strip of labelled values plus a name/phone summary until then; a cashier matching paper
-  to a bag has just read the queue across, so the detail is that same reading. One
-  `laundry_locker.RowHeadings` sub-template feeds both tables, so the columns cannot drift apart.
-  - **Customer / Phone / Customer Match read off `state`**, not the row - those three are what a
-    correction changes, and the cell is now the only place they are shown. An em-dash stands in for
-    the match while a number is being corrected; the badge the old number earned would be an answer
-    about a different number.
+- **Step 2 is the chosen drop-off as a ROW of the same table, in the same 13 columns** (v1.1.20,
+  13 since v1.1.22). It was a strip of labelled values plus a name/phone summary until then; a
+  cashier matching paper to a bag has just read the queue across, so the detail is that same
+  reading. One `laundry_locker.RowHeadings` sub-template feeds both tables, so the columns cannot
+  drift apart.
+  - **Customer / Phone (Corrected) / Customer Match read off `state`**, not the row - those are
+    what a correction changes, and the cell is now the only place they are shown. An em-dash
+    stands in for the match while a number is being corrected; the badge the old number earned
+    would be an answer about a different number.
   - `matchLabel()` / `matchClass()` take the **match value**, not a row, so the queue cell and the
     detail cell cannot label one answer two ways.
+- **The phone is TWO columns, side by side: `Phone` and `Phone (Corrected)`** (v1.1.22, the
+  owner's call). `Phone` is **always what the customer keyed in at the locker** and is never
+  overwritten in the picker - it is what is printed on their drop-off and what they quote when
+  they ring up about it. `Phone (Corrected)` is the shop's note against it, **an em-dash when
+  nothing was corrected**. One column holding "whichever is current" could not say that anything
+  had been changed.
+  - The row carries **three** keys now: **`phone`** is the number IN FORCE (called, matched,
+    written onto the contact) and is what every other reader still uses - the New Order modal's
+    claim line among them; **`phone_source`** is the locker's own (`source_phone`, the field the
+    sync's cashier-correction guard already compares against, falling back to `phone` on a row
+    that has none); **`phone_corrected`** is blank unless they differ.
+  - ⚠ **Compared on DIGITS, in both places** - `_pos_corrected_phone()` server-side and the
+    `correctedPhone` getter in the picker. `0917 555 0002` and `09175550002` are one number, and
+    re-spacing one is not correcting it. Two tests on one question must not disagree.
+  - The DETAIL cell reads `state.phone`, so the column fills in **as the correction is typed**,
+    not after Confirm - the cashier is looking at this table while they type. The queue cell reads
+    the stored `phone_corrected`.
+  - The picker's search covers **both** numbers: a customer ringing about a corrected drop-off
+    quotes the one THEY typed.
 
 ## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -

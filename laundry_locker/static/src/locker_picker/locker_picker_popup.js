@@ -110,12 +110,42 @@ export class LockerPickerPopup extends Component {
         const words = query.split(/\s+/);
         return this.state.rows.filter((row) => {
             const haystack = [
-                row.ref, row.customer_name, row.phone, row.location_name,
+                // Both numbers: a customer ringing up about a corrected
+                // drop-off quotes the one THEY typed, and the cashier
+                // searching for it would otherwise find nothing.
+                row.ref, row.customer_name, row.phone, row.phone_source,
+                row.phone_corrected, row.location_name,
                 row.service, row.turnaround, row.dirty_door, row.status_label,
                 row.new_laundry_at, row.pickup_datetime, row.delivery_datetime,
             ].join(" ").toLowerCase();
             return words.every((word) => haystack.includes(word));
         });
+    }
+
+    // The correction as its own column, beside the locker's own number.
+    //
+    // Read off the STATE rather than the row, so the column fills in while
+    // the number is being typed - the cashier is correcting it and looking at
+    // this table, and a column that only caught up after Confirm would be
+    // telling them something they can no longer act on.
+    //
+    // Compared on DIGITS, like the server's _pos_corrected_phone: re-spacing
+    // a number is not correcting it, and the two must not disagree about
+    // whether this drop-off was corrected at all.
+    get correctedPhone() {
+        const row = this.selectedRow;
+        if (!row) {
+            return "";
+        }
+        const current = (this.state.phone || "").trim();
+        if (!current) {
+            return "";
+        }
+        const digits = (value) => (value || "").replace(/\D/g, "");
+        if (digits(current) === digits(row.phone_source)) {
+            return "";
+        }
+        return current;
     }
 
     get selectedRow() {
