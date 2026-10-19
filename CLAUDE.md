@@ -837,6 +837,20 @@ so both places a number gets typed now **ASK** first and offer that customer.
     quotes the ones THEY typed.
   - The matched-customer line says the drop-off "was keyed in as" the **source** name, which is
     what "keyed in" means - it is contrasting the book's spelling with the locker's.
+  - **A corrected number that lands on a customer already in the book brings their NAME with
+    it** (v1.1.31, the owner's call) - `checkPhone` writes `partner_name` into
+    `state.customerName` on a `returning` match. The name in the box was typed against the OLD
+    number, so once that number turns out to belong to a known customer it is a guess about the
+    wrong person; and it is no longer a name anything is created under, since the contact
+    exists. All it could still do is be written onto the drop-off as a `(Corrected)` name that
+    disagrees with the contact the drop-off is attached to.
+    - **Only on a match.** A number that matched nobody is about to create a contact under
+      whatever the cashier typed, so that name stays theirs.
+    - ⚠ **The book's name only stands while its match does.** `state.nameFromBook` /
+      `nameBeforeBook` remember that the box was filled from a contact and what it replaced, and
+      `onPhoneInput` - which already clears the match - puts the old name back, unless the
+      cashier has since typed over it. Without that, correcting onto a customer and then away
+      from them again would create the next contact under *their* name.
 
 ## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -

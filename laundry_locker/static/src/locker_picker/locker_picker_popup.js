@@ -40,6 +40,14 @@ export class LockerPickerPopup extends Component {
             // The editable copy of the selected row's customer details.
             phone: "",
             customerName: "",
+            // The book's name only stands while the match that brought it
+            // does: these two remember that the name in the box was filled
+            // in from a matched contact, and what it replaced, so a number
+            // typed over the match takes its name back out again. Without
+            // that, correcting onto a customer and then away from them would
+            // leave the next contact being created under their name.
+            nameFromBook: "",
+            nameBeforeBook: "",
             match: null,          // 'returning' | 'new' | null
             partnerName: "",
             // The matched customer as name / phone / address, built
@@ -196,6 +204,8 @@ export class LockerPickerPopup extends Component {
         this.state.trail = ["pick"];
         this.state.phone = row.phone || "";
         this.state.customerName = row.customer_name || "";
+        this.state.nameFromBook = "";
+        this.state.nameBeforeBook = "";
         this.state.match = row.customer_match || "new";
         this.state.partnerName = row.partner_name || "";
         this.state.partnerLines = row.partner_lines || [];
@@ -292,6 +302,14 @@ export class LockerPickerPopup extends Component {
         this.state.match = null;
         this.state.partnerName = "";
         this.state.partnerLines = [];
+        // The name came out of the book with the match, so it goes back when
+        // the match does - unless the cashier has since typed over it, which
+        // makes it theirs again.
+        if (this.state.nameFromBook && this.state.customerName === this.state.nameFromBook) {
+            this.state.customerName = this.state.nameBeforeBook;
+        }
+        this.state.nameFromBook = "";
+        this.state.nameBeforeBook = "";
         // And a refusal belongs to the number that earned it. Cleared as soon
         // as the cashier starts fixing it, so the complaint goes away with
         // the thing complained about instead of hanging over the next try.
@@ -330,6 +348,21 @@ export class LockerPickerPopup extends Component {
         this.state.match = result.customer_match;
         this.state.partnerName = result.partner_name || "";
         this.state.partnerLines = result.partner_lines || [];
+        // A corrected number that lands on somebody already in the book
+        // brings their NAME with it. The name in the box was typed against
+        // the old number, so once that number turns out to belong to a known
+        // customer it is a guess about the wrong person - and it is no longer
+        // a name anything will be created under, since the contact exists.
+        // All it could still do is be written onto the drop-off as a
+        // "correction" that disagrees with the contact it is attached to.
+        //
+        // Only on a MATCH: a number that matched nobody is about to create a
+        // contact under whatever the cashier typed, so that stays theirs.
+        if (this.state.match === "returning" && this.state.partnerName) {
+            this.state.nameBeforeBook = this.state.customerName;
+            this.state.nameFromBook = this.state.partnerName;
+            this.state.customerName = this.state.partnerName;
+        }
         // The correction has been answered, so the fields close again: a match
         // is settled, and a number that still matches nothing has to be called
         // in its own right before it can become a contact.
