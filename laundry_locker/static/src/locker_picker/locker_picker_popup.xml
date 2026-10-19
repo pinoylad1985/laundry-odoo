@@ -35,16 +35,16 @@
                 <th>Location</th>
                 <th>Ref #</th>
                 <th>New Laundry</th>
+                <!-- The customer's two details are each a PAIR of columns:
+                     what they keyed in at the locker, then the shop's note
+                     against it. Neither left-hand column is ever overwritten
+                     here - those are what is printed on their drop-off and
+                     what they will quote when they ring up about it. A
+                     correction is only readable next to what it corrected;
+                     one column holding "whichever is current" cannot say that
+                     anything was changed at all. -->
                 <th>Customer</th>
-                <!-- Two phone columns, side by side. Phone is the number the
-                     CUSTOMER keyed in at the locker and it is never
-                     overwritten here: it is what is printed on their drop-off
-                     and what they will quote when they ring up about it.
-                     Phone (Corrected) is the shop's note against it - the
-                     number the register found actually answers. Shown as a
-                     pair because a correction is only readable next to what
-                     it corrected; one column holding "whichever is current"
-                     cannot say that anything was changed at all. -->
+                <th>Customer (Corrected)</th>
                 <th>Phone</th>
                 <th>Phone (Corrected)</th>
                 <th>Service</th>
@@ -79,7 +79,13 @@
                                 <td><t t-esc="row.location_name"/></td>
                                 <td class="fw-bold"><t t-esc="row.ref"/></td>
                                 <td class="text-nowrap"><t t-esc="row.new_laundry_at"/></td>
-                                <td><t t-esc="row.customer_name"/></td>
+                                <td><t t-esc="row.customer_name_source"/></td>
+                                <td>
+                                    <t t-if="row.customer_name_corrected">
+                                        <t t-esc="row.customer_name_corrected"/>
+                                    </t>
+                                    <span t-else="" class="text-muted">&#8212;</span>
+                                </td>
                                 <td><t t-esc="row.phone_source"/></td>
                                 <td>
                                     <t t-if="row.phone_corrected">
@@ -122,15 +128,22 @@
                                 <td><t t-esc="selectedRow.location_name"/></td>
                                 <td class="fw-bold"><t t-esc="selectedRow.ref"/></td>
                                 <td class="text-nowrap"><t t-esc="selectedRow.new_laundry_at"/></td>
-                                <td><t t-esc="state.customerName"/></td>
-                                <!-- The locker's own number, off the ROW:
-                                     correcting a number does not change what
-                                     the customer typed, and this column is
-                                     the only place that still says it. -->
-                                <td><t t-esc="selectedRow.phone_source"/></td>
-                                <!-- Off the STATE, so it fills in as the
+                                <!-- The locker's own name and number, off
+                                     the ROW: correcting either does not change
+                                     what the customer typed, and these two
+                                     columns are the only place that still says
+                                     it. The corrected cells beside them read
+                                     the STATE, so they fill in as the
                                      correction is typed rather than after it
                                      is saved. -->
+                                <td><t t-esc="selectedRow.customer_name_source"/></td>
+                                <td>
+                                    <t t-if="correctedCustomer">
+                                        <t t-esc="correctedCustomer"/>
+                                    </t>
+                                    <span t-else="" class="text-muted">&#8212;</span>
+                                </td>
+                                <td><t t-esc="selectedRow.phone_source"/></td>
                                 <td>
                                     <t t-if="correctedPhone">
                                         <t t-esc="correctedPhone"/>
@@ -201,7 +214,7 @@
                         </div>
                         <small class="text-muted d-block mt-1">
                             Matched on the last 10 digits — the drop-off was keyed in
-                            as “<t t-esc="state.customerName"/>”.
+                            as “<t t-esc="selectedRow.customer_name_source"/>”.
                         </small>
                     </t>
 

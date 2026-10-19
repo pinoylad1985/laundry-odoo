@@ -54,6 +54,36 @@ class LaundryLockerTransaction(models.Model):
         minutes = f'{local:%M}' if exact else '00'
         return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
+    def _pos_source_name(self):
+        """The name the locker sent.
+
+        `source_name` sits beside `source_phone` and is guarded the same way
+        (_sync_writes), so it is the customer's own spelling by definition.
+        Falls back to `customer_name` for a row that has none, where the two
+        are the same name anyway.
+        """
+        self.ensure_one()
+        return (self.source_name or self.customer_name or '').strip()
+
+    def _pos_corrected_name(self):
+        """The name the register put in place of the locker's, if any.
+
+        Whitespace is collapsed before the comparison - re-spacing a name is
+        not correcting it - but CASE is not. A name retyped from `Mary Smith`
+        to `MARY SMITH` is a change the shop made to its own record, and the
+        column exists to say what was changed. That is where this parts from
+        the phone rule beside it: two spellings of one number are the same
+        number, two spellings of one name are not the same text.
+        """
+        self.ensure_one()
+        current = (self.customer_name or '').strip()
+        source = self._pos_source_name()
+        if not current:
+            return ''
+        if ' '.join(current.split()) == ' '.join(source.split()):
+            return ''
+        return current
+
     def _pos_source_phone(self):
         """The number the locker sent, the way the picker should read it.
 
@@ -91,7 +121,14 @@ class LaundryLockerTransaction(models.Model):
             'id': self.id,
             'ref': self.ref or '',
             'location_name': self.location_name or '',
+            # Same pairing as the phone below, for the same reason: the
+            # locker's own spelling is what is printed on the customer's
+            # drop-off, so a correction is shown BESIDE it rather than over
+            # it. `customer_name` stays the name in force - what a contact
+            # gets created under - and is what every other reader uses.
             'customer_name': self.customer_name or '',
+            'customer_name_source': self._pos_source_name(),
+            'customer_name_corrected': self._pos_corrected_name(),
             # Normalised on the way out as well as on the way in, so a row
             # that predates the trunk-0 rule still reads right in the picker.
             #

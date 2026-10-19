@@ -110,16 +110,41 @@ export class LockerPickerPopup extends Component {
         const words = query.split(/\s+/);
         return this.state.rows.filter((row) => {
             const haystack = [
-                // Both numbers: a customer ringing up about a corrected
-                // drop-off quotes the one THEY typed, and the cashier
-                // searching for it would otherwise find nothing.
-                row.ref, row.customer_name, row.phone, row.phone_source,
+                // Every spelling of the name and the number: a customer
+                // ringing up about a corrected drop-off quotes the ones THEY
+                // typed, and the cashier searching for them would otherwise
+                // find nothing.
+                row.ref, row.customer_name, row.customer_name_source,
+                row.customer_name_corrected, row.phone, row.phone_source,
                 row.phone_corrected, row.location_name,
                 row.service, row.turnaround, row.dirty_door, row.status_label,
                 row.new_laundry_at, row.pickup_datetime, row.delivery_datetime,
             ].join(" ").toLowerCase();
             return words.every((word) => haystack.includes(word));
         });
+    }
+
+    // The corrected name as its own column, beside the locker's own.
+    //
+    // Whitespace is collapsed, CASE is not - the server's _pos_corrected_name
+    // draws the same line, and for the same reason: two spellings of one
+    // number are the same number, two spellings of one name are not the same
+    // text, so retyping `Mary Smith` as `MARY SMITH` is a correction and the
+    // column says so.
+    get correctedCustomer() {
+        const row = this.selectedRow;
+        if (!row) {
+            return "";
+        }
+        const current = (this.state.customerName || "").trim();
+        if (!current) {
+            return "";
+        }
+        const flat = (value) => (value || "").trim().split(/\s+/).join(" ");
+        if (flat(current) === flat(row.customer_name_source)) {
+            return "";
+        }
+        return current;
     }
 
     // The correction as its own column, beside the locker's own number.
