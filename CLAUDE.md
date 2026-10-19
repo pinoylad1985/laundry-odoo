@@ -711,7 +711,7 @@ so both places a number gets typed now **ASK** first and offer that customer.
   and a brand-new contact never has one, so it is shown before it is written rather than found
   afterwards.
 
-## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.22 (phone rule v1.5.10)
+## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -
 **`CONTACT_REQUIREMENTS`** in `static/src/utils/contact_requirements.js`, fed by
 `PHONE_OPTIONAL_SERVICE_TYPES` and `TAGS_REQUIRED_SERVICE_TYPES`:
@@ -741,6 +741,13 @@ What the contact on an order must hold depends on the service type. ONE table sa
   - ⚠ the **first** xpath match wins, which is the MAIN contact's field; the second copy of
     each (further down `base.view_partner_form`) belongs to the nested child-contact form, where a
     parent's address is legitimately inherited. Don't make those xpaths more specific.
+  - ⚠ that view carries **`priority` 999, so it is the LAST inherit applied**. Unticking
+    Required in Studio writes an inherited view that sets `required="False"` on the very same
+    fields, and inherited views are applied in `priority` order (`ir.ui.view._order`) - at the
+    default priority Studio's won and the form asked for nothing at all. The symptom was the
+    field's debug tooltip reading `Required: False` instead of our expression, which is the
+    cheapest way to check this: hover the `?` on the field with developer mode on. Don't lower
+    the priority; if these fields ever stop being asked for, look for a view ranked above it.
 - **ONE wrapper puts the keys in and takes them out** - `PosStore.withLaundryContactNeeds(serviceType,
   action)` (`overrides/pos_store.js`), which `editPartnerContext()` spreads into the action's
   context. ⚠ it clears in a `finally` - a key left behind would make **the next contact
@@ -750,13 +757,24 @@ What the contact on an order must hold depends on the service type. ONE table sa
   `product_screen_patch`'s re-open after the modal hands back `editPartner`.
 - **The required boxes are marked BLUE before anything is wrong** -
   `static/src/contact_form/laundry_required_fields.scss`, a blue border and tint on an empty
-  required `phone` / `street` / `street2` / `category_id`. Core only ever paints a field pink
-  *after* a refused save; the cashier should know which boxes are being asked for while they are
-  still filling them in. The tint drops away as soon as the box has something in it
-  (`:not(:placeholder-shown)`), and core's pink wins over it (`:not(.o_field_invalid)`).
-  - It is **self-scoping**: base Odoo makes none of those four fields required, so
-    `.o_required_modifier` on them can only have come from our context keys. That is what keeps
-    the blue out of the rest of Odoo.
+  required `name` / `phone` / `street` / `street2` / `category_id`. Core only ever paints a field
+  pink *after* a refused save, and its own mark for a required field is an asterisk on the
+  LABEL - which says nothing on this form, where the three address boxes share one "Address"
+  label, the tags box sits under another and the name box has no label at all. The tint drops
+  away as soon as the box has something in it (`:not(:placeholder-shown)`), and core's pink wins
+  over it (`:not(.o_field_invalid)`).
+  - **NAME is marked too** (v1.5.24, the owner's call) even though it is CORE that requires it,
+    not us - a cashier reading the form cannot tell whose rule a box belongs to, and a box that
+    will refuse the save is a box that should be marked.
+  - **Switched on by a class on the form, not by field name** - `LaundryPartnerFormController`'s
+    `className` getter adds **`laundry-contact-needs`** when the action context carries any
+    truthy `laundry_require_*` key, and the whole stylesheet is scoped under it. So the blue
+    appears only on a form opened FOR an order, and the back-office Contacts form stays unmarked.
+    That gate is what makes marking `name` possible at all: scoping by field name alone would
+    paint every required Name box in Odoo. One table (`contact_requirements.js`) drives the blue
+    and core's pink alike, so they cannot disagree about which boxes are being asked for.
+  - The name box is a **`textarea`** (core gives it `widget="text"`), so the selectors spell out
+    `input`, `textarea` and `.o_input`.
   - ⚠ the folder must stay loaded by **both** bundles (the POS glob picks it up; the
     manifest adds it to `web.assets_backend` by hand) - the register's customer form IS the
     back-office form.

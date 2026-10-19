@@ -41,6 +41,33 @@ export class LaundryPartnerFormController extends FormController {
         this.laundryPos = this.env.services.pos || null;
     }
 
+    /**
+     * The blue "this order needs it" marks
+     * (contact_form/laundry_required_fields.scss) are switched on HERE rather
+     * than by field name, so they can only ever appear on a form that was
+     * opened FOR an order.
+     *
+     * The keys are the ones utils/contact_requirements.js puts in the context
+     * and the view's own `required` modifiers read, so the blue (before) and
+     * core's pink (after a refused save) are driven by one table and cannot
+     * disagree about which boxes are being asked for.
+     *
+     * It is also what lets NAME be marked. Name is required by CORE on every
+     * res.partner form in Odoo, so without this gate the tint would reach the
+     * back-office Contacts form, which this module deliberately asks nothing
+     * of.
+     */
+    get className() {
+        const result = super.className;
+        const needed = Object.entries(this.props.context || {}).some(
+            ([key, value]) => key.startsWith("laundry_require_") && value
+        );
+        if (needed) {
+            result["laundry-contact-needs"] = true;
+        }
+        return result;
+    }
+
     async onWillSaveRecord(record) {
         if ((await super.onWillSaveRecord(...arguments)) === false) {
             return false;
