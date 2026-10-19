@@ -754,6 +754,26 @@ so both places a number gets typed now **ASK** first and offer that customer.
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
     unbillable over something the cashier cannot fix from the picker.
+- **A three-step strip at the top left says where in the job the cashier is** (v1.1.29), drawn as
+  the pointed keys Odoo uses for a record's stages: **Pick a drop-off -> Check the number ->
+  Confirm the customer**. The picker is one screen that does three things in a fixed order, and
+  until now the only sign of which one was in hand was which half of the dialog was on screen.
+  - **The keys ARE `confirm()`'s gates, read off the state** (`steps` in
+    `locker_picker_popup.js`), in the order it refuses for them - so the strip cannot claim the
+    job is further along than the Confirm button thinks it is. Step 2 is settled when
+    `match` is set and neither `editing` nor `needsVerification` holds, which is exactly what
+    `confirm()` asks.
+  - **The middle step is the NUMBER, not the second pane.** It is where a cashier actually waits
+    (the lookup, the call, a correction and another lookup); picking a row and pressing Confirm
+    are a tap each.
+  - **Only the CURRENT key is coloured** - the steps behind are the same grey as the ones ahead,
+    as in Odoo's own statusbar and in the New Order modal keys: colour means where you are, and
+    nothing else.
+  - ⚠ **The outline on the current key cannot be a `border`** - `clip-path` cuts a box's border
+    off with the corners it removes. The key is filled with the outline colour and `::before`
+    lays an inset shape over it for the white fill, taking `clip-path: inherit` so the cut is
+    re-resolved against its own smaller box and the outline stays an even width round the point.
+    The label needs `position: relative` to sit over that fill.
 - **Step 2 is the chosen drop-off as a ROW of the same table, in the same columns** (v1.1.20) -
   12, plus the two `(Corrected)` columns this table alone carries. It was a strip of labelled
   values plus a name/phone summary until then; a cashier matching paper to a bag has just read the

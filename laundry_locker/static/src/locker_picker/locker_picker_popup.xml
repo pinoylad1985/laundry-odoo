@@ -68,6 +68,28 @@
 
     <t t-name="laundry_locker.LockerPickerPopup">
         <Dialog title="'Lockers'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
+            <!-- Where in the job the cashier is, in the shape Odoo uses
+                 for a record's stages, at the top left under the title.
+                 The picker is one screen that does three things in a fixed
+                 order, and until now the only sign of which one was in hand
+                 was which half of the dialog was on screen.
+
+                 The keys are the gates confirm() itself refuses for (see
+                 `steps`), so the strip cannot claim the job is further along
+                 than Confirm thinks it is.
+
+                 Only the CURRENT key is coloured - the steps behind are the
+                 same grey as the ones ahead, as they are in Odoo's own
+                 statusbar and in the New Order modal: colour means where you
+                 are, and nothing else. -->
+            <div class="laundry-steps">
+                <div t-foreach="steps" t-as="step" t-key="step.label"
+                     class="laundry-step"
+                     t-att-class="{ 'laundry-step-current': step.current }">
+                    <span class="laundry-step-label"><t t-esc="step.label"/></span>
+                </div>
+            </div>
+
             <!-- Step 1: pick the drop-off -->
             <div t-if="!selectedRow">
                 <input type="text" class="form-control form-control-lg mb-2"

@@ -176,4 +176,77 @@
             }
         }
     }
+
+    // The three steps, drawn as the pointed keys Odoo uses for a record's
+    // stages. Each one is a single shape cut with `clip-path`: a point on the
+    // right, a notch of the same depth on the left, so the keys read as one
+    // run even with the gap between them.
+    //
+    // The CURRENT key is white inside a coloured outline, the way the current
+    // stage reads in the backend. That outline cannot be a `border` - the
+    // clip-path cuts the box's own border off with the corners it removes -
+    // so the key is filled with the outline colour and a second, inset shape
+    // is laid over it for the fill. `clip-path: inherit` gives that inner
+    // shape the same cut, resolved against its own smaller box, which is what
+    // keeps the outline an even width all the way round the point.
+    .laundry-steps {
+        display: flex;
+        align-items: stretch;
+        // Small enough to read as one run, wide enough that the white shows
+        // between the point and the next notch.
+        gap: 3px;
+        margin-bottom: 0.75rem;
+    }
+
+    .laundry-step {
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-height: 36px;
+        // The left padding carries the notch; the first key has none.
+        padding: 0 1.25rem 0 2rem;
+        font-weight: 500;
+        color: var(--bs-secondary-color, #6c757d);
+        background-color: var(--bs-secondary-bg, #e9ecef);
+        clip-path: polygon(
+            0 0,
+            calc(100% - 12px) 0,
+            100% 50%,
+            calc(100% - 12px) 100%,
+            0 100%,
+            12px 50%
+        );
+
+        // Nothing to its left to notch into.
+        &:first-child {
+            padding-left: 1.25rem;
+            clip-path: polygon(
+                0 0,
+                calc(100% - 12px) 0,
+                100% 50%,
+                calc(100% - 12px) 100%,
+                0 100%
+            );
+        }
+    }
+
+    .laundry-step-current {
+        // Read as the OUTLINE: the fill is the inset shape below.
+        background-color: var(--bs-primary, #017e84);
+        color: var(--bs-body-color, #111);
+        font-weight: 600;
+
+        &::before {
+            content: "";
+            position: absolute;
+            inset: 2px;
+            background-color: var(--bs-body-bg, #fff);
+            clip-path: inherit;
+        }
+    }
+
+    // Over the fill, which is painted after the key's own background.
+    .laundry-step-label {
+        position: relative;
+    }
 }

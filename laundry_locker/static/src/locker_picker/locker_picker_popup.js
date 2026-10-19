@@ -447,6 +447,29 @@ export class LockerPickerPopup extends Component {
         return this.state.match === "new" && !this.state.verified;
     }
 
+    // Where the cashier is, read off the picker's OWN gates rather than
+    // written out beside them - these are the three things confirm() refuses
+    // for, in the order it refuses them, so the strip cannot say the job is
+    // further along than the Confirm button thinks it is.
+    //
+    // The middle step is the number: a drop-off is picked, and nothing can
+    // happen until the number either matched somebody in the book or was
+    // called (the Check / rang / did-not-ring loop). It is its own step
+    // because it is where a cashier waits - the other two are a tap each.
+    get steps() {
+        const picked = !!this.state.selectedId;
+        // Settled = confirm() would no longer send them back to the number.
+        const settled = (
+            picked && !!this.state.match &&
+            !this.state.editing && !this.needsVerification
+        );
+        return [
+            { label: "Pick a drop-off", current: !picked },
+            { label: "Check the number", current: picked && !settled },
+            { label: "Confirm the customer", current: settled },
+        ];
+    }
+
     get confirmDisabled() {
         return this.state.busy || !this.state.selectedId || !this.state.match;
     }
