@@ -398,19 +398,18 @@
                                 <small class="text-muted d-block mt-1">
                                     Pick at least one.
                                 </small>
-                                <!-- Every tag still unpicked, out in the open
-                                     as a key apiece - wash first, then dry,
-                                     then the rest (tagChoices is already in
-                                     that order). The box above can do the
-                                     same job through its list, but only once
-                                     the cashier has thought to open it; here
-                                     the choices are on the screen with a bag
+                                <!-- The WASH and DRY tags, out in the open
+                                     as a key apiece (wash first). The box
+                                     above can pick the same tags, but only
+                                     once the cashier has thought to open its
+                                     list; these are on the screen with a bag
                                      in hand and a customer waiting. Picking
                                      one moves it into the box, so a key
                                      leaving the row is the tag arriving as a
-                                     chip. -->
-                                <div t-if="tagChoices.length" class="laundry-tag-pills">
-                                    <button t-foreach="tagChoices" t-as="tag" t-key="tag.id"
+                                     chip. The book's other tags are NOT keys
+                                     here - see tagKeys. -->
+                                <div t-if="tagKeys.length" class="laundry-tag-pills">
+                                    <button t-foreach="tagKeys" t-as="tag" t-key="tag.id"
                                             class="btn btn-secondary laundry-tag-pill"
                                             t-on-click="() => this.pickTag(tag.id)">
                                         <t t-esc="tag.name"/>

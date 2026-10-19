@@ -762,11 +762,18 @@ so both places a number gets typed now **ASK** first and offer that customer.
       its first item** - it has to be the one at the top of the list the cashier is looking at.
     - The heading is deliberately **shorter than the 44px rows** under it: a target-sized heading
       invites a tap that does nothing.
-  - **Every unpicked tag is ALSO a key, standing open under the box** (v1.1.33, the owner's
-    call) - `.laundry-tag-pills`, fed by the same `tagChoices`, so they come out **wash first,
-    then dry, then the rest**. The box's own list can do the same job, but only once the cashier
-    has thought to open it; the keys are on the screen with a bag in hand and a customer waiting.
-    Picking one moves it into the box, so a key leaving the row IS the tag arriving as a chip.
+  - **The WASH and DRY tags stand OUTSIDE the box, as a key apiece** (v1.1.33, scoped to those
+    two blocks in v1.1.34 - the owner's call) - `.laundry-tag-pills`, fed by **`tagKeys`**, wash
+    first. The box's own list can pick the same tags, but only once the cashier has thought to
+    open it; the keys are on the screen with a bag in hand and a customer waiting. Picking one
+    moves it into the box, so a key leaving the row IS the tag arriving as a chip.
+    - ⚠ **NOT every tag.** 1.1.33 drew a key for each of `tagChoices` - every unpicked tag in
+      the book, the customer-classification ones included - which buried the two instructions
+      the bag is actually waiting on. `TAG_GROUPS` now carries an **`open`** flag, true on Wash
+      and Dry only, and `tagKeys` reads it; everything else stays in the box's list.
+    - **NOT narrowed by what is typed in the box** either, unlike `tagChoices`: the keys are a
+      fixed row whose shape the cashier learns, and a row that rearranges itself as somebody
+      types could not be learned.
     - They **wrap rather than scroll**: a tag that has to be scrolled to is a tag the cashier
       does not know is there.
     - **Plain grey, every one of them.** A picked tag shows as a chip inside the box, so colour

@@ -27,9 +27,14 @@ import { useService } from "@web/core/utils/hooks";
 // configured per tag, and a tag named for neither simply falls to the last
 // block. Anything added here is drawn without further changes.
 const TAG_GROUPS = [
-    { label: "Wash", match: (tag) => /^wash\b/i.test(tag.name || "") },
-    { label: "Dry", match: (tag) => /^dry\b/i.test(tag.name || "") },
-    { label: "Other", match: () => true },
+    // `open` = this block also stands outside the box, as keys. Only the
+    // washing and drying instructions do: they are the two questions every
+    // locker bag has to answer, so they are the ones worth the screen space.
+    // The book's other tags (how the shop classifies the customer) are
+    // answered once on the contact and are left to the box's own list.
+    { label: "Wash", open: true, match: (tag) => /^wash\b/i.test(tag.name || "") },
+    { label: "Dry", open: true, match: (tag) => /^dry\b/i.test(tag.name || "") },
+    { label: "Other", open: false, match: () => true },
 ];
 
 export class LockerPickerPopup extends Component {
@@ -473,6 +478,27 @@ export class LockerPickerPopup extends Component {
         const rank = (tag) => TAG_GROUPS.findIndex((group) => group.match(tag));
         return left
             .map((tag, index) => ({ tag, index, rank: rank(tag) }))
+            .sort((a, b) => a.rank - b.rank || a.index - b.index)
+            .map((entry) => entry.tag);
+    }
+
+    // The WASH and DRY tags, out in the open as a key apiece, wash first.
+    // These are the two instructions a locker bag needs, so they are read off
+    // the screen rather than out of a list the cashier has to open first.
+    //
+    // Deliberately NOT every tag: the book also holds the tags that classify
+    // the customer, and a key for each of those would bury the two the bag is
+    // waiting on. Those stay in the box's list.
+    //
+    // Deliberately NOT narrowed by what is typed in the box either - these
+    // keys are a fixed row whose shape the cashier learns, and a row that
+    // rearranges itself as somebody types could not be learned.
+    get tagKeys() {
+        const open = TAG_GROUPS.filter((group) => group.open);
+        const rank = (tag) => open.findIndex((group) => group.match(tag));
+        return this.state.tags
+            .map((tag, index) => ({ tag, index, rank: rank(tag) }))
+            .filter((entry) => entry.rank >= 0 && !this.state.tagIds.includes(entry.tag.id))
             .sort((a, b) => a.rank - b.rank || a.index - b.index)
             .map((entry) => entry.tag);
     }
