@@ -703,10 +703,21 @@ so both places a number gets typed now **ASK** first and offer that customer.
 - **A filler gets a plain alert, never a Confirm.** There is no customer behind `00000000000` to put
   on an order, only a number to fix, and answering it with the stranger who holds those zeros would
   be true and useless.
-- **The locker picker shows the same three lines** (v1.1.17, `laundry_locker`): `_pos_row()` and
-  `pos_check_phone()` carry `partner_lines` (built by `_laundry_contact_block`), and the
-  `laundry_locker.ContactBlock` sub-template renders them for **the customer the number MATCHED** -
-  the columns say the number is known, not WHOSE it is.
+- **The locker picker shows the same three lines - plus the TAG, a fourth** (v1.1.17; the tag
+  v1.1.28, `laundry_locker`): `_pos_row()` and `pos_check_phone()` carry `partner_lines` (built by
+  `_laundry_contact_block`), and the `laundry_locker.ContactBlock` sub-template renders them for
+  **the customer the number MATCHED** - the columns say the number is known, not WHOSE it is.
+  - **`_laundry_contact_block(with_tags=True)`** appends the customer's `pos_tag_names` under the
+    address, and **only the two locker call sites pass it**. Everywhere else - the phone-twin
+    dialog, the duplicate refusal - the block only has to say WHICH customer this is, and a tag
+    does not help with that. Here it does: **Locker is the one service type that REQUIRES a tag**
+    (`CONTACT_REQUIREMENTS`), so whether the matched customer already carries one decides whether
+    the order can be taken, and this screen is where a cashier can still act on it. Without the
+    line the only news of a gap is the New Order modal refusing to continue, a screen later.
+  - It prints **"No tag"** rather than dropping the line, the same reasoning as the em-dash in the
+    table cells: a line that is simply absent cannot be told apart from one nobody printed.
+  - ⚠ The tag keys asked for below are for a contact the picker CREATES. This line is about one
+    the book ALREADY holds, whose own tags are the book's answer and are not re-picked here.
 - **A contact the picker CREATES gets the locker as its address, and its tag is picked there**
   (v1.1.20). `_apply_locker_address` writes the locker site on **Street Address 1** and the word
   **LOCKER** on **Street Address 2**, onto an empty address block only - a customer the shop

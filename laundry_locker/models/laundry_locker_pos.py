@@ -160,8 +160,12 @@ class LaundryLockerTransaction(models.Model):
             # and a bag put on the wrong one is not noticed again until
             # somebody comes to claim it. Built by laundry_pos so the register
             # and the contact form cannot describe one customer two ways.
+            # with_tags: the tag is the one thing a Locker order asks of a
+            # contact that this screen can still do something about, so the
+            # matched customer's is read here rather than found out when the
+            # modal refuses to continue.
             'partner_lines': (
-                self.partner_id._laundry_contact_block()
+                self.partner_id._laundry_contact_block(with_tags=True)
                 if self.partner_id else []
             ),
             # Why this row's number cannot become a contact, if it cannot -
@@ -284,10 +288,11 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': 'returning' if partner else 'new',
             'partner_id': partner.id or False,
             'partner_name': partner.name or '',
-            # Same three lines as the row above, for the same reason: the
-            # cashier is about to hand a bag to whoever this is.
+            # Same lines as the row above, for the same reason: the cashier
+            # is about to hand a bag to whoever this is - the tag included,
+            # since Locker is the service type that requires one.
             'partner_lines': (
-                partner._laundry_contact_block() if partner else []
+                partner._laundry_contact_block(with_tags=True) if partner else []
             ),
         }
 
