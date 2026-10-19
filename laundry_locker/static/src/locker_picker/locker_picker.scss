@@ -92,6 +92,17 @@
             cursor: text;
         }
 
+        // Empty, and a Locker order needs one: the box says so before
+        // Confirm is pressed, the same blue the contact form uses for a box
+        // this order is asking for (laundry_required_fields.scss in
+        // laundry_pos - same two colours, kept in step on purpose). Red is
+        // left to the line under the box, which answers a Confirm pressed
+        // without a tag; blue here means "still to do", not "wrong".
+        .laundry-tag-box.laundry-tag-needed {
+            border-color: #0d6efd; // bootstrap primary
+            background-color: #e7f1ff;
+        }
+
         // A chip: rounded, muted, with its own × that is a target in its own
         // right rather than a 10px hit area in the corner of a word.
         .laundry-tag {

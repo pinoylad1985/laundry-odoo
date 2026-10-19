@@ -725,6 +725,12 @@ so both places a number gets typed now **ASK** first and offer that customer.
     contact itself. Written out in `locker_picker_popup.{js,xml,scss}` rather than borrowed:
     the web client's `Many2ManyTagsField` needs a record and a field, and a POS dialog has
     neither. The box and each list row keep the module's **44px** tap-target floor.
+  - **The empty box is marked BLUE** (v1.1.25, `.laundry-tag-needed`), the same two colours the
+    contact form uses for a box an order is asking for
+    (`laundry_pos/static/src/contact_form/laundry_required_fields.scss` - keep them in step).
+    Blue means "still to do", not "wrong": nothing has been refused yet, and the RED line under
+    the box is what answers a Confirm pressed without a tag. The mark goes as soon as a tag is in
+    the box. Without it the one required field on this screen looked like the optional ones.
   - The list comes from **`laundry.locker.transaction.pos_customer_tags()`**, because
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
