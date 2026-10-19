@@ -70,4 +70,89 @@
     .laundry-locker-customer {
         min-height: 9.5rem;
     }
+
+    // The tags field, shaped like the contact form's: chips sitting INSIDE
+    // the box with the caret on the right, and the list hanging under it.
+    // Written out rather than borrowed because the web client's
+    // Many2ManyTagsField needs a record and a field, and a POS dialog has
+    // neither.
+    .laundry-locker-tags {
+        // The list is absolutely placed against this, not against the modal.
+        position: relative;
+
+        .laundry-tag-box {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+            // The 44px tap-target floor the rest of our dialogs keep: the box
+            // itself is the target that opens the list.
+            min-height: 44px;
+            height: auto;
+            cursor: text;
+        }
+
+        // A chip: rounded, muted, with its own × that is a target in its own
+        // right rather than a 10px hit area in the corner of a word.
+        .laundry-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            background-color: var(--bs-secondary-bg, #e9ecef);
+            color: var(--bs-body-color, #212529);
+            white-space: nowrap;
+
+            .fa-times {
+                cursor: pointer;
+                opacity: 0.6;
+
+                &:hover {
+                    opacity: 1;
+                }
+            }
+        }
+
+        // The typing area is the rest of the row, so the caret lands where
+        // the cashier last tapped instead of on a fixed-width stub.
+        .laundry-tag-input {
+            flex: 1 1 6rem;
+            min-width: 6rem;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            padding: 0;
+        }
+
+        .laundry-tag-caret {
+            margin-left: auto;
+            opacity: 0.5;
+        }
+
+        .laundry-tag-menu {
+            position: absolute;
+            z-index: 1060; // over the modal body, which Bootstrap puts at 1055
+            left: 0;
+            right: 0;
+            max-height: 16rem;
+            overflow-y: auto;
+            background-color: var(--bs-body-bg, #fff);
+            border: 1px solid var(--bs-border-color, #dee2e6);
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        .laundry-tag-option {
+            // Same 44px floor: these are list rows on a touchscreen.
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+            padding: 0 0.75rem;
+            cursor: pointer;
+
+            &:hover {
+                background-color: var(--bs-secondary-bg, #e9ecef);
+            }
+        }
+    }
 }

@@ -251,16 +251,46 @@
                                  laundry_pos). Asked at the moment the contact
                                  is created, which is the only moment the
                                  picker has. -->
-                            <div t-if="state.tags.length" class="mt-3 text-body">
-                                <div class="fw-bold mb-2">Tags — pick at least one</div>
-                                <div class="d-flex flex-wrap gap-2">
-                                    <button t-foreach="state.tags" t-as="tag" t-key="tag.id"
-                                            class="btn"
-                                            t-att-class="isTagSelected(tag.id) ? 'btn-primary' : 'btn-secondary'"
-                                            t-on-click="() => this.toggleTag(tag.id)">
+                            <!-- The tags box is the one from the contact
+                                 form: chips inside a field, a caret, and a
+                                 list that narrows as you type. A row of
+                                 buttons was the first shape (v1.1.20) and it
+                                 is not what a tag looks like anywhere else in
+                                 Odoo - the cashier should be picking the same
+                                 control here as on the contact itself. -->
+                            <div t-if="state.tags.length" class="mt-3 text-body laundry-locker-tags">
+                                <label class="form-label fw-bold mb-1">Tags</label>
+                                <div class="laundry-tag-box form-control"
+                                     t-on-click="focusTagInput">
+                                    <span t-foreach="selectedTags" t-as="tag" t-key="tag.id"
+                                          class="laundry-tag">
                                         <t t-esc="tag.name"/>
-                                    </button>
+                                        <i class="fa fa-times ms-2"
+                                           t-on-click.stop="() => this.removeTag(tag.id)"/>
+                                    </span>
+                                    <input type="text" class="laundry-tag-input"
+                                           t-ref="tagInput"
+                                           placeholder="e.g. &quot;B2B&quot;, &quot;VIP&quot;, …"
+                                           t-att-value="state.tagQuery"
+                                           t-on-input="onTagInput"
+                                           t-on-keydown="onTagKeydown"
+                                           t-on-focus="() => this.state.tagOpen = true"
+                                           t-on-blur="onTagBlur"/>
+                                    <i class="fa fa-caret-down laundry-tag-caret"/>
                                 </div>
+                                <div t-if="state.tagOpen" class="laundry-tag-menu">
+                                    <div t-foreach="tagChoices" t-as="tag" t-key="tag.id"
+                                         class="laundry-tag-option"
+                                         t-on-mousedown.prevent="() => this.pickTag(tag.id)">
+                                        <t t-esc="tag.name"/>
+                                    </div>
+                                    <div t-if="!tagChoices.length" class="laundry-tag-option text-muted">
+                                        No tag matches that.
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1">
+                                    Pick at least one — a Locker order needs one.
+                                </small>
                             </div>
                         </div>
                     </t>

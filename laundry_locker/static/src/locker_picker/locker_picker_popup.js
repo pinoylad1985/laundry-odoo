@@ -1,6 +1,6 @@
 /** @odoo-module **/
 
-import { Component, onWillStart, useState } from "@odoo/owl";
+import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
 
@@ -52,6 +52,9 @@ export class LockerPickerPopup extends Component {
             // is not), so they are fetched.
             tags: [],
             tagIds: [],
+            // What is typed into the tags box, and whether its list is down.
+            tagQuery: "",
+            tagOpen: false,
             // The call's two outcomes, and the only two ways out of the gate:
             // verified = it rang, editing = it did not and the number is being
             // corrected. Both false = nobody has called it yet.
@@ -61,6 +64,7 @@ export class LockerPickerPopup extends Component {
             busy: false,
             error: "",
         });
+        this.tagInput = useRef("tagInput");
         onWillStart(() => Promise.all([this.loadRows(), this.loadTags()]));
     }
 
@@ -129,6 +133,8 @@ export class LockerPickerPopup extends Component {
         // Picked per drop-off, so backing out of one row and into another
         // cannot tag the second customer with the first one's answer.
         this.state.tagIds = [];
+        this.state.tagQuery = "";
+        this.state.tagOpen = false;
         // A recheck opens straight into the correction: the cashier got here
         // by pressing "Correct number", which says the same thing as answering
         // that it did not ring. Claiming the row already created its contact, so
@@ -264,20 +270,88 @@ export class LockerPickerPopup extends Component {
         return [site, "LOCKER"];
     }
 
-    isTagSelected(tagId) {
-        return this.state.tagIds.includes(tagId);
+    // --- the tags box ------------------------------------------------
+    //
+    // Built here rather than borrowed from the web client's
+    // Many2ManyTagsField, which needs a record and a field to hang off and
+    // has neither in a POS dialog. What it copies is the SHAPE: chips inside
+    // the field, a caret, and a list that narrows as you type - a cashier
+    // picking a tag here should be using the control they use on the contact
+    // itself, not a row of buttons that happens to do the same job.
+
+    // In the order they were picked, so the box does not reshuffle itself
+    // under the cashier's finger as tags go in.
+    get selectedTags() {
+        return this.state.tagIds
+            .map((id) => this.state.tags.find((tag) => tag.id === id))
+            .filter((tag) => tag);
     }
 
-    // Multi-select, the way the rest of our dialogs do it: the picked key is
-    // solid primary, every other one plain grey, and color means nothing
-    // except "picked".
-    toggleTag(tagId) {
-        const picked = this.state.tagIds;
-        const at = picked.indexOf(tagId);
-        if (at === -1) {
-            picked.push(tagId);
-        } else {
-            picked.splice(at, 1);
+    // What is left to pick, narrowed by what has been typed. A tag already
+    // in the box is out of the list: it is in the box.
+    get tagChoices() {
+        const query = this.state.tagQuery.trim().toLowerCase();
+        return this.state.tags.filter(
+            (tag) =>
+                !this.state.tagIds.includes(tag.id) &&
+                (!query || (tag.name || "").toLowerCase().includes(query))
+        );
+    }
+
+    focusTagInput() {
+        this.state.tagOpen = true;
+        if (this.tagInput.el) {
+            this.tagInput.el.focus();
+        }
+    }
+
+    onTagInput(ev) {
+        this.state.tagQuery = ev.target.value;
+        this.state.tagOpen = true;
+    }
+
+    // Backspace on an empty box takes the last tag back off, the way every
+    // other tags field behaves.
+    onTagKeydown(ev) {
+        if (ev.key === "Backspace" && !this.state.tagQuery && this.state.tagIds.length) {
+            this.state.tagIds.pop();
+            return;
+        }
+        if (ev.key === "Enter") {
+            ev.preventDefault();
+            const first = this.tagChoices[0];
+            if (first) {
+                this.pickTag(first.id);
+            }
+        }
+        if (ev.key === "Escape") {
+            this.state.tagOpen = false;
+        }
+    }
+
+    // Closed a beat after the box loses focus, so a tap that lands on the
+    // list is not cut off by the list going away under it. The list items
+    // use mousedown.prevent for the same reason.
+    onTagBlur() {
+        setTimeout(() => {
+            this.state.tagOpen = false;
+        }, 150);
+    }
+
+    pickTag(tagId) {
+        if (!this.state.tagIds.includes(tagId)) {
+            this.state.tagIds.push(tagId);
+        }
+        // Cleared so the list opens back up on everything still unpicked -
+        // the next tag is rarely spelled like the last one.
+        this.state.tagQuery = "";
+        this.focusTagInput();
+    }
+
+    removeTag(tagId) {
+        const at = this.state.tagIds.indexOf(tagId);
+        if (at !== -1) {
+            this.state.tagIds.splice(at, 1);
         }
     }
 

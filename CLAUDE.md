@@ -714,11 +714,17 @@ so both places a number gets typed now **ASK** first and offer that customer.
   - The two lines are PREVIEWED before they are written ("Confirm will create this new contact, at
     this address:"), and a drop-off with **no `location_name` says so in red** - the contact would
     get no address at all, and every service type needs one.
-  - **The TAG is asked for in the picker**, as multi-select keys below the address lines, and is
-    used ONLY on a contact `pos_claim` creates (`tag_ids`); a returning customer's own tags are the
-    book's answer, not this screen's. Locker is the one service type that requires a tag
-    (`CONTACT_REQUIREMENTS`) and a drop-off cannot supply one, so the picker is the only place that
-    can ask - after Confirm it has to be chased on the contact form. Confirm refuses without one.
+  - **The TAG is asked for in the picker**, below the address lines, and is used ONLY on a contact
+    `pos_claim` creates (`tag_ids`); a returning customer's own tags are the book's answer, not
+    this screen's. Locker is the one service type that requires a tag (`CONTACT_REQUIREMENTS`) and
+    a drop-off cannot supply one, so the picker is the only place that can ask - after Confirm it
+    has to be chased on the contact form. Confirm refuses without one.
+  - **It is shaped like the CONTACT FORM's tags field** (v1.1.21, the owner's call): chips inside
+    the box, a caret, and a list that narrows as it is typed into. It shipped as a row of buttons
+    in 1.1.20 - the cashier should be picking a tag with the control they already use on the
+    contact itself. Written out in `locker_picker_popup.{js,xml,scss}` rather than borrowed:
+    the web client's `Many2ManyTagsField` needs a record and a field, and a POS dialog has
+    neither. The box and each list row keep the module's **44px** tap-target floor.
   - The list comes from **`laundry.locker.transaction.pos_customer_tags()`**, because
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
