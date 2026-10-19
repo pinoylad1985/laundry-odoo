@@ -42,11 +42,19 @@
                      what they will quote when they ring up about it. A
                      correction is only readable next to what it corrected;
                      one column holding "whichever is current" cannot say that
-                     anything was changed at all. -->
+                     anything was changed at all.
+
+                     The two `(Corrected)` columns belong to the CHOSEN
+                     drop-off only (`withCorrected`). A correction is made on
+                     one drop-off, so in the queue those columns are an
+                     em-dash on nearly every row - two columns' width spent
+                     saying nothing, pushing the columns the cashier is
+                     scanning further off the screen. The queue is read to
+                     FIND a bag; the correction is read once it is found. -->
                 <th>Customer</th>
-                <th>Customer (Corrected)</th>
+                <th t-if="withCorrected">Customer (Corrected)</th>
                 <th>Phone</th>
-                <th>Phone (Corrected)</th>
+                <th t-if="withCorrected">Phone (Corrected)</th>
                 <th>Service</th>
                 <th>Turnaround</th>
                 <th>Pickup</th>
@@ -71,7 +79,9 @@
                 </div>
                 <div t-else="" class="laundry-locker-rows">
                     <table class="table table-sm align-middle mb-0">
-                        <t t-call="laundry_locker.RowHeadings"/>
+                        <t t-call="laundry_locker.RowHeadings">
+                            <t t-set="withCorrected" t-value="false"/>
+                        </t>
                         <tbody>
                             <tr t-foreach="filteredRows" t-as="row" t-key="row.id"
                                 class="laundry-locker-row"
@@ -80,19 +90,7 @@
                                 <td class="fw-bold"><t t-esc="row.ref"/></td>
                                 <td class="text-nowrap"><t t-esc="row.new_laundry_at"/></td>
                                 <td><t t-esc="row.customer_name_source"/></td>
-                                <td>
-                                    <t t-if="row.customer_name_corrected">
-                                        <t t-esc="row.customer_name_corrected"/>
-                                    </t>
-                                    <span t-else="" class="text-muted">&#8212;</span>
-                                </td>
                                 <td><t t-esc="row.phone_source"/></td>
-                                <td>
-                                    <t t-if="row.phone_corrected">
-                                        <t t-esc="row.phone_corrected"/>
-                                    </t>
-                                    <span t-else="" class="text-muted">&#8212;</span>
-                                </td>
                                 <td><t t-esc="row.service"/></td>
                                 <td><t t-esc="row.turnaround"/></td>
                                 <td class="text-nowrap"><t t-esc="row.pickup_datetime"/></td>
@@ -115,14 +113,19 @@
 
             <!-- Step 2: confirm the customer on the chosen drop-off -->
             <div t-else="" class="laundry-locker-detail">
-                <!-- Customer, Phone and Customer Match come off the STATE,
-                     not the row: those three are the ones a correction
-                     changes, and this cell is the only place they are shown
-                     now, so it has to follow the correction as it is made.
-                     The rest is the drop-off as the feed sent it. -->
+                <!-- The two correction columns and Customer Match come
+                     off the STATE, not the row: those are what a correction
+                     changes, and this row is the only place they are shown,
+                     so it has to follow the correction as it is made. The
+                     rest is the drop-off as the feed sent it. This table is
+                     also the ONLY one that carries the correction columns -
+                     they are the answer to a drop-off that has been chosen
+                     and looked at, not something the queue is scanned for. -->
                 <div class="laundry-locker-rows mb-3">
                     <table class="table table-sm align-middle mb-0">
-                        <t t-call="laundry_locker.RowHeadings"/>
+                        <t t-call="laundry_locker.RowHeadings">
+                            <t t-set="withCorrected" t-value="true"/>
+                        </t>
                         <tbody>
                             <tr class="laundry-locker-chosen">
                                 <td><t t-esc="selectedRow.location_name"/></td>

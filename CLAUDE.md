@@ -729,11 +729,13 @@ so both places a number gets typed now **ASK** first and offer that customer.
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
     unbillable over something the cashier cannot fix from the picker.
-- **Step 2 is the chosen drop-off as a ROW of the same table, in the same 14 columns** (v1.1.20,
-  14 since v1.1.23). It was a strip of labelled values plus a name/phone summary until then; a
-  cashier matching paper to a bag has just read the queue across, so the detail is that same
-  reading. One `laundry_locker.RowHeadings` sub-template feeds both tables, so the columns cannot
-  drift apart.
+- **Step 2 is the chosen drop-off as a ROW of the same table, in the same columns** (v1.1.20) -
+  12, plus the two `(Corrected)` columns this table alone carries. It was a strip of labelled
+  values plus a name/phone summary until then; a cashier matching paper to a bag has just read the
+  queue across, so the detail is that same reading. One `laundry_locker.RowHeadings` sub-template
+  feeds both tables, so the columns cannot drift apart; it takes **`withCorrected`** (a `t-set` in
+  the `t-call` body, passed explicitly by both callers) and that is the only difference between
+  them.
   - **The two `(Corrected)` cells and Customer Match read off `state`**, not the row - those are
     what a correction changes, and the cells are now the only place they are shown. An em-dash
     stands in for the match while a number is being corrected; the badge the old number earned
@@ -759,9 +761,14 @@ so both places a number gets typed now **ASK** first and offer that customer.
     (`_pos_corrected_name` / `correctedCustomer`): two spellings of one number are the same
     number, two spellings of one name are not the same text, so `Mary Smith` retyped as
     `MARY SMITH` IS a correction. Server and browser must draw each line the same way.
-  - The DETAIL cells read the state, so a column fills in **as the correction is typed**, not
-    after Confirm - the cashier is looking at this table while they type. The queue cells read the
-    stored `*_corrected`.
+  - **The `(Corrected)` columns are on the CHOSEN drop-off only** (v1.1.24, the owner's call).
+    A correction is made on one drop-off, so down the queue those two columns are an em-dash on
+    nearly every row - two columns' width spent saying nothing, pushing the columns the cashier is
+    scanning further off the screen. The queue is read to FIND a bag; the correction is read once
+    it has been found. The queue keeps the left-hand pair, which is what a customer quotes.
+  - Those cells read the **state**, so a column fills in **as the correction is typed**, not after
+    Confirm - the cashier is looking at this table while they type. `*_corrected` stays on every
+    row for the search, below.
   - The picker's search covers **every** spelling: a customer ringing about a corrected drop-off
     quotes the ones THEY typed.
   - The matched-customer line says the drop-off "was keyed in as" the **source** name, which is
