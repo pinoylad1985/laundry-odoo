@@ -163,6 +163,19 @@
             box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
         }
 
+        // A block heading, not a choice: smaller, muted and upper-case so it
+        // cannot be mistaken for a tag, and deliberately SHORTER than the
+        // 44px rows under it - a target-sized heading invites a tap that
+        // does nothing.
+        .laundry-tag-group {
+            padding: 0.5rem 0.75rem 0.15rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--bs-secondary-color, #6c757d);
+        }
+
         .laundry-tag-option {
             // Same 44px floor: these are list rows on a touchscreen.
             display: flex;

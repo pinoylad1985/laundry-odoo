@@ -20,6 +20,18 @@ import { useService } from "@web/core/utils/hooks";
 //     from it; "it did NOT ring" is the ONLY thing that unlocks the name and
 //     phone for a correction. A number nobody has dialed is neither creatable
 //     nor editable.
+
+// The blocks the tag list is cut into, in the order they are drawn. Matched
+// on the start of the NAME, on a word boundary, because that is how the shop
+// already names them ("WASH COMBINED", "DRY HIGH") - nothing has to be
+// configured per tag, and a tag named for neither simply falls to the last
+// block. Anything added here is drawn without further changes.
+const TAG_GROUPS = [
+    { label: "Wash", match: (tag) => /^wash\b/i.test(tag.name || "") },
+    { label: "Dry", match: (tag) => /^dry\b/i.test(tag.name || "") },
+    { label: "Other", match: () => true },
+];
+
 export class LockerPickerPopup extends Component {
     static template = "laundry_locker.LockerPickerPopup";
     static components = { Dialog };
@@ -447,13 +459,45 @@ export class LockerPickerPopup extends Component {
 
     // What is left to pick, narrowed by what has been typed. A tag already
     // in the box is out of the list: it is in the box.
+    //
+    // Ordered the way the list DRAWS it (wash, then dry, then the rest), so
+    // Enter takes the tag the cashier can see at the top rather than one the
+    // grouping has since moved.
     get tagChoices() {
         const query = this.state.tagQuery.trim().toLowerCase();
-        return this.state.tags.filter(
+        const left = this.state.tags.filter(
             (tag) =>
                 !this.state.tagIds.includes(tag.id) &&
                 (!query || (tag.name || "").toLowerCase().includes(query))
         );
+        const rank = (tag) => TAG_GROUPS.findIndex((group) => group.match(tag));
+        return left
+            .map((tag, index) => ({ tag, index, rank: rank(tag) }))
+            .sort((a, b) => a.rank - b.rank || a.index - b.index)
+            .map((entry) => entry.tag);
+    }
+
+    // The same list, cut into the blocks the shop thinks in: how it is
+    // washed, how it is dried, and everything else. The shop's tags are
+    // standing instructions, and a cashier picking them is answering two
+    // questions in turn - one flat alphabetical list makes them read every
+    // name to find which question each one belongs to.
+    //
+    // A heading is only drawn when there is more than one block to tell
+    // apart: on a query that leaves only dry tags, "Dry" over the whole list
+    // is a heading for nothing.
+    get tagGroups() {
+        const choices = this.tagChoices;
+        const groups = TAG_GROUPS
+            .map((group) => ({
+                label: group.label,
+                tags: choices.filter((tag) => group.match(tag)),
+            }))
+            .filter((group) => group.tags.length);
+        if (groups.length < 2) {
+            return groups.map((group) => ({ ...group, label: "" }));
+        }
+        return groups;
     }
 
     focusTagInput() {

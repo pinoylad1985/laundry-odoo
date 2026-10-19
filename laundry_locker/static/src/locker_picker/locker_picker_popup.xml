@@ -269,8 +269,15 @@
                              what happened, and the correction is what the "did
                              not ring" answer LEADS TO rather than something to
                              be chosen instead. -->
+                        <!-- The call is not only a ring test. The cashier has
+                             the bag and the customer does not, so this is the
+                             one moment the drop-off and what to do with it can
+                             be agreed out loud - and the number proves itself
+                             by being answered by the person who left it. Said
+                             here because it is the only instruction the
+                             cashier gets before they dial. -->
                         <div class="fw-bold mt-3">
-                            Step 1 - Call <t t-esc="state.phone"/>.
+                            Step 1 - Call <t t-esc="state.phone"/>: confirm the transaction and instructions.
                         </div>
                         <div class="fw-bold mt-1 mb-2">Step 2 - Press what happened:</div>
                         <div class="d-flex gap-2">
@@ -366,18 +373,30 @@
                                            t-on-blur="onTagBlur"/>
                                     <i class="fa fa-caret-down laundry-tag-caret"/>
                                 </div>
+                                <!-- Cut into the blocks the shop thinks in -
+                                     how it is washed, how it is dried, the
+                                     rest - because the tags here are standing
+                                     instructions and the cashier is answering
+                                     those questions in turn. A heading is
+                                     drawn only where there is more than one
+                                     block to tell apart (see tagGroups). -->
                                 <div t-if="state.tagOpen" class="laundry-tag-menu">
-                                    <div t-foreach="tagChoices" t-as="tag" t-key="tag.id"
-                                         class="laundry-tag-option"
-                                         t-on-mousedown.prevent="() => this.pickTag(tag.id)">
-                                        <t t-esc="tag.name"/>
-                                    </div>
+                                    <t t-foreach="tagGroups" t-as="group" t-key="group_index">
+                                        <div t-if="group.label" class="laundry-tag-group">
+                                            <t t-esc="group.label"/>
+                                        </div>
+                                        <div t-foreach="group.tags" t-as="tag" t-key="tag.id"
+                                             class="laundry-tag-option"
+                                             t-on-mousedown.prevent="() => this.pickTag(tag.id)">
+                                            <t t-esc="tag.name"/>
+                                        </div>
+                                    </t>
                                     <div t-if="!tagChoices.length" class="laundry-tag-option text-muted">
                                         No tag matches that.
                                     </div>
                                 </div>
                                 <small class="text-muted d-block mt-1">
-                                    Pick at least one — a Locker order needs one.
+                                    Pick at least one.
                                 </small>
                             </div>
                         </div>

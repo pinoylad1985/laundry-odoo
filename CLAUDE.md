@@ -750,10 +750,30 @@ so both places a number gets typed now **ASK** first and offer that customer.
     Picking a tag clears the flag and the sentence - but only *that* sentence, since another
     refusal on screen is about something the tap did not answer. Both marks go as soon as a tag
     is in the box.
+  - **The list is CUT INTO BLOCKS - Wash, Dry, Other** (v1.1.32, the owner's call), by
+    `TAG_GROUPS` in `locker_picker_popup.js`, matched on the start of the tag's NAME on a word
+    boundary (`WASH COMBINED`, `DRY HIGH`). The shop's tags are standing instructions and the
+    cashier is answering two questions in turn; one flat alphabetical list makes them read every
+    name to work out which question it belongs to. Nothing is configured per tag, and a tag named
+    for neither block falls to Other - so a tag added in Contacts is grouped without a code change.
+    - **A heading is drawn only where there is more than one block to tell apart.** Typing `dry`
+      leaves one block, and "Dry" over the whole list is a heading for nothing.
+    - `tagChoices` is sorted into the same order the blocks are drawn in, because **Enter picks
+      its first item** - it has to be the one at the top of the list the cashier is looking at.
+    - The heading is deliberately **shorter than the 44px rows** under it: a target-sized heading
+      invites a tap that does nothing.
+  - The hint under the box is **"Pick at least one."** (v1.1.32). It read "Pick at least one - a
+    Locker order needs one" until then; the cashier is on the Locker screen and does not need to
+    be told which service type they are in.
   - The list comes from **`laundry.locker.transaction.pos_customer_tags()`**, because
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
     unbillable over something the cashier cannot fix from the picker.
+- **The call step says what the call is FOR** (v1.1.32): *Step 1 - Call 0917…: confirm the
+  transaction and instructions.* It read only "Call 0917…" until then, which made it a ring test.
+  The cashier has the bag and the customer does not, so this is the one moment the drop-off and
+  what to do with it can be agreed out loud - and the number proves itself by being answered by
+  the person who left it. Step 2's two answers are unchanged: it rang / it did NOT ring.
 - **A four-step strip at the top left says where in the job the cashier is** (v1.1.29, four
   steps and Back v1.1.30), drawn as the pointed keys Odoo uses for a record's stages:
   **Pick a drop-off -> Check the number -> Correct the number -> Confirm the customer**. The
