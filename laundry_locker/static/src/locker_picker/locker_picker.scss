@@ -44,13 +44,21 @@
         }
     }
 
-    .laundry-locker-row {
-        cursor: pointer;
-
+    // The queue's rows and the chosen drop-off's single row: the same cells,
+    // because step 2 IS the row the cashier just read, shown again in the
+    // columns they read it in.
+    .laundry-locker-row,
+    .laundry-locker-chosen {
         td {
             padding-block: 0.6rem;
             white-space: nowrap;
         }
+    }
+
+    // Only the queue's rows are tap targets. The chosen one is not: tapping
+    // it would be a tap with nothing to do.
+    .laundry-locker-row {
+        cursor: pointer;
 
         &:hover {
             background-color: var(--bs-secondary-bg, #e9ecef);

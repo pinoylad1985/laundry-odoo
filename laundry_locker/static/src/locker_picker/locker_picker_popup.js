@@ -46,6 +46,12 @@ export class LockerPickerPopup extends Component {
             // server-side by laundry_pos so this reads the same as the
             // customer block in the Orders list.
             partnerLines: [],
+            // The tags the shop keeps, and the ones picked for a contact
+            // about to be created. res.partner.category is NOT loaded into
+            // the POS (pos_tag_names exists precisely because the relation
+            // is not), so they are fetched.
+            tags: [],
+            tagIds: [],
             // The call's two outcomes, and the only two ways out of the gate:
             // verified = it rang, editing = it did not and the number is being
             // corrected. Both false = nobody has called it yet.
@@ -55,7 +61,7 @@ export class LockerPickerPopup extends Component {
             busy: false,
             error: "",
         });
-        onWillStart(() => this.loadRows());
+        onWillStart(() => Promise.all([this.loadRows(), this.loadTags()]));
     }
 
     get isRecheck() {
@@ -75,6 +81,20 @@ export class LockerPickerPopup extends Component {
         this.state.rows = await this.orm.call(
             "laundry.locker.transaction", "get_unbilled_for_pos", []
         );
+    }
+
+    // The tag list, read once when the picker opens. A failure is swallowed:
+    // the queue is still a queue of bags to bill, and a cashier with no tags
+    // to pick from is better off than one looking at a crashed dialog. What
+    // it costs is the tag, which is then asked for on the contact form.
+    async loadTags() {
+        try {
+            this.state.tags = await this.orm.call(
+                "laundry.locker.transaction", "pos_customer_tags", []
+            );
+        } catch {
+            this.state.tags = [];
+        }
     }
 
     get filteredRows() {
@@ -106,6 +126,9 @@ export class LockerPickerPopup extends Component {
         this.state.partnerName = row.partner_name || "";
         this.state.partnerLines = row.partner_lines || [];
         this.state.verified = !!row.phone_verified;
+        // Picked per drop-off, so backing out of one row and into another
+        // cannot tag the second customer with the first one's answer.
+        this.state.tagIds = [];
         // A recheck opens straight into the correction: the cashier got here
         // by pressing "Correct number", which says the same thing as answering
         // that it did not ring. Claiming the row already created its contact, so
@@ -221,19 +244,58 @@ export class LockerPickerPopup extends Component {
         return [this.state.partnerName, this.state.phone].filter((l) => l);
     }
 
-    // The contact Confirm is about to CREATE, in the same three lines a
-    // matched customer is shown in. The address is not a guess: a contact
-    // created from a locker drop-off is given the locker as its address when
-    // it has none (_apply_locker_address), and a brand-new contact never has
-    // one - so this is what will be in the book, shown before it is written
-    // rather than found afterwards.
-    get newContactLines() {
+    // The ADDRESS the contact Confirm is about to create will carry - the one
+    // thing about it the columns above do not already say (its name and phone
+    // are the Customer and Phone cells). It is not a guess: a contact created
+    // from a locker drop-off is given the locker as its address when it has
+    // none (_apply_locker_address), and a brand-new contact never has one -
+    // so this is what will be in the book, shown before it is written rather
+    // than found afterwards.
+    //
+    // Two lines, because that is what the shop writes: the kind of place on
+    // the first and the address on the second. Empty when the drop-off has no
+    // site, which the template says outright - an order of any service type
+    // needs an address on its contact.
+    get newContactAddressLines() {
         const site = this.selectedRow ? this.selectedRow.location_name : "";
-        return [
-            this.state.customerName,
-            this.state.phone,
-            site ? site + " LOCKER" : "",
-        ].filter((line) => line);
+        if (!site) {
+            return [];
+        }
+        return [site, "LOCKER"];
+    }
+
+    isTagSelected(tagId) {
+        return this.state.tagIds.includes(tagId);
+    }
+
+    // Multi-select, the way the rest of our dialogs do it: the picked key is
+    // solid primary, every other one plain grey, and color means nothing
+    // except "picked".
+    toggleTag(tagId) {
+        const picked = this.state.tagIds;
+        const at = picked.indexOf(tagId);
+        if (at === -1) {
+            picked.push(tagId);
+        } else {
+            picked.splice(at, 1);
+        }
+    }
+
+    // A contact being CREATED here is being created for a Locker order, and a
+    // Locker order requires a tag on its contact (contact_requirements.js).
+    // Asked for while the contact is still being made, because the picker is
+    // the only place that can ask: once Confirm has run, the tag has to be
+    // chased on the contact form.
+    //
+    // Only when there are tags to pick. A tag list that failed to load must
+    // not be a locked Confirm - that would stop the bag being billed over
+    // something the cashier cannot do anything about from here.
+    get needsTag() {
+        return (
+            this.state.match === "new" &&
+            this.state.tags.length > 0 &&
+            this.state.tagIds.length === 0
+        );
     }
 
     // A new customer is only created off a number someone has called.
@@ -263,6 +325,12 @@ export class LockerPickerPopup extends Component {
                 "it did NOT ring\u201d if nobody can be reached on it.";
             return;
         }
+        if (this.needsTag) {
+            this.state.error =
+                "Pick at least one tag for the new contact \u2014 a Locker order " +
+                "needs one.";
+            return;
+        }
         this.state.busy = true;
         try {
             const result = await this.orm.call(
@@ -270,6 +338,10 @@ export class LockerPickerPopup extends Component {
                     phone: this.state.phone,
                     customer_name: this.state.customerName,
                     phone_verified: this.state.verified,
+                    // Only ever used on a contact this claim CREATES - see
+                    // pos_claim. A returning customer's own tags are not
+                    // this screen's business.
+                    tag_ids: this.state.tagIds,
                 }
             );
             this.props.getPayload(result);
@@ -280,11 +352,14 @@ export class LockerPickerPopup extends Component {
         }
     }
 
-    matchLabel(row) {
-        return row.customer_match === "returning" ? "Returning" : "New";
+    // Given the MATCH, not the row: the queue reads it off the row and the
+    // chosen drop-off reads it off the state, which is what a correction
+    // changes. One function so the two cells cannot label one answer two ways.
+    matchLabel(match) {
+        return match === "returning" ? "Returning" : "New";
     }
 
-    matchClass(row) {
-        return row.customer_match === "returning" ? "text-bg-success" : "text-bg-warning";
+    matchClass(match) {
+        return match === "returning" ? "text-bg-success" : "text-bg-warning";
     }
 }

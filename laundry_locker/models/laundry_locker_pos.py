@@ -321,7 +321,23 @@ class LaundryLockerTransaction(models.Model):
                 self.ref, own.display_name,
             )
 
-    def pos_claim(self, phone=None, customer_name=None, phone_verified=False):
+    @api.model
+    def pos_customer_tags(self):
+        """The tags the picker offers on a contact it is about to create.
+
+        Fetched rather than read off the session: res.partner.category is NOT
+        loaded into the POS - res.partner.pos_tag_names exists precisely
+        because the relation is not there to read.
+
+        `name`, not `display_name`, so a tag reads here exactly as it reads on
+        the receipt (pos_tag_names joins the same field).
+        """
+        return self.env['res.partner.category'].search_read(
+            [], ['name'], order='name',
+        )
+
+    def pos_claim(self, phone=None, customer_name=None, phone_verified=False,
+                  tag_ids=None):
         """Put this transaction on the order being built at the register.
 
         This RESERVES NOTHING. A drop-off stays unbilled and stays in every
@@ -334,6 +350,12 @@ class LaundryLockerTransaction(models.Model):
 
         What this DOES settle is the customer: a number that matched nobody
         becomes a contact here, on the cashier's word that it rang.
+
+        `tag_ids` is used ONLY on a contact this creates. A Locker order needs
+        a tag on its contact and a drop-off cannot supply one, so the picker
+        asks for it at the one moment the contact is being made. A RETURNING
+        customer's own tags are left alone - they are the book's answer, not
+        this screen's.
         """
         self.ensure_one()
         # The only claim still refused: a validated order already took it, and
@@ -378,10 +400,13 @@ class LaundryLockerTransaction(models.Model):
                 ))
             if not self.phone:
                 raise UserError(_('A phone number is needed to create the customer.'))
-            partner = self.env['res.partner'].create({
+            partner_vals = {
                 'name': self.customer_name or self.ref,
                 'phone': ph_local_phone(self.phone),
-            })
+            }
+            if tag_ids:
+                partner_vals['category_id'] = [(6, 0, list(tag_ids))]
+            partner = self.env['res.partner'].create(partner_vals)
             self.partner_id = partner
             # Recorded so a later correction can reach back to THIS record
             # rather than leaving it behind - see _laundry_own_contact.

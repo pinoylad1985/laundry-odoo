@@ -704,12 +704,35 @@ so both places a number gets typed now **ASK** first and offer that customer.
   on an order, only a number to fix, and answering it with the stranger who holds those zeros would
   be true and useless.
 - **The locker picker shows the same three lines** (v1.1.17, `laundry_locker`): `_pos_row()` and
-  `pos_check_phone()` carry `partner_lines` (built by `_laundry_contact_block`), and one
-  `laundry_locker.ContactBlock` sub-template renders them for BOTH the matched customer and the
-  contact a confirmation is about to create. The new contact's third line is the locker site + the
-  word LOCKER - not a guess: `_apply_locker_address` gives a contact with no address exactly that,
-  and a brand-new contact never has one, so it is shown before it is written rather than found
-  afterwards.
+  `pos_check_phone()` carry `partner_lines` (built by `_laundry_contact_block`), and the
+  `laundry_locker.ContactBlock` sub-template renders them for **the customer the number MATCHED** -
+  the columns say the number is known, not WHOSE it is.
+- **A contact the picker CREATES gets the locker as its address, and its tag is picked there**
+  (v1.1.20). `_apply_locker_address` writes the locker site on **Street Address 1** and the word
+  **LOCKER** on **Street Address 2**, onto an empty address block only - a customer the shop
+  already knows by an address is not re-housed by a drop-off.
+  - The two lines are PREVIEWED before they are written ("Confirm will create this new contact, at
+    this address:"), and a drop-off with **no `location_name` says so in red** - the contact would
+    get no address at all, and every service type needs one.
+  - **The TAG is asked for in the picker**, as multi-select keys below the address lines, and is
+    used ONLY on a contact `pos_claim` creates (`tag_ids`); a returning customer's own tags are the
+    book's answer, not this screen's. Locker is the one service type that requires a tag
+    (`CONTACT_REQUIREMENTS`) and a drop-off cannot supply one, so the picker is the only place that
+    can ask - after Confirm it has to be chased on the contact form. Confirm refuses without one.
+  - The list comes from **`laundry.locker.transaction.pos_customer_tags()`**, because
+    `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
+    A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
+    unbillable over something the cashier cannot fix from the picker.
+- **Step 2 is the chosen drop-off as a ROW of the same table, in the same 12 columns** (v1.1.20).
+  It was a strip of labelled values plus a name/phone summary until then; a cashier matching paper
+  to a bag has just read the queue across, so the detail is that same reading. One
+  `laundry_locker.RowHeadings` sub-template feeds both tables, so the columns cannot drift apart.
+  - **Customer / Phone / Customer Match read off `state`**, not the row - those three are what a
+    correction changes, and the cell is now the only place they are shown. An em-dash stands in for
+    the match while a number is being corrected; the badge the old number earned would be an answer
+    about a different number.
+  - `matchLabel()` / `matchClass()` take the **match value**, not a row, so the queue cell and the
+    detail cell cannot label one answer two ways.
 
 ## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -
