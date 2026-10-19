@@ -155,9 +155,22 @@
                                  value that only re-spaces the locker's own is
                                  cleared on save, so a filled box means
                                  something was really changed and nothing
-                                 else. -->
-                            <field name="customer_name_corrected"/>
-                            <field name="phone_corrected"/>
+                                 else.
+
+                                 LOCKED once the drop-off is billed: the sale
+                                 was rung up on these values, and retyping
+                                 them here would change this row alone while
+                                 the order, the receipt in the customer's hand
+                                 and the contact the money went against went
+                                 on saying something else. A mistake found
+                                 after billing is fixed on the order's
+                                 customer, or by refunding the order - which
+                                 frees the drop-off and makes it correctable
+                                 again. `write()` refuses it server-side too
+                                 (_laundry_check_corrections_unlocked), so an
+                                 import cannot walk around the form. -->
+                            <field name="customer_name_corrected" readonly="billed"/>
+                            <field name="phone_corrected" readonly="billed"/>
                             <field name="phone_last10" readonly="1"/>
                             <field name="customer_match" widget="badge" readonly="1"/>
                             <!-- Read-only, and NOT a correction tool. The customer

@@ -931,6 +931,18 @@ so both places a number gets typed now **ASK** first and offer that customer.
   - **A number that CHANGES un-ticks Verified** (`write`), judged on the number **in force** - a
     number nobody has called is a number nobody has called, whichever of the two fields it came
     from.
+  - **Once the drop-off is BILLED, the correction is LOCKED** (v1.1.40, the owner's call) -
+    `readonly="billed"` on both corrected fields plus `_laundry_check_corrections_unlocked`, which
+    refuses the write server-side so an import cannot walk around the form. The sale was rung up
+    on these values - the number called, the name the contact was created under, the customer the
+    order points at - so retyping them would change this row alone while the order, the receipt in
+    the customer's hand and the contact the money went against all went on saying something else:
+    two records of one bag that disagree, with nothing on either to say which is right. A mistake
+    found after billing is fixed **on the contact** (where the order already points) or by
+    **refunding the order**, which frees the drop-off, puts it back in the picker and makes it
+    correctable again. The register needed no change - `pos_claim` has always refused a billed ref
+    outright - and a write that leaves the stored value as it is still passes, like every other
+    no-op here.
   - **The `(Corrected)` columns are on the CHOSEN drop-off only** (v1.1.24, the owner's call).
     A correction is made on one drop-off, so down the queue those two columns are an em-dash on
     nearly every row - two columns' width spent saying nothing, pushing the columns the cashier is

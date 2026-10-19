@@ -1,6 +1,7 @@
 import re
 
-from odoo import api, fields, models
+from odoo import _, api, fields, models
+from odoo.exceptions import UserError
 
 # The key is laundry_pos's: the customer book and this feed have to reduce
 # a number the SAME way, or a transaction matches a customer that the
@@ -430,6 +431,48 @@ class LaundryLockerTransaction(models.Model):
             )
         return cleaned
 
+    def _laundry_check_corrections_unlocked(self, vals):
+        """A BILLED drop-off's correction is settled, and cannot be retyped.
+
+        The correction is what the sale was rung up on: the number the cashier
+        called, the name the contact was created under, the customer the order
+        is attached to. Once that sale is validated the drop-off has been paid
+        for under those values, and changing them here would change only this
+        row - the order, the receipt the customer is holding and the contact
+        the money went against would all go on saying something else. Two
+        records of one bag that disagree, with nothing on either to say which
+        is right.
+
+        So the answer to a mistake found after billing is not here. Either fix
+        the CUSTOMER (on the contact, where the order already points), or
+        refund the sale - which frees the drop-off, puts it back in the picker
+        and makes it correctable again, which is what a refund is for.
+
+        A write that leaves the stored value as it is passes, like every other
+        no-op in this module: re-sending a field is not editing it, and the
+        feed and the backend form both re-send more than they changed.
+        """
+        for field, label in (
+            ('customer_name_corrected', _('Customer (Corrected)')),
+            ('phone_corrected', _('Phone (Corrected)')),
+        ):
+            if field not in vals:
+                continue
+            for tx in self:
+                if not tx.billed or (vals[field] or '') == (tx[field] or ''):
+                    continue
+                # TWO SHORT LINES, like every other refusal the counter
+                # reads: what is wrong, then what to do about it.
+                raise UserError('\n'.join((
+                    _('%(ref)s was already billed on order %(order)s, so '
+                      '%(label)s is locked.',
+                      ref=tx.ref or tx.display_name,
+                      order=tx.pos_order_number or tx.pos_order_ref or '-',
+                      label=label),
+                    _('Fix the customer on that order, or refund the order '
+                      'to free the drop-off.'),
+                )))
+
     def _laundry_new_phone_key(self, vals):
         """The last-10 key this write would leave the row standing on."""
         self.ensure_one()
@@ -463,6 +506,9 @@ class LaundryLockerTransaction(models.Model):
         An explicit `phone_verified` in the same call wins - that is
         `pos_claim` recording the call the cashier just made ON the corrected
         number, which is the one case where the two travel together.
+
+        A billed drop-off's correction is locked here as well - see
+        `_laundry_check_corrections_unlocked`.
         """
         if len(self) > 1 and self._laundry_has_corrections(vals):
             # "Does this correct anything?" is asked against THAT row's own
@@ -474,6 +520,9 @@ class LaundryLockerTransaction(models.Model):
             return True
         if len(self) == 1:
             vals = self._laundry_clean_corrections(vals)
+        # After the cleaning, so a correction that corrects nothing is judged
+        # as the blank it is about to be stored as rather than as a change.
+        self._laundry_check_corrections_unlocked(vals)
         changed = self.browse()
         if 'phone_verified' not in vals and (
             'phone' in vals or 'phone_corrected' in vals
