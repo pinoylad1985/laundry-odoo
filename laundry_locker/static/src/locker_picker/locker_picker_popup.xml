@@ -67,7 +67,7 @@
     </t>
 
     <t t-name="laundry_locker.LockerPickerPopup">
-        <Dialog title="'Locker Drop-offs'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
+        <Dialog title="'Lockers'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
             <!-- Step 1: pick the drop-off -->
             <div t-if="!selectedRow">
                 <input type="text" class="form-control form-control-lg mb-2"
