@@ -85,12 +85,29 @@ patch(PosStore.prototype, {
             ...super.editPartnerContext(...arguments),
             default_is_company: false,
             default_company_type: "person",
-            // What the ORDER being set up needs from this contact, as the keys
-            // the contact form's own `required` modifiers read
-            // (views/res_partner_views.xml). Set only for as long as the form
-            // was opened FOR such an order - see withLaundryContactNeeds.
-            ...(this._laundryContactNeeds || {}),
+            // What the ORDER needs from this contact, as the keys the contact
+            // form's own `required` modifiers read (views/res_partner_views.xml).
+            ...this.laundryContactNeeds(),
         };
+    },
+
+    /**
+     * The required-field keys for the order on screen.
+     *
+     * TWO sources, because the service type lives in two places depending on
+     * when the form is opened: while the New Order modal is still up, the
+     * chosen type exists only inside the modal, and the wrapper below carries
+     * it; once the setup is submitted it is on the order itself. Reading both
+     * means the requirements hold on EVERY way into the contact form from the
+     * register - the modal's buttons, the Customer control button, the
+     * customer picker's Create - and not only the three the modal uses.
+     */
+    laundryContactNeeds() {
+        const fromModal = this._laundryContactNeeds;
+        if (fromModal && Object.keys(fromModal).length) {
+            return fromModal;
+        }
+        return contactNeedsContext(this.getOrder()?.laundry_service_type);
     },
 
     /**
@@ -104,6 +121,9 @@ patch(PosStore.prototype, {
      * same state. One wrapper, so none of them can forget to clear it: a key
      * left behind would make the next contact anybody edited, anywhere,
      * refuse to save.
+     *
+     * It is only needed BEFORE the setup is submitted; after that the order
+     * carries the service type and laundryContactNeeds() reads it there.
      */
     async withLaundryContactNeeds(serviceType, action) {
         this._laundryContactNeeds = contactNeedsContext(serviceType);
