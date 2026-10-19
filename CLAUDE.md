@@ -754,18 +754,19 @@ so both places a number gets typed now **ASK** first and offer that customer.
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
     unbillable over something the cashier cannot fix from the picker.
-- **A three-step strip at the top left says where in the job the cashier is** (v1.1.29), drawn as
-  the pointed keys Odoo uses for a record's stages: **Pick a drop-off -> Check the number ->
-  Confirm the customer**. The picker is one screen that does three things in a fixed order, and
-  until now the only sign of which one was in hand was which half of the dialog was on screen.
-  - **The keys ARE `confirm()`'s gates, read off the state** (`steps` in
-    `locker_picker_popup.js`), in the order it refuses for them - so the strip cannot claim the
-    job is further along than the Confirm button thinks it is. Step 2 is settled when
-    `match` is set and neither `editing` nor `needsVerification` holds, which is exactly what
-    `confirm()` asks.
-  - **The middle step is the NUMBER, not the second pane.** It is where a cashier actually waits
-    (the lookup, the call, a correction and another lookup); picking a row and pressing Confirm
-    are a tap each.
+- **A four-step strip at the top left says where in the job the cashier is** (v1.1.29, four
+  steps and Back v1.1.30), drawn as the pointed keys Odoo uses for a record's stages:
+  **Pick a drop-off -> Check the number -> Correct the number -> Confirm the customer**. The
+  picker is one screen that does four things in a fixed order, and until now the only sign of
+  which one was in hand was which half of the dialog was on screen.
+  - **The lit key is `currentStep`, read off the state the SCREEN branches on** - no row =
+    Pick, `editing` = Correct, no `match` or one still to be called = Check, else Confirm. So
+    the strip cannot say one thing while the screen shows another, and there is no second
+    copy of the rule to drift.
+  - **Not every order walks all four, and the skipped keys stay on the strip.** A returning
+    customer goes from the queue straight to Confirm; a number that checks out skips the
+    correction. The strip is the ROUTE, and a route with pieces missing could not be learned -
+    the cashier would see a different strip on nearly every bag.
   - **Only the CURRENT key is coloured** - the steps behind are the same grey as the ones ahead,
     as in Odoo's own statusbar and in the New Order modal keys: colour means where you are, and
     nothing else.
@@ -774,6 +775,24 @@ so both places a number gets typed now **ASK** first and offer that customer.
     lays an inset shape over it for the white fill, taking `clip-path: inherit` so the cut is
     re-resolved against its own smaller box and the outline stays an even width round the point.
     The label needs `position: relative` to sit over that fill.
+- **Back goes back ONE step, along the route actually walked** (v1.1.30). It used to clear
+  `selectedId` and land on the queue from wherever it was pressed, so a number keyed in wrong
+  could only be fixed by finding the row again and starting the drop-off over - the thing a
+  cashier presses Back to avoid.
+  - **`state.trail` is a stack of the steps BEHIND the current one**, pushed on each forward
+    move: `selectRow` starts it at `["pick"]`, the two call answers push `"check"`, and a
+    lookup that comes back pushes `"correct"` (the Check button exists only in the correction,
+    so a returned lookup IS the correction being left). A trail, not a fixed order, because
+    the order is not fixed - with steps skipped, "the previous step" is only answerable by
+    what was actually done.
+  - **`_applyStep` touches only the flags the step is read off** - never the typed name and
+    number, because the reason to go back to the correction is to fix what is in those boxes.
+  - ⚠ **A step can stop holding while it is behind you**, so `back()` keeps walking until
+    `currentStep` is the step it popped: correcting a number onto a customer already in the
+    book settles it, and there is no longer a call gate to go back to.
+  - **A recheck still LEAVES at the queue step** (`isRecheck` + a popped `"pick"` closes the
+    dialog). It was opened on one drop-off from the New Order modal, so the queue is not
+    where it came from - but inside it, Back now walks the correction like anywhere else.
 - **Step 2 is the chosen drop-off as a ROW of the same table, in the same columns** (v1.1.20) -
   12, plus the two `(Corrected)` columns this table alone carries. It was a strip of labelled
   values plus a name/phone summary until then; a cashier matching paper to a bag has just read the

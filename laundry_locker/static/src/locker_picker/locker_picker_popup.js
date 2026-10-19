@@ -60,6 +60,13 @@ export class LockerPickerPopup extends Component {
             // cashier has just been refused", not "the box is empty". An
             // empty box is marked blue from the start.
             tagRefused: false,
+            // The steps already walked, latest last, NOT counting the one
+            // on screen. Back pops it. It is a trail rather than a fixed
+            // order because the order is not fixed: a returning customer
+            // goes from the queue straight to Confirm, and a number that
+            // checks out skips the correction - so "the previous step" is
+            // only answerable by what was actually done.
+            trail: [],
             // The call's two outcomes, and the only two ways out of the gate:
             // verified = it rang, editing = it did not and the number is being
             // corrected. Both false = nobody has called it yet.
@@ -184,6 +191,9 @@ export class LockerPickerPopup extends Component {
 
     selectRow(row) {
         this.state.selectedId = row.id;
+        // A fresh trail per row: backing out of one drop-off and into
+        // another must not walk back through the first one's steps.
+        this.state.trail = ["pick"];
         this.state.phone = row.phone || "";
         this.state.customerName = row.customer_name || "";
         this.state.match = row.customer_match || "new";
@@ -217,12 +227,61 @@ export class LockerPickerPopup extends Component {
         }
     }
 
-    back() {
-        if (this.isRecheck) {
-            this.props.close();
-            return;
+    // Which of the four steps is on screen, read off the state the screen
+    // itself branches on - the queue, the correction fields, the call gate,
+    // the settled customer. Derived rather than stored, so it cannot say one
+    // thing while the screen shows another.
+    get currentStep() {
+        if (!this.state.selectedId) {
+            return "pick";
         }
-        this.state.selectedId = null;
+        if (this.state.editing) {
+            return "correct";
+        }
+        // No match yet, or one that still has to be called: either way the
+        // screen is the call gate and the number is what is in hand.
+        if (!this.state.match || this.needsVerification) {
+            return "check";
+        }
+        return "confirm";
+    }
+
+    // Put the screen back on `step`. Only the flags the step is read off are
+    // touched - the typed name and number are left alone, because the reason
+    // to go back to the correction is to fix what is in those boxes.
+    _applyStep(step) {
+        if (step === "pick") {
+            this.state.selectedId = null;
+        } else if (step === "correct") {
+            this.state.editing = true;
+        } else if (step === "check") {
+            this.state.editing = false;
+            this.state.verified = false;
+        }
+    }
+
+    // One step back along the trail, not back to the queue. Backing out of a
+    // correction used to drop the whole drop-off, so a number keyed in wrong
+    // could only be fixed by finding the row again and starting over.
+    back() {
+        let target = this.state.trail.pop() || "pick";
+        while (true) {
+            // A recheck was opened ON a drop-off, from the New Order modal -
+            // the queue is not where it came from, so that is where it
+            // leaves.
+            if (target === "pick" && this.isRecheck) {
+                this.props.close();
+                return;
+            }
+            this._applyStep(target);
+            // A step can stop holding while it is behind you: correcting a
+            // number onto a customer already in the book settles it, and
+            // there is no longer a call to go back to. Keep walking.
+            if (this.currentStep === target || !this.state.trail.length) {
+                break;
+            }
+            target = this.state.trail.pop();
+        }
         this.state.error = "";
     }
 
@@ -264,6 +323,9 @@ export class LockerPickerPopup extends Component {
             this.state.partnerLines = [];
             return;
         }
+        // The Check button lives only in the correction, so a lookup that
+        // came back is the correction being left behind.
+        this.state.trail.push("correct");
         this.state.error = "";
         this.state.match = result.customer_match;
         this.state.partnerName = result.partner_name || "";
@@ -278,6 +340,7 @@ export class LockerPickerPopup extends Component {
     // "I called it and it rang" - the one thing that lets a contact be created
     // from a number no customer has.
     onPhoneRang() {
+        this.state.trail.push("check");
         this.state.verified = true;
         this.state.editing = false;
         this.state.error = "";
@@ -286,6 +349,7 @@ export class LockerPickerPopup extends Component {
     // "I called it and it did NOT ring" - the one thing that unlocks the name
     // and phone.
     onPhoneWrong() {
+        this.state.trail.push("check");
         this.state.verified = false;
         this.state.editing = true;
         this.state.error = "";
@@ -447,27 +511,18 @@ export class LockerPickerPopup extends Component {
         return this.state.match === "new" && !this.state.verified;
     }
 
-    // Where the cashier is, read off the picker's OWN gates rather than
-    // written out beside them - these are the three things confirm() refuses
-    // for, in the order it refuses them, so the strip cannot say the job is
-    // further along than the Confirm button thinks it is.
-    //
-    // The middle step is the number: a drop-off is picked, and nothing can
-    // happen until the number either matched somebody in the book or was
-    // called (the Check / rang / did-not-ring loop). It is its own step
-    // because it is where a cashier waits - the other two are a tap each.
+    // The four steps, in the order they come. Not every order walks all of
+    // them - a returning customer goes from the queue straight to Confirm,
+    // and a number that checks out skips the correction - so the strip is
+    // the route, and `currentStep` is the place on it.
     get steps() {
-        const picked = !!this.state.selectedId;
-        // Settled = confirm() would no longer send them back to the number.
-        const settled = (
-            picked && !!this.state.match &&
-            !this.state.editing && !this.needsVerification
-        );
+        const current = this.currentStep;
         return [
-            { label: "Pick a drop-off", current: !picked },
-            { label: "Check the number", current: picked && !settled },
-            { label: "Confirm the customer", current: settled },
-        ];
+            { key: "pick", label: "Pick a drop-off" },
+            { key: "check", label: "Check the number" },
+            { key: "correct", label: "Correct the number" },
+            { key: "confirm", label: "Confirm the customer" },
+        ].map((step) => ({ ...step, current: step.key === current }));
     }
 
     get confirmDisabled() {

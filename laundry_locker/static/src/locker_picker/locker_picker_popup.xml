@@ -74,16 +74,21 @@
                  order, and until now the only sign of which one was in hand
                  was which half of the dialog was on screen.
 
-                 The keys are the gates confirm() itself refuses for (see
-                 `steps`), so the strip cannot claim the job is further along
-                 than Confirm thinks it is.
+                 The keys are the four steps of the job, and the lit one is
+                 read off the state the screen itself branches on
+                 (`currentStep`), so the strip cannot say one thing while the
+                 screen shows another. Not every order walks all four: a
+                 returning customer goes from the queue straight to Confirm,
+                 and a number that checks out skips the correction. The two
+                 skipped keys stay on the strip - it is the route, and a
+                 route with pieces missing could not be learned.
 
                  Only the CURRENT key is coloured - the steps behind are the
                  same grey as the ones ahead, as they are in Odoo's own
                  statusbar and in the New Order modal: colour means where you
                  are, and nothing else. -->
             <div class="laundry-steps">
-                <div t-foreach="steps" t-as="step" t-key="step.label"
+                <div t-foreach="steps" t-as="step" t-key="step.key"
                      class="laundry-step"
                      t-att-class="{ 'laundry-step-current': step.current }">
                     <span class="laundry-step-label"><t t-esc="step.label"/></span>
