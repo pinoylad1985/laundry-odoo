@@ -27,15 +27,33 @@ import { useService } from "@web/core/utils/hooks";
 // configured per tag, and a tag named for neither simply falls to the last
 // block. Anything added here is drawn without further changes.
 const TAG_GROUPS = [
-    // `open` = this block also stands outside the box, as keys. Only the
-    // washing and drying instructions do: they are the two questions every
-    // locker bag has to answer, so they are the ones worth the screen space.
-    // The book's other tags (how the shop classifies the customer) are
-    // answered once on the contact and are left to the box's own list.
-    { label: "Wash", open: true, match: (tag) => /^wash\b/i.test(tag.name || "") },
-    { label: "Dry", open: true, match: (tag) => /^dry\b/i.test(tag.name || "") },
-    { label: "Other", open: false, match: () => true },
+    { label: "Wash", match: (tag) => /^wash\b/i.test(tag.name || "") },
+    { label: "Dry", match: (tag) => /^dry\b/i.test(tag.name || "") },
+    { label: "Other", match: () => true },
 ];
+
+// The tags that stand OUTSIDE the box as keys, in this order.
+//
+// Named one by one, and matched on the WHOLE name. The book holds dozens of
+// wash and dry tags - years of near-duplicates and typos (WASH COMBIM, DRY
+// MEDIM, WASH PER PAG) - so 'starts with wash' drew a wall of keys and buried
+// the handful anybody actually picks. This is the shop's short list, and it
+// is meant to be edited here when that list changes.
+//
+// A name no tag in the book carries simply draws no key - never the nearest
+// spelling. Picking a tag for the cashier is writing it onto their customer.
+const TAG_KEYS = [
+    "WASH WHITE SEPARATE",
+    "WASH COMBINED",
+    "WASH PER BAG",
+    "DRY MEDIUM",
+    "DRY HIGH",
+    "DRY LOW",
+];
+
+// Two names are the same name when only spacing and case differ. Case is
+// forgiven because the list above is the shop's spelling, not the book's.
+const tagKeyName = (name) => (name || "").trim().replace(/\s+/g, " ").toUpperCase();
 
 export class LockerPickerPopup extends Component {
     static template = "laundry_locker.LockerPickerPopup";
@@ -482,25 +500,28 @@ export class LockerPickerPopup extends Component {
             .map((entry) => entry.tag);
     }
 
-    // The WASH and DRY tags, out in the open as a key apiece, wash first.
-    // These are the two instructions a locker bag needs, so they are read off
-    // the screen rather than out of a list the cashier has to open first.
+    // The TAG_KEYS tags, in the order they are written there - the shop's
+    // short list, out in the open so the usual answer is one tap away.
     //
-    // Deliberately NOT every tag: the book also holds the tags that classify
-    // the customer, and a key for each of those would bury the two the bag is
-    // waiting on. Those stay in the box's list.
+    // A key is dropped once its tag is in the box (it is now a chip), and a
+    // name the book does not carry draws nothing. The box's own list still
+    // holds every tag, so nothing here takes a choice away.
     //
-    // Deliberately NOT narrowed by what is typed in the box either - these
-    // keys are a fixed row whose shape the cashier learns, and a row that
-    // rearranges itself as somebody types could not be learned.
+    // Deliberately NOT narrowed by what is typed in the box, unlike
+    // `tagChoices`: these keys are a fixed row whose shape the cashier learns,
+    // and a row that rearranges itself as somebody types could not be learned.
     get tagKeys() {
-        const open = TAG_GROUPS.filter((group) => group.open);
-        const rank = (tag) => open.findIndex((group) => group.match(tag));
-        return this.state.tags
-            .map((tag, index) => ({ tag, index, rank: rank(tag) }))
-            .filter((entry) => entry.rank >= 0 && !this.state.tagIds.includes(entry.tag.id))
-            .sort((a, b) => a.rank - b.rank || a.index - b.index)
-            .map((entry) => entry.tag);
+        const byName = new Map();
+        for (const tag of this.state.tags) {
+            const key = tagKeyName(tag.name);
+            // First spelling wins - the book holds the same name twice over.
+            if (!byName.has(key)) {
+                byName.set(key, tag);
+            }
+        }
+        return TAG_KEYS.map((name) => byName.get(tagKeyName(name))).filter(
+            (tag) => tag && !this.state.tagIds.includes(tag.id)
+        );
     }
 
     // The same list, cut into the blocks the shop thinks in: how it is

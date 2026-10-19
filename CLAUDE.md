@@ -762,15 +762,23 @@ so both places a number gets typed now **ASK** first and offer that customer.
       its first item** - it has to be the one at the top of the list the cashier is looking at.
     - The heading is deliberately **shorter than the 44px rows** under it: a target-sized heading
       invites a tap that does nothing.
-  - **The WASH and DRY tags stand OUTSIDE the box, as a key apiece** (v1.1.33, scoped to those
-    two blocks in v1.1.34 - the owner's call) - `.laundry-tag-pills`, fed by **`tagKeys`**, wash
-    first. The box's own list can pick the same tags, but only once the cashier has thought to
-    open it; the keys are on the screen with a bag in hand and a customer waiting. Picking one
-    moves it into the box, so a key leaving the row IS the tag arriving as a chip.
-    - ⚠ **NOT every tag.** 1.1.33 drew a key for each of `tagChoices` - every unpicked tag in
-      the book, the customer-classification ones included - which buried the two instructions
-      the bag is actually waiting on. `TAG_GROUPS` now carries an **`open`** flag, true on Wash
-      and Dry only, and `tagKeys` reads it; everything else stays in the box's list.
+  - **SIX named tags stand OUTSIDE the box, as a key apiece** (v1.1.33, cut to the named six in
+    v1.1.35 - the owner's call) - `.laundry-tag-pills`, fed by **`tagKeys`** from the
+    **`TAG_KEYS`** list in `locker_picker_popup.js`: WASH WHITE SEPARATE / WASH COMBINED / WASH
+    PER BAG / DRY MEDIUM / DRY HIGH / DRY LOW, drawn in that order. The box's own list can pick
+    the same tags, but only once the cashier has thought to open it; the keys are on the screen
+    with a bag in hand and a customer waiting. Picking one moves it into the box, so a key
+    leaving the row IS the tag arriving as a chip.
+    - ⚠ **Named one by one, and matched on the WHOLE name** - `tagKeyName` forgives only
+      spacing and case. Two earlier tries matched a PATTERN and both drew a wall of keys:
+      1.1.33 took every unpicked tag, and 1.1.34 took every tag *starting* with wash or dry -
+      which is ~60 of them, because the book holds years of near-duplicates and typos (WASH
+      COMBIM, WASH PER PAG, DRY MEDIM, DRY MEDUIM). A pattern cannot tell the shop's six from
+      the sixty; only a list can. **Edit `TAG_KEYS` when that list changes.**
+    - **A name the book does not carry draws NO key** - never the nearest spelling. Picking a
+      tag for the cashier writes it onto their customer. The same name twice in the book
+      (WASH PER BAG is in there three times) takes the first.
+    - `TAG_GROUPS` is unrelated to this and groups the DROP-DOWN only.
     - **NOT narrowed by what is typed in the box** either, unlike `tagChoices`: the keys are a
       fixed row whose shape the cashier learns, and a row that rearranges itself as somebody
       types could not be learned.
