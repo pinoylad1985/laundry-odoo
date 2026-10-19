@@ -305,17 +305,23 @@
                                  control here as on the contact itself. -->
                             <div t-if="state.tags.length" class="mt-3 text-body laundry-locker-tags">
                                 <label class="form-label fw-bold mb-1">Tags</label>
-                                <!-- Marked blue while it is empty, the same
-                                     mark the contact form puts on a box this
-                                     order needs (laundry_required_fields.scss
-                                     in laundry_pos). Blue, not red: nothing
-                                     is wrong yet - Confirm has not been
-                                     pressed, and the red line under the box
-                                     is what answers a Confirm pressed
-                                     without a tag. The mark goes as soon as
-                                     a tag is in the box. -->
+                                <!-- Two marks, and the order matters. BLUE
+                                     while the box is empty: the same mark the
+                                     contact form puts on a box this order
+                                     needs (laundry_required_fields.scss in
+                                     laundry_pos), said before anything is
+                                     wrong. RED once a Confirm has actually
+                                     been refused for want of a tag, which is
+                                     core's own behaviour on a refused save -
+                                     the sentence it prints sits under the
+                                     whole screen, so without this the cashier
+                                     has to work out which box it means. Both
+                                     go as soon as a tag is in the box. -->
                                 <div class="laundry-tag-box form-control"
-                                     t-att-class="{ 'laundry-tag-needed': !selectedTags.length }"
+                                     t-att-class="{
+                                        'laundry-tag-invalid': state.tagRefused and !selectedTags.length,
+                                        'laundry-tag-needed': !state.tagRefused and !selectedTags.length,
+                                     }"
                                      t-on-click="focusTagInput">
                                     <span t-foreach="selectedTags" t-as="tag" t-key="tag.id"
                                           class="laundry-tag">

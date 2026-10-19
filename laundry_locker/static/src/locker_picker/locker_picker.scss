@@ -103,6 +103,16 @@
             background-color: #e7f1ff;
         }
 
+        // Confirm has been pressed and refused for want of a tag. Core paints
+        // a refused field this way on the contact form (.o_field_invalid), so
+        // the two screens answer a refusal with the same colour. It replaces
+        // the blue rather than sitting beside it: one box cannot be both
+        // "still to do" and "just refused".
+        .laundry-tag-box.laundry-tag-invalid {
+            border-color: #dc3545; // bootstrap danger
+            background-color: #fbeaea;
+        }
+
         // A chip: rounded, muted, with its own × that is a target in its own
         // right rather than a 10px hit area in the corner of a word.
         .laundry-tag {

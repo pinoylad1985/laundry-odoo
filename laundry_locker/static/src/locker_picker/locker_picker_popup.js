@@ -55,6 +55,11 @@ export class LockerPickerPopup extends Component {
             // What is typed into the tags box, and whether its list is down.
             tagQuery: "",
             tagOpen: false,
+            // Set by a Confirm refused for want of a tag, and by nothing
+            // else: it is what turns the box red, so it has to mean "the
+            // cashier has just been refused", not "the box is empty". An
+            // empty box is marked blue from the start.
+            tagRefused: false,
             // The call's two outcomes, and the only two ways out of the gate:
             // verified = it rang, editing = it did not and the number is being
             // corrected. Both false = nobody has called it yet.
@@ -190,6 +195,7 @@ export class LockerPickerPopup extends Component {
         this.state.tagIds = [];
         this.state.tagQuery = "";
         this.state.tagOpen = false;
+        this.state.tagRefused = false;
         // A recheck opens straight into the correction: the cashier got here
         // by pressing "Correct number", which says the same thing as answering
         // that it did not ring. Claiming the row already created its contact, so
@@ -397,6 +403,15 @@ export class LockerPickerPopup extends Component {
         if (!this.state.tagIds.includes(tagId)) {
             this.state.tagIds.push(tagId);
         }
+        // The complaint goes with the thing complained about - but only the
+        // tag's own complaint: any other refusal on screen is about something
+        // this tap did not answer. Emptying the box again does NOT bring the
+        // red back - nobody is being refused at that moment - it goes back to
+        // the blue "still to do".
+        if (this.state.tagRefused) {
+            this.state.tagRefused = false;
+            this.state.error = "";
+        }
         // Cleared so the list opens back up on everything still unpicked -
         // the next tag is rarely spelled like the last one.
         this.state.tagQuery = "";
@@ -455,6 +470,11 @@ export class LockerPickerPopup extends Component {
             return;
         }
         if (this.needsTag) {
+            // The box turns red as well as the line being printed: the
+            // sentence sits under the whole screen, and the cashier has to
+            // work out which field it is about. Core marks the field itself
+            // on a refused save, and this is that same moment.
+            this.state.tagRefused = true;
             this.state.error =
                 "Pick at least one tag for the new contact \u2014 a Locker order " +
                 "needs one.";

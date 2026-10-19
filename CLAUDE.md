@@ -728,9 +728,17 @@ so both places a number gets typed now **ASK** first and offer that customer.
   - **The empty box is marked BLUE** (v1.1.25, `.laundry-tag-needed`), the same two colours the
     contact form uses for a box an order is asking for
     (`laundry_pos/static/src/contact_form/laundry_required_fields.scss` - keep them in step).
-    Blue means "still to do", not "wrong": nothing has been refused yet, and the RED line under
-    the box is what answers a Confirm pressed without a tag. The mark goes as soon as a tag is in
-    the box. Without it the one required field on this screen looked like the optional ones.
+    Blue means "still to do", not "wrong". Without it the one required field on this screen
+    looked like the optional ones.
+  - **A Confirm refused for want of a tag turns the box RED** (v1.1.26,
+    `.laundry-tag-invalid`, driven by `state.tagRefused`) - core's own behaviour on a refused
+    save, and the reason the contact form leaves red alone. The refusal sentence prints under the
+    whole screen, so on its own it leaves the cashier working out which box it is about.
+    ⚠ `tagRefused` is set by the refusal and by **nothing else**: it means "has just been
+    refused", not "is empty", so emptying the box again goes back to blue rather than red.
+    Picking a tag clears the flag and the sentence - but only *that* sentence, since another
+    refusal on screen is about something the tap did not answer. Both marks go as soon as a tag
+    is in the box.
   - The list comes from **`laundry.locker.transaction.pos_customer_tags()`**, because
     `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
     A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
