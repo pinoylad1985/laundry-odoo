@@ -150,6 +150,25 @@
             opacity: 0.5;
         }
 
+        // The same choices as the box's list, but standing open under it.
+        // Keys wrap rather than scroll: a tag that needs scrolling to is a
+        // tag the cashier does not know is there.
+        .laundry-tag-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        // Plain grey, like every unselected key in the module - a picked tag
+        // shows as a chip INSIDE the box, so colour out here would be a
+        // second answer to a question the box has already answered.
+        .laundry-tag-pill {
+            // The module's tap-target floor.
+            min-height: 44px;
+            white-space: nowrap;
+        }
+
         .laundry-tag-menu {
             position: absolute;
             z-index: 1060; // over the modal body, which Bootstrap puts at 1055

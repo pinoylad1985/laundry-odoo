@@ -762,6 +762,18 @@ so both places a number gets typed now **ASK** first and offer that customer.
       its first item** - it has to be the one at the top of the list the cashier is looking at.
     - The heading is deliberately **shorter than the 44px rows** under it: a target-sized heading
       invites a tap that does nothing.
+  - **Every unpicked tag is ALSO a key, standing open under the box** (v1.1.33, the owner's
+    call) - `.laundry-tag-pills`, fed by the same `tagChoices`, so they come out **wash first,
+    then dry, then the rest**. The box's own list can do the same job, but only once the cashier
+    has thought to open it; the keys are on the screen with a bag in hand and a customer waiting.
+    Picking one moves it into the box, so a key leaving the row IS the tag arriving as a chip.
+    - They **wrap rather than scroll**: a tag that has to be scrolled to is a tag the cashier
+      does not know is there.
+    - **Plain grey, every one of them.** A picked tag shows as a chip inside the box, so colour
+      out here would be a second answer to a question the box has already answered.
+    - The box, its chips and its narrowing list all stay - this is a quicker way in, not a
+      replacement. v1.1.20 shipped the tags AS buttons and v1.1.21 replaced them with the
+      contact form's control; this is both.
   - The hint under the box is **"Pick at least one."** (v1.1.32). It read "Pick at least one - a
     Locker order needs one" until then; the cashier is on the Locker screen and does not need to
     be told which service type they are in.
