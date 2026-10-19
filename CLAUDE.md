@@ -778,6 +778,12 @@ so both places a number gets typed now **ASK** first and offer that customer.
     - **A name the book does not carry draws NO key** - never the nearest spelling. Picking a
       tag for the cashier writes it onto their customer. The same name twice in the book
       (WASH PER BAG is in there three times) takes the first.
+    - **A black line separates the wash keys from the dry ones** (v1.1.36, the owner's call) -
+      `.laundry-tag-divider`, drawn where `TAG_KEYS`' `block` changes. The row is two
+      questions, not one run of six names. ⚠ it is read off the key BEFORE it, not off the
+      list, so a row whose wash keys are all picked opens on a dry key and NOT on a line.
+      `align-self: stretch` takes its height from the keys beside it, so the two cannot fall
+      out of step.
     - `TAG_GROUPS` is unrelated to this and groups the DROP-DOWN only.
     - **NOT narrowed by what is typed in the box** either, unlike `tagChoices`: the keys are a
       fixed row whose shape the cashier learns, and a row that rearranges itself as somebody

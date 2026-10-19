@@ -409,11 +409,13 @@
                                      chip. The book's other tags are NOT keys
                                      here - see tagKeys. -->
                                 <div t-if="tagKeys.length" class="laundry-tag-pills">
-                                    <button t-foreach="tagKeys" t-as="tag" t-key="tag.id"
-                                            class="btn btn-secondary laundry-tag-pill"
-                                            t-on-click="() => this.pickTag(tag.id)">
-                                        <t t-esc="tag.name"/>
-                                    </button>
+                                    <t t-foreach="tagKeys" t-as="key" t-key="key.tag.id">
+                                        <span t-if="key.divider" class="laundry-tag-divider"/>
+                                        <button class="btn btn-secondary laundry-tag-pill"
+                                                t-on-click="() => this.pickTag(key.tag.id)">
+                                            <t t-esc="key.tag.name"/>
+                                        </button>
+                                    </t>
                                 </div>
                             </div>
                         </div>

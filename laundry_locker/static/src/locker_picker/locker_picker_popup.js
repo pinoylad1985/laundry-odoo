@@ -42,13 +42,16 @@ const TAG_GROUPS = [
 //
 // A name no tag in the book carries simply draws no key - never the nearest
 // spelling. Picking a tag for the cashier is writing it onto their customer.
+// `block` is what the key answers - how the bag is washed, or how it is dried.
+// A line is drawn where it changes, so the row reads as the two questions it
+// is, rather than one run of six names.
 const TAG_KEYS = [
-    "WASH WHITE SEPARATE",
-    "WASH COMBINED",
-    "WASH PER BAG",
-    "DRY MEDIUM",
-    "DRY HIGH",
-    "DRY LOW",
+    { block: "wash", name: "WASH WHITE SEPARATE" },
+    { block: "wash", name: "WASH COMBINED" },
+    { block: "wash", name: "WASH PER BAG" },
+    { block: "dry", name: "DRY MEDIUM" },
+    { block: "dry", name: "DRY HIGH" },
+    { block: "dry", name: "DRY LOW" },
 ];
 
 // Two names are the same name when only spacing and case differ. Case is
@@ -519,9 +522,19 @@ export class LockerPickerPopup extends Component {
                 byName.set(key, tag);
             }
         }
-        return TAG_KEYS.map((name) => byName.get(tagKeyName(name))).filter(
-            (tag) => tag && !this.state.tagIds.includes(tag.id)
-        );
+        const drawn = [];
+        for (const key of TAG_KEYS) {
+            const tag = byName.get(tagKeyName(key.name));
+            if (!tag || this.state.tagIds.includes(tag.id)) {
+                continue;
+            }
+            // The line goes between the blocks, so it is read off the key
+            // BEFORE it rather than off the list - with the wash keys all
+            // picked, the row opens on dry and must not open on a line.
+            const previous = drawn[drawn.length - 1];
+            drawn.push({ tag, divider: !!previous && previous.block !== key.block, block: key.block });
+        }
+        return drawn;
     }
 
     // The same list, cut into the blocks the shop thinks in: how it is

@@ -169,6 +169,17 @@
             white-space: nowrap;
         }
 
+        // Between the wash keys and the dry keys: the row is two questions,
+        // not one run of six names. `align-self: stretch` takes its height
+        // from the keys beside it, so it cannot fall out of step with them.
+        // Not a target - it sits in the gap and has nothing to do.
+        .laundry-tag-divider {
+            align-self: stretch;
+            width: 4px;
+            border-radius: 2px;
+            background-color: var(--bs-body-color, #212529);
+        }
+
         .laundry-tag-menu {
             position: absolute;
             z-index: 1060; // over the modal body, which Bootstrap puts at 1055
