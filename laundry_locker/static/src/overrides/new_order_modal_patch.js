@@ -6,6 +6,7 @@ import { useService } from "@web/core/utils/hooks";
 import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { NewOrderModal } from "@laundry_pos/new_order_modal/new_order_modal";
 import { LockerPickerPopup } from "@laundry_locker/locker_picker/locker_picker_popup";
+import { rowPhoneInForce } from "@laundry_locker/utils/locker_rows";
 
 // What the customer paid for at the locker, in the feed's own words
 // ("Wash, Dry & Fold", "Dry Clean, Press"), mapped onto the modal's own
@@ -181,6 +182,16 @@ patch(NewOrderModal.prototype, {
             return false;
         }
         return super.canConfirm;
+    },
+
+    // The number this drop-off is actually called on: the shop's correction
+    // where there is one, and what the customer keyed in at the locker where
+    // there is not. The claim carries both (they are separate fields), and
+    // the one worth printing on the order is the one in force - a corrected
+    // drop-off showing its mistyped number here would have the modal and the
+    // picker saying different things about the same bag.
+    get lockerClaimPhone() {
+        return rowPhoneInForce(this.lockerState.claim);
     },
 
     get missingLockerClaim() {

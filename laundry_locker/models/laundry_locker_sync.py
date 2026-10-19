@@ -305,9 +305,10 @@ class LaundryLockerTransaction(models.Model):
         name = _clean(customer.get('name'))
         # Normalised HERE, at the feed boundary, so every reader of the
         # record - the picker list, the receipt, the contact created from it -
-        # sees the one spelling. `source_phone` takes the same value, or the
-        # cashier-correction guard in _sync_writes would read the added 0 as a
-        # correction on every single row.
+        # sees the one spelling. It is also the value a correction is judged
+        # against (corrected_phone in laundry_locker_transaction), so without
+        # it the trunk 0 the feed leaves off would read as a correction on
+        # every single row.
         phone = ph_local_phone(_clean(customer.get('contact')))
         code = _location_code(record.get('locationCode'))
         status_label = (
@@ -320,9 +321,7 @@ class LaundryLockerTransaction(models.Model):
                 code, record.get('locationName'), customer.get('building')
             ),
             'customer_name': name,
-            'source_name': name,
             'phone': phone,
-            'source_phone': phone,
             'service': service or False,
             'turnaround': _clean(time_block.get('turnaround')),
             'pickup_datetime': _feed_datetime(
@@ -347,18 +346,21 @@ class LaundryLockerTransaction(models.Model):
     def _sync_writes(self, vals, door_from_feed=False):
         """Narrow incoming values to what this record should actually take.
 
-        Three things the sync must not undo: a phone number (or name) a cashier
-        corrected, because putting the customer's typo back is the whole failure
-        this feature exists to stop; a drop-off door already recorded; and
-        anything Odoo owns - billed, pos_order_id, phone_verified and the
+        Two things the sync must not undo: a drop-off door already recorded,
+        and anything Odoo owns - billed, pos_order_id, phone_verified and the
         matched partner_id are never in `vals` to begin with.
+
+        A cashier's correction needs no guard here any more, and that is the
+        point of the two corrected fields. It used to: the correction was
+        written OVER `phone` / `customer_name`, so every pull had to work out
+        whether the value it was about to overwrite was the customer's own or
+        the shop's note against it - and the wrong answer put the customer's
+        typo back, which is the failure the whole feature exists to stop. The
+        correction now lives in a pair of fields the feed has no opinion about
+        and this method never carries, so the two cannot collide.
         """
         self.ensure_one()
         writes = dict(vals)
-        if self.source_phone and self.phone != self.source_phone:
-            writes.pop('phone', None)
-        if self.source_name and self.customer_name != self.source_name:
-            writes.pop('customer_name', None)
         # The door is a latch, not a field of the order: once this row names
         # one, only a better-sourced door may replace it.
         #

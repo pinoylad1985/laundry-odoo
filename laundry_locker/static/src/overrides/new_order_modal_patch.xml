@@ -13,7 +13,7 @@
                         <span t-if="lockerState.claim.partner_name">
                             <t t-esc="lockerState.claim.partner_name"/>
                         </span>
-                        <span class="text-muted" t-esc="lockerState.claim.phone"/>
+                        <span class="text-muted" t-esc="lockerClaimPhone"/>
                         <span t-if="lockerState.claim.dirty_door" class="text-muted">
                             door <t t-esc="lockerState.claim.dirty_door"/>
                         </span>

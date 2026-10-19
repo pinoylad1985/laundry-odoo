@@ -887,25 +887,50 @@ so both places a number gets typed now **ASK** first and offer that customer.
     would be an answer about a different number.
   - `matchLabel()` / `matchClass()` take the **match value**, not a row, so the queue cell and the
     detail cell cannot label one answer two ways.
-- **The customer's name and number are each a PAIR of columns** - `Customer` /
-  `Customer (Corrected)` (v1.1.23) and `Phone` / `Phone (Corrected)` (v1.1.22), the owner's call.
-  The left-hand column is **always what the customer keyed in at the locker** and is never
-  overwritten in the picker - it is what is printed on their drop-off and what they quote when
-  they ring up about it. The right-hand one is the shop's note against it, **an em-dash when
-  nothing was corrected**. One column holding "whichever is current" could not say that anything
-  had been changed.
-  - Each detail carries **three** row keys: `customer_name` / `phone` are the values IN FORCE (the
-    number called and matched, the name a contact is created under) and are what every other
-    reader still uses - the New Order modal's claim line among them; `*_source` is the locker's
-    own (`source_name` / `source_phone`, the fields the sync's cashier-correction guard already
-    compares against, falling back to the current value on a row that has none); `*_corrected` is
-    blank unless they differ.
+- **The customer's name and number are each a PAIR of FIELDS, and a pair of columns everywhere
+  they are shown** - `customer_name` / `customer_name_corrected` and `phone` / `phone_corrected`
+  on `laundry.locker.transaction` (v1.1.39; the columns alone since v1.1.22-1.1.23, the owner's
+  call). **One fact, one name, in both apps**: the four fields, the four keys `_pos_row()` sends
+  the register, and the four column labels are the same four names.
+  - **The left-hand field is what the customer keyed in at the locker, and is NEVER written
+    over** - not by the picker, not from the back-office form (where it is **read-only**). It is
+    what is printed on their drop-off and what they quote when they ring up about it, and the
+    sync refreshes it from the feed on every pull.
+  - **The right-hand field is the shop's note against it**, blank where nothing was corrected,
+    an **em-dash** wherever it is printed. It is the only pair the form lets anyone **edit**.
+  - ⚠ **Before v1.1.39 the correction was written STRAIGHT OVER the locker's value**, with the
+    feed's own kept in hidden `source_name` / `source_phone` columns purely so the sync could ask
+    "did a cashier correct this?" and skip the row if so. That pair is **gone**: a hidden field
+    could never be the list column the owner asked for, and the sync's guard - whose wrong answer
+    put the customer's typo back - is **no longer needed at all**, because the feed has no opinion
+    about a field it never sends. `migrations/1.1.39/pre-migrate.py` moves the corrections already
+    made into the new columns (pre-migrate, because `source_*` still exists there; it adds the two
+    new columns with `IF NOT EXISTS` first, since the ORM creates them later in the same upgrade).
+    ⚠ **A correction to BLANK cannot be represented any more** - a blank correction field means
+    "nothing was corrected" - so the migration puts the locker's own value back on such a row.
+  - **"The value IN FORCE" is the correction, falling back to the locker's own.** It is
+    deliberately NOT a third field or column: the pair is "what the customer typed" and "what the
+    shop put in its place", and a third column reading "whichever of those applies" is one nobody
+    can act on. It is two methods and their browser twins -
+    `_laundry_phone_in_force` / `_laundry_name_in_force` (`laundry_locker_transaction.py`) and
+    `rowPhoneInForce` / `rowNameInForce` (`static/src/utils/locker_rows.js`) - and **the two
+    spellings have to stay in step**: the register calls the number it reads in the browser, the
+    server creates the contact under the name it reads in Python. The in-force number is what
+    `phone_last10` is keyed on, what the match runs on, and what the New Order modal's claim line
+    prints (`lockerClaimPhone`).
+  - **A correction that corrects NOTHING is blanked on save** - `_laundry_clean_corrections`, run
+    from `create` and `write`. The register sends both boxes back on **every** claim, touched or
+    not, so without this every row would read as corrected and the em-dash would never appear.
+    That is what makes "is this field filled?" and "was this really changed?" the same question.
   - ⚠ **The two comparisons deliberately differ.** A phone is compared on **DIGITS**
-    (`_pos_corrected_phone` / `correctedPhone`): `0917 555 0002` and `09175550002` are one number,
-    so re-spacing is not correcting. A name collapses whitespace but keeps **CASE**
-    (`_pos_corrected_name` / `correctedCustomer`): two spellings of one number are the same
-    number, two spellings of one name are not the same text, so `Mary Smith` retyped as
-    `MARY SMITH` IS a correction. Server and browser must draw each line the same way.
+    (`corrected_phone` / `correctedPhone`): `0917 555 0002` and `09175550002` are one number, so
+    re-spacing is not correcting. A name collapses whitespace but keeps **CASE**
+    (`corrected_name` / `correctedCustomer`): two spellings of one number are the same number, two
+    spellings of one name are not the same text, so `Mary Smith` retyped as `MARY SMITH` IS a
+    correction. Server and browser must draw each line the same way.
+  - **A number that CHANGES un-ticks Verified** (`write`), judged on the number **in force** - a
+    number nobody has called is a number nobody has called, whichever of the two fields it came
+    from.
   - **The `(Corrected)` columns are on the CHOSEN drop-off only** (v1.1.24, the owner's call).
     A correction is made on one drop-off, so down the queue those two columns are an em-dash on
     nearly every row - two columns' width spent saying nothing, pushing the columns the cashier is
@@ -914,10 +939,14 @@ so both places a number gets typed now **ASK** first and offer that customer.
   - Those cells read the **state**, so a column fills in **as the correction is typed**, not after
     Confirm - the cashier is looking at this table while they type. `*_corrected` stays on every
     row for the search, below.
+  - **The Lockers list in the back office carries all four**, `optional="show"` like its other
+    columns so Studio can reposition them, and its search finds a row by **either** spelling of
+    either fact (plus the last-10 form of the number).
   - The picker's search covers **every** spelling: a customer ringing about a corrected drop-off
     quotes the ones THEY typed.
-  - The matched-customer line says the drop-off "was keyed in as" the **source** name, which is
-    what "keyed in" means - it is contrasting the book's spelling with the locker's.
+  - The matched-customer line says the drop-off "was keyed in as" **`customer_name`**, the
+    locker's own, which is what "keyed in" means - it is contrasting the book's spelling with the
+    locker's.
   - **A corrected number that lands on a customer already in the book brings their NAME with
     it** (v1.1.31, the owner's call) - `checkPhone` writes `partner_name` into
     `state.customerName` on a `returning` match. The name in the box was typed against the OLD

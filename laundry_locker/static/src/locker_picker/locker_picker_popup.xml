@@ -133,8 +133,8 @@
                                 <td><t t-esc="row.location_name"/></td>
                                 <td class="fw-bold"><t t-esc="row.ref"/></td>
                                 <td class="text-nowrap"><t t-esc="row.new_laundry_at"/></td>
-                                <td><t t-esc="row.customer_name_source"/></td>
-                                <td><t t-esc="row.phone_source"/></td>
+                                <td><t t-esc="row.customer_name"/></td>
+                                <td><t t-esc="row.phone"/></td>
                                 <td><t t-esc="row.service"/></td>
                                 <td><t t-esc="row.turnaround"/></td>
                                 <td class="text-nowrap"><t t-esc="row.pickup_datetime"/></td>
@@ -183,14 +183,14 @@
                                      the STATE, so they fill in as the
                                      correction is typed rather than after it
                                      is saved. -->
-                                <td><t t-esc="selectedRow.customer_name_source"/></td>
+                                <td><t t-esc="selectedRow.customer_name"/></td>
                                 <td>
                                     <t t-if="correctedCustomer">
                                         <t t-esc="correctedCustomer"/>
                                     </t>
                                     <span t-else="" class="text-muted">&#8212;</span>
                                 </td>
-                                <td><t t-esc="selectedRow.phone_source"/></td>
+                                <td><t t-esc="selectedRow.phone"/></td>
                                 <td>
                                     <t t-if="correctedPhone">
                                         <t t-esc="correctedPhone"/>
@@ -259,7 +259,7 @@
                         <t t-call="laundry_locker.ContactFacts"/>
                         <small class="text-muted d-block mt-1">
                             Matched on the last 10 digits — the drop-off was keyed in
-                            as “<t t-esc="selectedRow.customer_name_source"/>”.
+                            as “<t t-esc="selectedRow.customer_name"/>”.
                         </small>
                     </t>
 

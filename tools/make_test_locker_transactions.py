@@ -275,11 +275,6 @@ def main(env):
             'status_label': STATUS,
             'created_at': deposited,
             'updated_at': deposited,
-            # What the feed would have sent. Kept equal to the live values so
-            # the sync's "did a cashier correct this?" test reads false and
-            # nothing here looks hand-edited.
-            'source_name': row['customer_name'],
-            'source_phone': row['phone'],
             # The moment the bag became laundry. The turnaround on a Locker
             # order is measured from this, so it has to be set or the modal
             # has nothing to count from.

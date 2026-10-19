@@ -5,7 +5,9 @@ from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .laundry_locker_sync import CLEARED_STATUS
-from .laundry_locker_transaction import ph_local_phone, phone_last10
+from .laundry_locker_transaction import (
+    corrected_name, corrected_phone, ph_local_phone, phone_last10,
+)
 from .pos_order import VALIDATED_STATES
 
 _logger = logging.getLogger(__name__)
@@ -54,66 +56,6 @@ class LaundryLockerTransaction(models.Model):
         minutes = f'{local:%M}' if exact else '00'
         return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
-    def _pos_source_name(self):
-        """The name the locker sent.
-
-        `source_name` sits beside `source_phone` and is guarded the same way
-        (_sync_writes), so it is the customer's own spelling by definition.
-        Falls back to `customer_name` for a row that has none, where the two
-        are the same name anyway.
-        """
-        self.ensure_one()
-        return (self.source_name or self.customer_name or '').strip()
-
-    def _pos_corrected_name(self):
-        """The name the register put in place of the locker's, if any.
-
-        Whitespace is collapsed before the comparison - re-spacing a name is
-        not correcting it - but CASE is not. A name retyped from `Mary Smith`
-        to `MARY SMITH` is a change the shop made to its own record, and the
-        column exists to say what was changed. That is where this parts from
-        the phone rule beside it: two spellings of one number are the same
-        number, two spellings of one name are not the same text.
-        """
-        self.ensure_one()
-        current = (self.customer_name or '').strip()
-        source = self._pos_source_name()
-        if not current:
-            return ''
-        if ' '.join(current.split()) == ' '.join(source.split()):
-            return ''
-        return current
-
-    def _pos_source_phone(self):
-        """The number the locker sent, the way the picker should read it.
-
-        `source_phone` is written by the sync beside `phone` and is what the
-        cashier-correction guard compares against (_sync_writes), so it is the
-        original by definition. Falls back to `phone` for a row that has none -
-        a row nobody has corrected, where the two are the same number anyway.
-        """
-        self.ensure_one()
-        return ph_local_phone(self.source_phone or self.phone) or ''
-
-    def _pos_corrected_phone(self):
-        """The number the register put in place of the locker's, if any.
-
-        Compared on DIGITS, not on the string: `0917 555 0002` and
-        `09175550002` are one number, and showing the second as a correction of
-        the first would invent a correction out of spacing. The same reasoning
-        as phone_last10, on the whole number rather than its last ten - this is
-        asking whether somebody CHANGED it, not whether two records are the
-        same customer.
-        """
-        self.ensure_one()
-        current = ph_local_phone(self.phone) or ''
-        source = self._pos_source_phone()
-        if not current:
-            return ''
-        if re.sub(r'\D', '', current) == re.sub(r'\D', '', source):
-            return ''
-        return current
-
     def _pos_row(self):
         """One transaction as the register's picker shows it."""
         self.ensure_one()
@@ -121,31 +63,27 @@ class LaundryLockerTransaction(models.Model):
             'id': self.id,
             'ref': self.ref or '',
             'location_name': self.location_name or '',
-            # Same pairing as the phone below, for the same reason: the
-            # locker's own spelling is what is printed on the customer's
-            # drop-off, so a correction is shown BESIDE it rather than over
-            # it. `customer_name` stays the name in force - what a contact
-            # gets created under - and is what every other reader uses.
-            'customer_name': self.customer_name or '',
-            'customer_name_source': self._pos_source_name(),
-            'customer_name_corrected': self._pos_corrected_name(),
-            # Normalised on the way out as well as on the way in, so a row
-            # that predates the trunk-0 rule still reads right in the picker.
+            # FOUR keys, named exactly as the four fields behind them, so
+            # the register and the Lockers list cannot call one fact two
+            # things. Each is a PAIR: what the customer keyed in at the
+            # locker - which is what is printed on their drop-off and what
+            # they quote when they ring up about it - and the shop's
+            # correction, BESIDE it and never over it.
             #
-            # Three keys, because a corrected number is TWO facts and the
-            # picker shows both: what the customer keyed in at the locker, and
-            # what the register put in its place. `phone` is the number in
-            # force - what gets called, matched and written onto the contact -
-            # and every other reader of this row still uses it.
+            # A correction is blank unless something was really changed (the
+            # server blanks a no-op on write), which is what lets the picker
+            # print an em-dash there: repeating the number in both columns
+            # would read as a correction that changed nothing. The value in
+            # force is the correction or, failing that, the locker's own -
+            # utils/locker_rows.js on the register, _laundry_name_in_force /
+            # _laundry_phone_in_force here.
+            #
+            # Both numbers are normalised on the way out as well as on the way
+            # in, so a row that predates the trunk-0 rule still reads right.
+            'customer_name': self.customer_name or '',
+            'customer_name_corrected': self.customer_name_corrected or '',
             'phone': ph_local_phone(self.phone) or '',
-            # What the locker sent. The columns call this one "Phone", because
-            # that is the number ON the drop-off; the correction is the shop's
-            # own note against it, not a replacement for it.
-            'phone_source': self._pos_source_phone(),
-            # Blank, not a repeat, when nothing was corrected - the picker
-            # prints an em-dash there. Repeating the number in both columns
-            # would read as a correction that changed nothing.
-            'phone_corrected': self._pos_corrected_phone(),
+            'phone_corrected': ph_local_phone(self.phone_corrected) or '',
             'service': self.service or '',
             'turnaround': self.turnaround or '',
             'dirty_door': self.dirty_door or '',
@@ -179,7 +117,7 @@ class LaundryLockerTransaction(models.Model):
             'phone_problem': (
                 '' if self.partner_id
                 else self.env['res.partner'].laundry_phone_problem_message(
-                    ph_local_phone(self.phone)
+                    self._laundry_phone_in_force()
                 )
             ),
             'phone_verified': self.phone_verified,
@@ -457,23 +395,36 @@ class LaundryLockerTransaction(models.Model):
             raise UserError(_('Ref %s has already been billed.') % self.ref)
 
         corrections = {}
-        # A number typed at the register gets the same trunk 0 the feed's does, so
-        # a correction cannot be the one contact spelled without it.
-        phone = ph_local_phone(phone) if phone is not None else None
-        if phone is not None and (phone or '').strip() != (ph_local_phone(self.phone) or ''):
-            corrections['phone'] = (phone or '').strip() or False
-        if customer_name is not None and (customer_name or '').strip() != (self.customer_name or ''):
-            corrections['customer_name'] = (customer_name or '').strip() or False
+        # The register sends back whatever is in its two boxes, touched or
+        # not, so each is turned into a CORRECTION of the locker's own value -
+        # and False where it corrects nothing, which is also how a cashier
+        # retyping the original clears a correction made earlier.
+        #
+        # A number typed at the register gets the same trunk 0 the feed's
+        # does (corrected_phone normalises it), so a correction cannot be the
+        # same number spelled without it.
+        if phone is not None:
+            new_phone = corrected_phone(phone, self.phone)
+            if (new_phone or '') != (self.phone_corrected or ''):
+                corrections['phone_corrected'] = new_phone
+        if customer_name is not None:
+            new_name = corrected_name(customer_name, self.customer_name)
+            if (new_name or '') != (self.customer_name_corrected or ''):
+                corrections['customer_name_corrected'] = new_name
         if phone_verified:
             corrections['phone_verified'] = True
-        if 'phone' in corrections:
-            # Before the write, not after: see _laundry_absorb_correction.
+        if 'phone_corrected' in corrections:
+            # Before the write, not after: see _laundry_absorb_correction. It
+            # is handed the number about to be IN FORCE - the correction, or
+            # the locker's own where a correction is being cleared.
             self._laundry_absorb_correction(
-                corrections['phone'], verified=bool(phone_verified)
+                corrections['phone_corrected'] or self.phone,
+                verified=bool(phone_verified),
             )
         if corrections:
-            # Writing the phone re-runs the match, so partner_id below is
-            # already the answer for the CORRECTED number.
+            # Writing the correction re-runs the match - phone_last10 is keyed
+            # on the number in force - so partner_id below is already the
+            # answer for the CORRECTED number.
             self.write(corrections)
 
         partner = self.partner_id
@@ -485,11 +436,14 @@ class LaundryLockerTransaction(models.Model):
                     'mistyped their number would otherwise be saved under it '
                     'permanently.'
                 ))
-            if not self.phone:
+            # The name and number IN FORCE: a contact is created from what
+            # the register corrected them to, not from what the locker sent.
+            in_force_phone = self._laundry_phone_in_force()
+            if not in_force_phone:
                 raise UserError(_('A phone number is needed to create the customer.'))
             partner_vals = {
-                'name': self.customer_name or self.ref,
-                'phone': ph_local_phone(self.phone),
+                'name': self._laundry_name_in_force() or self.ref,
+                'phone': in_force_phone,
             }
             if tag_ids:
                 partner_vals['category_id'] = [(6, 0, list(tag_ids))]

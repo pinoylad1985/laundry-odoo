@@ -3,6 +3,7 @@
 import { Component, onWillStart, useRef, useState } from "@odoo/owl";
 import { Dialog } from "@web/core/dialog/dialog";
 import { useService } from "@web/core/utils/hooks";
+import { rowNameInForce, rowPhoneInForce } from "../utils/locker_rows";
 
 // The unbilled locker queue, shown when LOCKER is picked in the New Order
 // modal. Picking a row hands its customer back to the modal and RESERVES
@@ -173,9 +174,8 @@ export class LockerPickerPopup extends Component {
                 // ringing up about a corrected drop-off quotes the ones THEY
                 // typed, and the cashier searching for them would otherwise
                 // find nothing.
-                row.ref, row.customer_name, row.customer_name_source,
-                row.customer_name_corrected, row.phone, row.phone_source,
-                row.phone_corrected, row.location_name,
+                row.ref, row.customer_name, row.customer_name_corrected,
+                row.phone, row.phone_corrected, row.location_name,
                 row.service, row.turnaround, row.dirty_door, row.status_label,
                 row.new_laundry_at, row.pickup_datetime, row.delivery_datetime,
             ].join(" ").toLowerCase();
@@ -185,7 +185,7 @@ export class LockerPickerPopup extends Component {
 
     // The corrected name as its own column, beside the locker's own.
     //
-    // Whitespace is collapsed, CASE is not - the server's _pos_corrected_name
+    // Whitespace is collapsed, CASE is not - the server's `corrected_name`
     // draws the same line, and for the same reason: two spellings of one
     // number are the same number, two spellings of one name are not the same
     // text, so retyping `Mary Smith` as `MARY SMITH` is a correction and the
@@ -200,7 +200,7 @@ export class LockerPickerPopup extends Component {
             return "";
         }
         const flat = (value) => (value || "").trim().split(/\s+/).join(" ");
-        if (flat(current) === flat(row.customer_name_source)) {
+        if (flat(current) === flat(row.customer_name)) {
             return "";
         }
         return current;
@@ -213,8 +213,8 @@ export class LockerPickerPopup extends Component {
     // this table, and a column that only caught up after Confirm would be
     // telling them something they can no longer act on.
     //
-    // Compared on DIGITS, like the server's _pos_corrected_phone: re-spacing
-    // a number is not correcting it, and the two must not disagree about
+    // Compared on DIGITS, like the server's `corrected_phone`: re-spacing a
+    // number is not correcting it, and the two must not disagree about
     // whether this drop-off was corrected at all.
     get correctedPhone() {
         const row = this.selectedRow;
@@ -226,7 +226,7 @@ export class LockerPickerPopup extends Component {
             return "";
         }
         const digits = (value) => (value || "").replace(/\D/g, "");
-        if (digits(current) === digits(row.phone_source)) {
+        if (digits(current) === digits(row.phone)) {
             return "";
         }
         return current;
@@ -241,8 +241,12 @@ export class LockerPickerPopup extends Component {
         // A fresh trail per row: backing out of one drop-off and into
         // another must not walk back through the first one's steps.
         this.state.trail = ["pick"];
-        this.state.phone = row.phone || "";
-        this.state.customerName = row.customer_name || "";
+        // The values IN FORCE, not the locker's own: a drop-off whose
+        // number was already corrected - here or in the back office - is
+        // called on the corrected one, and re-opening the row must not put
+        // the mistyped number back in the box.
+        this.state.phone = rowPhoneInForce(row);
+        this.state.customerName = rowNameInForce(row);
         this.state.nameFromBook = "";
         this.state.nameBeforeBook = "";
         this.state.match = row.customer_match || "new";

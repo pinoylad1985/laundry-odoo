@@ -38,12 +38,26 @@
                 <field name="location_name" string="Location" optional="show"/>
                 <field name="ref" string="Ref #" optional="show"/>
                 <field name="new_laundry_at" string="New Laundry" optional="show"/>
-                <!-- The customer as the LOCKER recorded them: what the
-                     customer keyed into the PudoPro screen. This pair is the
-                     row's own, and is what every drop-off has - matched or
-                     not - so it stays where the counter reads it. -->
+                <!-- TWO PAIRS. The left of each is the customer as the
+                     LOCKER recorded them - what they keyed into the PudoPro
+                     screen, what is printed on their drop-off and what they
+                     quote when they ring up about it. The right is the shop's
+                     correction against it, blank on the rows where there is
+                     none. One column holding "whichever is current" could not
+                     say that anything had been changed, which is why the
+                     correction is a field of its own rather than a value
+                     written over the customer's.
+
+                     The register's picker shows these same four under these
+                     same four names - one fact, one name, both apps.
+
+                     optional="show" rather than hide, like every other column
+                     here: a hidden column cannot be repositioned from Studio. -->
                 <field name="customer_name" string="Customer" optional="show"/>
+                <field name="customer_name_corrected" string="Customer (Corrected)"
+                       optional="show"/>
                 <field name="phone" string="Phone" optional="show"/>
+                <field name="phone_corrected" string="Phone (Corrected)" optional="show"/>
                 <field name="service" string="Service" optional="show"/>
                 <field name="turnaround" string="Turnaround" optional="show"/>
                 <field name="pickup_datetime" string="Pickup" optional="show"/>
@@ -119,11 +133,31 @@
                     </div>
                     <group>
                         <group string="Customer">
-                            <field name="customer_name"/>
-                            <!-- Editable on purpose: a locker customer keys in their
-                                 own number and sometimes mistypes it. Correcting it
-                                 re-runs the Returning/New lookup. -->
-                            <field name="phone"/>
+                            <!-- The LOCKER'S OWN pair, read-only. This is what
+                                 the customer keyed in at the PudoPro screen:
+                                 the sync refreshes it from the feed on every
+                                 pull, and it is the spelling the customer
+                                 quotes when they ring up about their bag.
+                                 Editing it would paint over the only record of
+                                 what was actually typed - and the next pull
+                                 would put it back regardless. -->
+                            <field name="customer_name" readonly="1"/>
+                            <field name="phone" readonly="1"/>
+                            <!-- The CORRECTION, and the only two editable
+                                 boxes on this form. A locker customer keys in
+                                 their own number and sometimes mistypes it;
+                                 correcting it here re-runs the Returning/New
+                                 lookup by itself and un-ticks Verified,
+                                 because a number that has changed is a number
+                                 nobody has called.
+
+                                 Left blank where nothing was corrected - a
+                                 value that only re-spaces the locker's own is
+                                 cleared on save, so a filled box means
+                                 something was really changed and nothing
+                                 else. -->
+                            <field name="customer_name_corrected"/>
+                            <field name="phone_corrected"/>
                             <field name="phone_last10" readonly="1"/>
                             <field name="customer_match" widget="badge" readonly="1"/>
                             <!-- Read-only, and NOT a correction tool. The customer
@@ -132,8 +166,9 @@
                                  number was called and confirmed to ring. Hand-picking
                                  it here would put a bag under a customer nobody
                                  verified, and would silently bypass that call. The
-                                 sanctioned correction is the phone field above: fix
-                                 the number and the match re-runs by itself. -->
+                                 sanctioned correction is Phone (Corrected) above:
+                                 fix the number there and the match re-runs by
+                                 itself. -->
                             <field name="partner_id" readonly="1" options="{'no_create': True}"/>
                             <!-- Set at the register, when a contact is created
                                  from this number - not tickable here. -->
@@ -185,11 +220,15 @@
         <field name="arch" type="xml">
             <search string="Locker Transactions">
                 <field name="ref" string="Ref #"/>
-                <field name="customer_name" string="Customer"/>
-                <!-- Search the raw number OR the last-10 form, so 0917... and
-                     917... both find the row. -->
+                <!-- Either spelling finds the row, because either one may
+                     be quoted at the counter: the customer rings up about the
+                     number THEY typed, the shop reads the one it corrected it
+                     to. -->
+                <field name="customer_name" string="Customer"
+                       filter_domain="['|', ('customer_name', 'ilike', self), ('customer_name_corrected', 'ilike', self)]"/>
+                <!-- And the last-10 form, so 0917... and 917... both find it. -->
                 <field name="phone" string="Phone"
-                       filter_domain="['|', ('phone', 'ilike', self), ('phone_last10', 'ilike', self)]"/>
+                       filter_domain="['|', '|', ('phone', 'ilike', self), ('phone_corrected', 'ilike', self), ('phone_last10', 'ilike', self)]"/>
                 <field name="location_name" string="Location"/>
                 <!-- Searchable, not a set of filters. The vocabulary is
                      PudoPro's and it changes without telling us - "Cleared"
