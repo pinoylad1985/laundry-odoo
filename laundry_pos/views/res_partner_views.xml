@@ -35,10 +35,21 @@
          ⚠ Each xpath hits the FIRST field of that name in the form, which is
          the main contact's own. The later copies belong to the nested
          child-contact form on the Contacts tab, where a parent's address is
-         legitimately inherited and must not be demanded. -->
+         legitimately inherited and must not be demanded.
+
+         ⚠ priority 999, so this is the LAST inherit applied. Unticking
+         Required in Studio writes an inherited view that sets
+         required="False" on the very same fields, and whichever view is
+         applied last wins - with the default priority that was Studio's, and
+         the form asked for nothing (the field's debug tooltip read
+         "Required: False" instead of our expression). Inherited views are
+         applied in priority order, so ours has to outrank anything Studio
+         writes. Don't lower it; and if these fields ever stop being asked
+         for again, look for a view with a priority above this one. -->
     <record id="view_partner_form_laundry_required" model="ir.ui.view">
         <field name="name">res.partner.form.laundry.required</field>
         <field name="model">res.partner</field>
+        <field name="priority">999</field>
         <field name="inherit_id" ref="base.view_partner_form"/>
         <field name="arch" type="xml">
             <xpath expr="//field[@name='phone']" position="attributes">
