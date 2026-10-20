@@ -35,6 +35,7 @@ laundry_pos/
 ├── models/
 │   ├── pos_order.py                 # laundry_* fields on pos.order (+ computed due/phone/address + laundry_secondary_type); PosOrderLine.laundry_actual_weight
 │   ├── res_partner.py               # pos_tag_names computed char (for receipt tags)
+│                                    #   + phone_last10() and the one-customer-per-number guard
 │   ├── laundry_service_type.py      # laundry.service.type catalog model (5 seeded types)
 │   └── laundry_order_service.py     # laundry.order.service — ONE ROW PER SERVICE per order
 │                                    #   (staff / processed date / status) + the WDF mirror;
@@ -85,6 +86,15 @@ laundry_pos/
 - **Turnaround (TAT) is computed from the schedule and locked** — not a free cashier choice; keeps lines/receipt consistent.
 - **Configurator crash guard** — `initAttributes()` pre-seeds `state.attributes` for every value's `attribute_id` so
   malformed products (e.g. after a DB restore) don't crash the popup.
+- **Nothing is pre-selected in the configurator on a laundry service** (v1.5.8) — core ticks the FIRST
+  value of every attribute, so a size/type nobody chose could ride onto the line and its price just by
+  pressing Add. `initAttributes()` clears them back to `[]` (core's own empty shape) for the 5 laundry
+  products. **Turnaround is exempt** — the schedule sets it and it renders locked. The gate already
+  existed: `confirm()` refuses to Add while `laundryAllAttributesSelected` is false, and the template
+  prints "Please select all options before adding." Same reasoning as the New Order date strip.
+  ⚠ The deployed Odoo 19 build keys `state.attributes` by **`attribute_id.id`**; the public 19.0 source
+  has since moved to `attribute_line_id.id`. Verified against the container 2026-10-16 — re-check on
+  upgrade, as every pre-select in that file depends on it.
 
 ## Navbar hub buttons (New Order / Settle Order / Order List)
 The navbar (`navbar_patch.*`) carries three buttons (desktop = text, mobile = icons). A blank order has no chosen
@@ -501,6 +511,581 @@ Refund** — a column on the backend POS Orders list (`views/pos_order_views.xml
   overrides the SCREEN-level `addNewPaymentLine` (async) / `deletePaymentLine(uuid)` / `updateSelectedPaymentline`.
 - **A refund order locks the hub:** navbar getter `laundryIsRefund` (`is_refund` / has refund lines) disables
   BOTH New Order and Settle Order.
+
+## A number has to BE a number - v1.5.14 (variety rule v1.5.15)
+Before anything asks whether a number is a duplicate, it is asked whether it is a phone number at
+all: **digits only, and at least 11 of them** (`PHONE_MIN_DIGITS`). One function decides -
+`phone_problem()` in `laundry_pos/models/res_partner.py`, which returns a short code
+(`'letters'` / `'short'` / `'placeholder'`) or `None`, in that order.
+- **11 because that is the length the shop deals in.** A PH mobile is 11 digits (`09171234567`),
+  or 12 written with the country code (`+639171234567`), so 11 is the floor that accepts both
+  spellings of one number.
+  - ⚠ **A Manila landline is 10 digits** (`02 8123 4567`) and is therefore REFUSED. That is the
+    trade: the shop reaches customers on mobiles, and the alternative floor (10) would accept a
+    mobile with a digit missing. A corporate contact on a landline has to carry it somewhere
+    other than the phone field.
+- **Letters are refused, not just "unlikely to pass the digit count".** `PHONE_ALLOWED_RE` permits
+  digits and the characters people separate them with (`+ ( ) . / -` and spaces) and nothing else,
+  so `09171234567 (Globe)` is refused even though it holds 11 digits. The field is read by
+  somebody about to dial it.
+- **Eleven digits is not enough on its own.** `09111111111` clears the length floor and is still
+  somebody leaning on the keypad, so `is_placeholder_phone` (above) also refuses a number built
+  from fewer than **4 different digits** - the third of its three shapes, added in v1.5.15. The
+  two tests answer different questions and both are needed: the floor catches a number that is
+  *incomplete*, the variety test one that is *invented*.
+- **A BLANK is still fine.** It is the honest answer when the shop has no number, and the one both
+  phone rules deliberately leave open - see the service-type rule below. Every refusal message
+  says so, because "that is wrong" is not an instruction and "leave it blank" is.
+- **ONE sentence per problem, built server-side** - `res.partner.laundry_phone_problem_message()`.
+  It is used by the refusal itself (`_laundry_check_phone`, renamed from
+  `_laundry_check_phone_duplicate`), by `laundry_phone_twin_info` (which now answers
+  `{'refused': True, 'message': ...}` where it used to answer `{'placeholder': True}`), and by the
+  locker's `pos_check_phone`. Two wordings of one rule read as two rules, and invite a guess about
+  which is really in force.
+  - **TWO SHORT LINES: what is wrong, then what to do** (v1.5.19) - `<number> is too short - a
+    mobile number has 11 digits (09171234567).` / `Enter a valid number.` It was a paragraph until
+    then, carrying the reasoning behind the rule and the list of service types that require a
+    number; the owner's call is that nobody reads a paragraph at a counter with a customer waiting.
+    The reasoning lives here instead, read once by whoever maintains the rule. The dialog that
+    carries it is titled **Invalid number**.
+  - **It does NOT say "or leave it blank"** (v1.5.20, dropped from 1.5.19's wording). Where a
+    number is optional is something the cashier learns from the New Order modal, which asks for one
+    on three service types and not on the other two - a refusal is not the place to teach a rule it
+    isn't enforcing. ⚠ The risk this accepts is the one that filled the book with `00000000000`: a
+    cashier who thinks a number is compulsory invents one. What stands against it now is the modal
+    not asking, plus `is_placeholder_phone` refusing the invention.
+  - The two lines are joined with a newline and survive because core's `AlertDialog` body is
+    `class="text-prewrap"` (`web/.../confirmation_dialog.xml`); a `ValidationError` keeps them too.
+- **The locker catches it at the Check button, and on the row itself.** `pos_check_phone` returns
+  `problem` and NO match, and `_pos_row` carries `phone_problem` so choosing a row whose feed
+  number is unusable opens the correction fields immediately. Otherwise the cashier would call an
+  unusable number, answer that it rang, press Confirm, and only then be refused by
+  `res.partner.create` - having lost the thing Confirm was going to do. `customer_match` is
+  cleared to `null` in both paths, which is what keeps Confirm disabled.
+- ⚠ **Two waivers, not one, on `write`** - a save is waved through when the **last 10 digits**
+  match the stored number, **or** when the value is re-sent **character for character**. The second
+  exists because of this rule: a number it refuses has no last-10 key, so a contact whose phone
+  somebody once typed as `N/A` would be locked out of the POS customer form for good - that form
+  re-sends `phone` whatever was edited, so every attempt to fix the NAME would be refused over the
+  number. The rule is about a number being *entered*; re-sending an untouched one is not entering
+  it. `partner_form_controller.js` carries the same pair.
+- **Not applied to a number ALREADY in the book.** `PHONE_OPTIONAL_SERVICE_TYPES`' `phoneOk` gate
+  still asks only whether the selected partner has a phone, so a Pickup & Delivery order can still
+  be taken for a legacy contact whose stored number is 10 digits. Tightening that would block the
+  counter on data nobody can fix mid-order; this rule stops new ones arriving.
+
+## One customer per phone number - v1.5.9
+A contact cannot be CREATED, and its number cannot be SET, when another contact already holds the
+same **last 10 digits** - `phone_last10()` in `laundry_pos/models/res_partner.py`, the same key
+`laundry_locker` matches its transactions on (that module now imports it from here, so the two
+spellings of the rule cannot drift apart).
+- **Enforced in `res.partner.create` AND `write`**, server-side, so one rule covers the POS
+  customer picker, the backend form, imports and the locker's "create the customer from this
+  transaction" alike. Create alone would be a formality - saving the customer with no number and
+  typing it in a second later would walk straight past it. `write` only fires when the number
+  itself is being set, and never against the record's own number.
+- **Matched on DIGITS, in SQL.** `0917 123 4567` and `+639171234567` are one number and no ORM
+  domain can say so, so the query strips both sides with `regexp_replace`. No index: creating a
+  customer is rare enough that the scan costs less than another stored column would.
+- **Archived partners count**, and the message says when the twin is archived ("restore it to use
+  it"). An archived duplicate is invisible to the cashier's search, which is exactly how a second
+  record for somebody already in the book gets made.
+- **Child contacts are exempt on both sides** (`parent_id IS NULL`) - a delivery address under a
+  company legitimately carries its parent's number, and blocking that would stop addresses being
+  added at all.
+- The twin's name is read with **sudo** for the message only: "it exists but I cannot tell you
+  which one" is not something a cashier can act on.
+- ⚠ **Two people who share one handset now need two numbers** (spouses, a household). That is the
+  trade this rule makes - the alternative is a book that silently splits one person's orders, dues
+  and points between two contacts.
+- **A FILLER number is refused outright** - `is_placeholder_phone()`, v1.5.11, checked
+  **before** the duplicate lookup (and, since v1.5.14, after the shape rule above - both are
+  decided by the one `phone_problem()`). Seven production contacts carry `00000000000`, from when the
+  register asked every walk-in for a number whether the shop needed one or not.
+  - ⚠ **v1.5.10 got this backwards and EXEMPTED fillers from the duplicate check.** That let
+    `00000000000` be saved freely - which satisfied the required-phone gate below on a Pickup &
+    Delivery or Locker order with digits that ring nowhere, i.e. exactly the thing both rules
+    exist to stop. A filler is **worse than a blank**: a blank is honest, and a filler *matches*.
+  - Refused before the duplicate check because the duplicate message would otherwise answer a
+    filler with a stranger's name ("already used by STEVEN") - true, useless, and nothing a
+    cashier can act on. The message instead says to leave it blank and names where a number is
+    actually required.
+  - **Deliberately narrow - three shapes:** one digit repeated; **fewer than
+    `PHONE_MIN_UNIQUE_DIGITS` (4) different digits in it** (v1.5.15 - `09111111111`,
+    `09090909090`, `09999900000`; min 6 digits, so three-out-of-four stays ordinary); or a
+    straight run up or down (`1234567890`, `0987654321`, min 6 digits, counted **mod 10** so the
+    9-to-0 wrap still reads as one step). Judged on the whole string **and** on its last 10
+    digits, so a filler can't hide behind a country code (`+63 000 000 0000`).
+    - **4, not 5.** A PH mobile opens `09`, so the other nine digits must bring at least two
+      more between them - every real number does. 5 would refuse `0909 999 9999`, the kind of
+      number somebody pays to own, and a refused real number is a customer turned away.
+    - It will NOT catch an invented `09171111112` (five different digits) and is not meant to -
+      a rule that guesses starts refusing real numbers. The real defence is that the number is
+      no longer asked for where the shop doesn't need it.
+  - ⚠ **A save that doesn't CHANGE the number is waved through** - judged on the **last 10
+    digits**, the one key this module compares numbers on anywhere. The POS customer form
+    re-sends `phone` whatever was edited, so without this the seven existing contacts could
+    never be edited again - not even to give them a real number. It compared EVERY digit until
+    v1.5.13, which read `0917 123 4567` and `+639171234567` as different numbers - the opposite
+    of what the duplicate rule itself says. (Harmless as it happened, since the lookup that then
+    ran excludes the record's own id, but two tests on one question must not disagree.) Both
+    sides must HAVE a key: a number too short for one gives `''` on either side, and treating
+    `''` as a match would wave a change from one short number to another straight past the
+    filler check.
+- It does **not** clean up the duplicates already in the book; it only stops new ones. The seven
+  `00000000000` contacts keep that value until someone blanks it.
+
+## The twin is OFFERED, not just refused - v1.5.12
+The one-customer-per-number rule above still refuses a duplicate server-side, and has to - it is
+what covers imports, the locker and anything else that writes a contact. But a refusal is the
+wrong thing to show a cashier: the number being in the book means there IS a customer to serve,
+so both places a number gets typed now **ASK** first and offer that customer.
+- **One lookup answers both screens** - `res.partner.laundry_phone_twin_info(phone, exclude_id)`
+  (`@api.model`): `False` when the number is free, `{'placeholder': True}` for a filler, else
+  `{id, name, lines, archived}`. `lines` is **`_laundry_contact_block()`** - name, phone, address,
+  the same three lines in the same order as `laundry_customer_block` on `pos.order`. The refusal
+  message prints them too: "already used by MARY" is not something anyone can act on, because the
+  book holds several people called MARY and the address is what tells them apart.
+- **One dialog asks it** - `static/src/phone_twin/phone_twin_dialog.{js,xml}` plus
+  `laundryPhoneTwinChoice({orm, dialog, phone, excludeId, confirmHint, cancelHint})`, which
+  returns `{status: 'free'|'placeholder'|'confirm'|'cancel', twin}`. Closing the dialog counts as
+  Cancel, the gentler of the two.
+- **ONE form controller serves the register AND the back office**, because they are the same form:
+  `PosStore.editPartner` opens `point_of_sale.res_partner_action_edit_pos`, whose `view_id` is
+  **`base.view_partner_form`** with `target="new"` - the very view `views/res_partner_views.xml`
+  hangs `js_class="laundry_partner_form"` on. Hence
+  `static/src/phone_twin/partner_form_controller.js`, and hence the folder:
+  ⚠ **`phone_twin/` must stay loaded by BOTH bundles** (the POS glob picks it up; the manifest adds
+  it to `web.assets_backend` by hand). Moved under `backend/`, the POS bundle's
+  `('remove', 'backend/**')` would strip it and the register would open a view whose `js_class`
+  resolves to nothing.
+- **Hooked on `onWillSaveRecord`** (core: "if it returns false, it will prevent the save"), not on
+  the phone field - the question is only worth asking about a number somebody has finished typing,
+  and a field-level check would put it to them between a 0 and a 9.
+- ⚠ **Confirm's work is DEFERRED out of the hook** (`setTimeout`, v1.5.17). The hook runs inside
+  `record.save()`, which core wraps in the model's mutex (`save()` = `mutex.exec(() =>
+  this._save())`, and `_save` is what calls the hook - `web/.../relational_model/record.js`).
+  `discard()` queues on that same mutex, so awaiting it from the hook waits for a lock the call
+  itself is holding: the hook never returns, the save hangs with the form still dirty, and
+  **Confirm does nothing at all** (the v1.5.12-1.5.16 bug). The hook now returns `false` and the
+  navigation runs after `save()` has unwound. Anything else added here that touches the record
+  has to be deferred the same way.
+- **Confirm means different things in the two places, so each passes its own `confirmHint`:**
+  at the register "use that customer" = put them on the order; in the back office there is no
+  order, so it = open their record and discard what was typed (no second prompt - they have just
+  been shown who holds the number and answered that it is them).
+- ⚠ **The register's answer travels through `PosStore.editPartner`**, which is overridden to return
+  the customer named by `pos._laundryPhoneTwinPick`. Confirm stops the save, which leaves core
+  reading back the form's own record: **nothing** on a new contact (the choice would be dropped) or,
+  on an existing one being re-numbered, **the contact that was being edited** - which the customer
+  list would then put on the order in place of the twin. The flag puts the choice back on core's
+  path, so the list selects it exactly as if it had been tapped.
+- **A save that does not CHANGE the number is waved through**, like the server rule - on the **last
+  10 digits** (`laundryPhoneKey`, the browser's spelling of `phone_last10`), and judged by
+  re-reading the stored `phone`, not the form's dirty state, because that is the value the rule is
+  really about. Without it the seven `00000000000` contacts could never be edited again.
+- **An archived twin is OFFERED too, under its own button: `Restore and use`** (v1.5.18). It used
+  to get Cancel only, on the reasoning that it was taken out of the book deliberately and restoring
+  it belongs to whoever can see why. In the shop that is a dead end - the cashier has the customer
+  in front of them and is being sent to find backend access - and the way out of a dead end is a
+  SECOND contact for the same person, the exact thing this rule exists to prevent. The owner's call.
+  - The button is **named for what it does**, and the hint is its own sentence (`restoreHint`,
+    beside `confirmHint`), so a contact never goes back in the book behind a tap labelled Confirm.
+  - **Restored BEFORE it is used** - `res.partner.laundry_restore_phone_twin(id)`, called from the
+    controller's deferred block. An archived contact is invisible to the customer list, to
+    `get_new_partner` and to an ordinary read, so using it first would quietly find nothing.
+  - **Not sudo**, unlike the twin's name: restoring is the cashier's own action on their own
+    rights, and the record's history should say so. "I cannot tell you who holds it" is useless to
+    a cashier, which is why the READ is elevated; that reasoning does not stretch to writing.
+  - Still **said rather than hidden** ("That contact is archived."): an archived twin is invisible
+    to the cashier's search, which is how a second record for somebody already in the book gets
+    made in the first place.
+- **A filler gets a plain alert, never a Confirm.** There is no customer behind `00000000000` to put
+  on an order, only a number to fix, and answering it with the stranger who holds those zeros would
+  be true and useless.
+- **The locker picker prints a contact as FOUR LABELLED FACTS - Name / Phone / Address / Tags -
+  and prints BOTH contacts that way** (v1.1.17, labelled v1.1.38, `laundry_locker`): the customer
+  the number MATCHED, and the contact Confirm is about to CREATE. ONE sub-template,
+  `laundry_locker.ContactFacts`, called twice; labels down one column and values down the other
+  (`.laundry-contact-facts`). The cashier reads the same shape whether the customer is new or
+  known, so there is one layout to learn and never a question about which fact is which - and the
+  four are the four a Locker order asks of a contact (`CONTACT_REQUIREMENTS` in `laundry_pos`), so
+  the block IS that list, answered. The matched customer printed as three unlabelled lines (plus a
+  tag line, v1.1.28) until 1.1.38, and the new contact's two address lines alone until v1.1.37.
+  - **The matched customer's values come from the server** -
+    `res.partner._laundry_contact_parts()` (`laundry_pos`), carried by `_pos_row()` and
+    `pos_check_phone()` as **`partner_parts`**: `{name, phone, address: [street, street2], tags}`.
+    The register, the contact form and the Orders list must not describe one customer three ways.
+  - ⚠ **`_laundry_contact_block()`'s lines cannot be labelled by position** - it DROPS a line the
+    contact does not have, so a contact with no phone returns the address second. That is why the
+    labelled parts are a second method rather than a re-read of the block, and why
+    `with_tags=True` is gone (v1.1.38) - the picker was its only caller. The block itself stays as
+    it was for the duplicate refusal and the phone-twin dialog, which only have to say WHICH
+    customer holds a number.
+  - **The tag is in the block because Locker is the one service type that REQUIRES one**
+    (`CONTACT_REQUIREMENTS`), so whether the matched customer already carries one decides whether
+    the order can be taken - and this screen is where a cashier can still act on it. Without it
+    the only news of a gap is the New Order modal refusing to continue, a screen later.
+  - **A fact the contact does not carry PRINTS what is missing** - "No tag", "No address on this
+    contact" - the same reasoning as the em-dash in the table cells: a line that is simply absent
+    cannot be told apart from one nobody printed. Red, because it is something the order will be
+    refused over later; the ONE exception is `muted`, for a gap the cashier is about to fill on
+    this very screen (the new contact's "Not picked yet" tags).
+  - **The two fillings are built in the component** (`returningFacts` / `newContactFacts`), not in
+    the template, because what each says about a MISSING fact is the only thing they differ in.
+  - ⚠ The tag keys asked for below are for a contact the picker CREATES. The matched customer's
+    Tags row is about one the book ALREADY holds, whose own tags are the book's answer and are not
+    re-picked here.
+- **A contact the picker CREATES gets the locker as its address, and its tag is picked there**
+  (v1.1.20). `_apply_locker_address` writes the locker site on **Street Address 1** and the word
+  **LOCKER** on **Street Address 2**, onto an empty address block only - a customer the shop
+  already knows by an address is not re-housed by a drop-off.
+  - **The whole contact is SUMMARISED before it is written** ("Confirm will create this new
+    contact:") - the same four labelled facts as the matched customer above (`ContactFacts`,
+    `newContactFacts`). It showed the two address lines ALONE until v1.1.37; the cashier is about
+    to create a customer out of a bag and a phone call, and this is the last screen before it
+    happens, so the other two facts were left to be checked on the contact form afterwards -
+    which is where a mis-keyed name or a missing tag then has to be chased.
+    - **Tags fill in from the box BELOW as they are picked** (`selectedTagNames`, joined the way
+      `pos_tag_names` joins them). The row prints "Not picked yet" rather than vanishing - same
+      reasoning as the em-dash in the table cells - and in muted grey, not red: red is for a
+      Confirm that has been refused, and nothing has been refused yet.
+    - A drop-off with **no `location_name` says so in red** in the Address row - the contact
+      would get no address at all, and every service type needs one. A name not keyed in says so
+      the same way.
+  - **The TAG is asked for in the picker**, below the address lines, and is used ONLY on a contact
+    `pos_claim` creates (`tag_ids`); a returning customer's own tags are the book's answer, not
+    this screen's. Locker is the one service type that requires a tag (`CONTACT_REQUIREMENTS`) and
+    a drop-off cannot supply one, so the picker is the only place that can ask - after Confirm it
+    has to be chased on the contact form. Confirm refuses without one.
+  - **It is shaped like the CONTACT FORM's tags field** (v1.1.21, the owner's call): chips inside
+    the box, a caret, and a list that narrows as it is typed into. It shipped as a row of buttons
+    in 1.1.20 - the cashier should be picking a tag with the control they already use on the
+    contact itself. Written out in `locker_picker_popup.{js,xml,scss}` rather than borrowed:
+    the web client's `Many2ManyTagsField` needs a record and a field, and a POS dialog has
+    neither. The box and each list row keep the module's **44px** tap-target floor.
+  - **The empty box is marked BLUE** (v1.1.25, `.laundry-tag-needed`), the same two colours the
+    contact form uses for a box an order is asking for
+    (`laundry_pos/static/src/contact_form/laundry_required_fields.scss` - keep them in step).
+    Blue means "still to do", not "wrong". Without it the one required field on this screen
+    looked like the optional ones.
+  - **A Confirm refused for want of a tag turns the box RED** (v1.1.26,
+    `.laundry-tag-invalid`, driven by `state.tagRefused`) - core's own behaviour on a refused
+    save, and the reason the contact form leaves red alone. The refusal sentence prints under the
+    whole screen, so on its own it leaves the cashier working out which box it is about.
+    ⚠ `tagRefused` is set by the refusal and by **nothing else**: it means "has just been
+    refused", not "is empty", so emptying the box again goes back to blue rather than red.
+    Picking a tag clears the flag and the sentence - but only *that* sentence, since another
+    refusal on screen is about something the tap did not answer. Both marks go as soon as a tag
+    is in the box.
+  - **The list is CUT INTO BLOCKS - Wash, Dry, Other** (v1.1.32, the owner's call), by
+    `TAG_GROUPS` in `locker_picker_popup.js`, matched on the start of the tag's NAME on a word
+    boundary (`WASH COMBINED`, `DRY HIGH`). The shop's tags are standing instructions and the
+    cashier is answering two questions in turn; one flat alphabetical list makes them read every
+    name to work out which question it belongs to. Nothing is configured per tag, and a tag named
+    for neither block falls to Other - so a tag added in Contacts is grouped without a code change.
+    - **A heading is drawn only where there is more than one block to tell apart.** Typing `dry`
+      leaves one block, and "Dry" over the whole list is a heading for nothing.
+    - `tagChoices` is sorted into the same order the blocks are drawn in, because **Enter picks
+      its first item** - it has to be the one at the top of the list the cashier is looking at.
+    - The heading is deliberately **shorter than the 44px rows** under it: a target-sized heading
+      invites a tap that does nothing.
+  - **SIX named tags stand OUTSIDE the box, as a key apiece** (v1.1.33, cut to the named six in
+    v1.1.35 - the owner's call) - `.laundry-tag-pills`, fed by **`tagKeys`** from the
+    **`TAG_KEYS`** list in `locker_picker_popup.js`: WASH WHITE SEPARATE / WASH COMBINED / WASH
+    PER BAG / DRY MEDIUM / DRY HIGH / DRY LOW, drawn in that order. The box's own list can pick
+    the same tags, but only once the cashier has thought to open it; the keys are on the screen
+    with a bag in hand and a customer waiting. Picking one moves it into the box, so a key
+    leaving the row IS the tag arriving as a chip.
+    - ⚠ **Named one by one, and matched on the WHOLE name** - `tagKeyName` forgives only
+      spacing and case. Two earlier tries matched a PATTERN and both drew a wall of keys:
+      1.1.33 took every unpicked tag, and 1.1.34 took every tag *starting* with wash or dry -
+      which is ~60 of them, because the book holds years of near-duplicates and typos (WASH
+      COMBIM, WASH PER PAG, DRY MEDIM, DRY MEDUIM). A pattern cannot tell the shop's six from
+      the sixty; only a list can. **Edit `TAG_KEYS` when that list changes.**
+    - **A name the book does not carry draws NO key** - never the nearest spelling. Picking a
+      tag for the cashier writes it onto their customer. The same name twice in the book
+      (WASH PER BAG is in there three times) takes the first.
+    - **A black line separates the wash keys from the dry ones** (v1.1.36, the owner's call) -
+      `.laundry-tag-divider`, drawn where `TAG_KEYS`' `block` changes. The row is two
+      questions, not one run of six names. ⚠ it is read off the key BEFORE it, not off the
+      list, so a row whose wash keys are all picked opens on a dry key and NOT on a line.
+      `align-self: stretch` takes its height from the keys beside it, so the two cannot fall
+      out of step.
+    - `TAG_GROUPS` is unrelated to this and groups the DROP-DOWN only.
+    - **NOT narrowed by what is typed in the box** either, unlike `tagChoices`: the keys are a
+      fixed row whose shape the cashier learns, and a row that rearranges itself as somebody
+      types could not be learned.
+    - They **wrap rather than scroll**: a tag that has to be scrolled to is a tag the cashier
+      does not know is there.
+    - **Plain grey, every one of them.** A picked tag shows as a chip inside the box, so colour
+      out here would be a second answer to a question the box has already answered.
+    - The box, its chips and its narrowing list all stay - this is a quicker way in, not a
+      replacement. v1.1.20 shipped the tags AS buttons and v1.1.21 replaced them with the
+      contact form's control; this is both.
+  - The hint under the box is **"Pick at least one."** (v1.1.32). It read "Pick at least one - a
+    Locker order needs one" until then; the cashier is on the Locker screen and does not need to
+    be told which service type they are in.
+  - The list comes from **`laundry.locker.transaction.pos_customer_tags()`**, because
+    `res.partner.category` is **not loaded into the POS** (`pos_tag_names` exists for that reason).
+    A tag list that fails to load leaves the keys hidden and Confirm **open** - a bag must not go
+    unbillable over something the cashier cannot fix from the picker.
+- **The call step says what the call is FOR** (v1.1.32): *Step 1 - Call 0917…: confirm the
+  transaction and instructions.* It read only "Call 0917…" until then, which made it a ring test.
+  The cashier has the bag and the customer does not, so this is the one moment the drop-off and
+  what to do with it can be agreed out loud - and the number proves itself by being answered by
+  the person who left it. Step 2's two answers are unchanged: it rang / it did NOT ring.
+- **A four-step strip at the top left says where in the job the cashier is** (v1.1.29, four
+  steps and Back v1.1.30), drawn as the pointed keys Odoo uses for a record's stages:
+  **Pick a drop-off -> Check the number -> Correct the number -> Confirm the customer**. The
+  picker is one screen that does four things in a fixed order, and until now the only sign of
+  which one was in hand was which half of the dialog was on screen.
+  - **The lit key is `currentStep`, read off the state the SCREEN branches on** - no row =
+    Pick, `editing` = Correct, no `match` or one still to be called = Check, else Confirm. So
+    the strip cannot say one thing while the screen shows another, and there is no second
+    copy of the rule to drift.
+  - **Not every order walks all four, and the skipped keys stay on the strip.** A returning
+    customer goes from the queue straight to Confirm; a number that checks out skips the
+    correction. The strip is the ROUTE, and a route with pieces missing could not be learned -
+    the cashier would see a different strip on nearly every bag.
+  - **Only the CURRENT key is coloured** - the steps behind are the same grey as the ones ahead,
+    as in Odoo's own statusbar and in the New Order modal keys: colour means where you are, and
+    nothing else.
+  - ⚠ **The outline on the current key cannot be a `border`** - `clip-path` cuts a box's border
+    off with the corners it removes. The key is filled with the outline colour and `::before`
+    lays an inset shape over it for the white fill, taking `clip-path: inherit` so the cut is
+    re-resolved against its own smaller box and the outline stays an even width round the point.
+    The label needs `position: relative` to sit over that fill.
+- **Back goes back ONE step, along the route actually walked** (v1.1.30). It used to clear
+  `selectedId` and land on the queue from wherever it was pressed, so a number keyed in wrong
+  could only be fixed by finding the row again and starting the drop-off over - the thing a
+  cashier presses Back to avoid.
+  - **`state.trail` is a stack of the steps BEHIND the current one**, pushed on each forward
+    move: `selectRow` starts it at `["pick"]`, the two call answers push `"check"`, and a
+    lookup that comes back pushes `"correct"` (the Check button exists only in the correction,
+    so a returned lookup IS the correction being left). A trail, not a fixed order, because
+    the order is not fixed - with steps skipped, "the previous step" is only answerable by
+    what was actually done.
+  - **`_applyStep` touches only the flags the step is read off** - never the typed name and
+    number, because the reason to go back to the correction is to fix what is in those boxes.
+  - ⚠ **A step can stop holding while it is behind you**, so `back()` keeps walking until
+    `currentStep` is the step it popped: correcting a number onto a customer already in the
+    book settles it, and there is no longer a call gate to go back to.
+  - **A recheck still LEAVES at the queue step** (`isRecheck` + a popped `"pick"` closes the
+    dialog). It was opened on one drop-off from the New Order modal, so the queue is not
+    where it came from - but inside it, Back now walks the correction like anywhere else.
+- **Step 2 is the chosen drop-off as a ROW of the same table, in the same columns** (v1.1.20) -
+  12, plus the two `(Corrected)` columns this table alone carries. It was a strip of labelled
+  values plus a name/phone summary until then; a cashier matching paper to a bag has just read the
+  queue across, so the detail is that same reading. One `laundry_locker.RowHeadings` sub-template
+  feeds both tables, so the columns cannot drift apart; it takes **`withCorrected`** (a `t-set` in
+  the `t-call` body, passed explicitly by both callers) and that is the only difference between
+  them.
+  - **The two `(Corrected)` cells and Customer Match read off `state`**, not the row - those are
+    what a correction changes, and the cells are now the only place they are shown. An em-dash
+    stands in for the match while a number is being corrected; the badge the old number earned
+    would be an answer about a different number.
+  - `matchLabel()` / `matchClass()` take the **match value**, not a row, so the queue cell and the
+    detail cell cannot label one answer two ways.
+- **The customer's name and number are each a PAIR of FIELDS, and a pair of columns everywhere
+  they are shown** - `customer_name` / `customer_name_corrected` and `phone` / `phone_corrected`
+  on `laundry.locker.transaction` (v1.1.39; the columns alone since v1.1.22-1.1.23, the owner's
+  call). **One fact, one name, in both apps**: the four fields, the four keys `_pos_row()` sends
+  the register, and the four column labels are the same four names.
+  - **The left-hand field is what the customer keyed in at the locker, and is NEVER written
+    over** - not by the picker, not from the back-office form (where it is **read-only**). It is
+    what is printed on their drop-off and what they quote when they ring up about it, and the
+    sync refreshes it from the feed on every pull.
+  - **The right-hand field is the shop's note against it**, blank where nothing was corrected,
+    an **em-dash** wherever it is printed. It is the only pair the form lets anyone **edit**.
+  - ⚠ **Before v1.1.39 the correction was written STRAIGHT OVER the locker's value**, with the
+    feed's own kept in hidden `source_name` / `source_phone` columns purely so the sync could ask
+    "did a cashier correct this?" and skip the row if so. That pair is **gone**: a hidden field
+    could never be the list column the owner asked for, and the sync's guard - whose wrong answer
+    put the customer's typo back - is **no longer needed at all**, because the feed has no opinion
+    about a field it never sends. `migrations/1.1.39/pre-migrate.py` moves the corrections already
+    made into the new columns (pre-migrate, because `source_*` still exists there; it adds the two
+    new columns with `IF NOT EXISTS` first, since the ORM creates them later in the same upgrade).
+    ⚠ **A correction to BLANK cannot be represented any more** - a blank correction field means
+    "nothing was corrected" - so the migration puts the locker's own value back on such a row.
+  - **"The value IN FORCE" is the correction, falling back to the locker's own.** It is
+    deliberately NOT a third field or column: the pair is "what the customer typed" and "what the
+    shop put in its place", and a third column reading "whichever of those applies" is one nobody
+    can act on. It is two methods and their browser twins -
+    `_laundry_phone_in_force` / `_laundry_name_in_force` (`laundry_locker_transaction.py`) and
+    `rowPhoneInForce` / `rowNameInForce` (`static/src/utils/locker_rows.js`) - and **the two
+    spellings have to stay in step**: the register calls the number it reads in the browser, the
+    server creates the contact under the name it reads in Python. The in-force number is what
+    `phone_last10` is keyed on, what the match runs on, and what the New Order modal's claim line
+    prints (`lockerClaimPhone`).
+  - **A correction that corrects NOTHING is blanked on save** - `_laundry_clean_corrections`, run
+    from `create` and `write`. The register sends both boxes back on **every** claim, touched or
+    not, so without this every row would read as corrected and the em-dash would never appear.
+    That is what makes "is this field filled?" and "was this really changed?" the same question.
+  - ⚠ **The two comparisons deliberately differ.** A phone is compared on **DIGITS**
+    (`corrected_phone` / `correctedPhone`): `0917 555 0002` and `09175550002` are one number, so
+    re-spacing is not correcting. A name collapses whitespace but keeps **CASE**
+    (`corrected_name` / `correctedCustomer`): two spellings of one number are the same number, two
+    spellings of one name are not the same text, so `Mary Smith` retyped as `MARY SMITH` IS a
+    correction. Server and browser must draw each line the same way.
+  - **A number that CHANGES un-ticks Verified** (`write`), judged on the number **in force** - a
+    number nobody has called is a number nobody has called, whichever of the two fields it came
+    from.
+  - **Once the drop-off is BILLED, the correction is LOCKED** (v1.1.40, the owner's call) -
+    `readonly="billed"` on both corrected fields plus `_laundry_check_corrections_unlocked`, which
+    refuses the write server-side so an import cannot walk around the form. The sale was rung up
+    on these values - the number called, the name the contact was created under, the customer the
+    order points at - so retyping them would change this row alone while the order, the receipt in
+    the customer's hand and the contact the money went against all went on saying something else:
+    two records of one bag that disagree, with nothing on either to say which is right. A mistake
+    found after billing is fixed **on the contact** (where the order already points) or by
+    **refunding the order**, which frees the drop-off, puts it back in the picker and makes it
+    correctable again. The register needed no change - `pos_claim` has always refused a billed ref
+    outright - and a write that leaves the stored value as it is still passes, like every other
+    no-op here.
+  - **The `(Corrected)` columns are on the CHOSEN drop-off only** (v1.1.24, the owner's call).
+    A correction is made on one drop-off, so down the queue those two columns are an em-dash on
+    nearly every row - two columns' width spent saying nothing, pushing the columns the cashier is
+    scanning further off the screen. The queue is read to FIND a bag; the correction is read once
+    it has been found. The queue keeps the left-hand pair, which is what a customer quotes.
+  - Those cells read the **state**, so a column fills in **as the correction is typed**, not after
+    Confirm - the cashier is looking at this table while they type. `*_corrected` stays on every
+    row for the search, below.
+  - **The Lockers list in the back office carries all four**, `optional="show"` like its other
+    columns so Studio can reposition them, and its search finds a row by **either** spelling of
+    either fact (plus the last-10 form of the number).
+  - The picker's search covers **every** spelling: a customer ringing about a corrected drop-off
+    quotes the ones THEY typed.
+  - The matched-customer line says the drop-off "was keyed in as" **`customer_name`**, the
+    locker's own, which is what "keyed in" means - it is contrasting the book's spelling with the
+    locker's.
+  - **A corrected number that lands on a customer already in the book brings their NAME with
+    it** (v1.1.31, the owner's call) - `checkPhone` writes `partner_name` into
+    `state.customerName` on a `returning` match. The name in the box was typed against the OLD
+    number, so once that number turns out to belong to a known customer it is a guess about the
+    wrong person; and it is no longer a name anything is created under, since the contact
+    exists. All it could still do is be written onto the drop-off as a `(Corrected)` name that
+    disagrees with the contact the drop-off is attached to.
+    - **Only on a match.** A number that matched nobody is about to create a contact under
+      whatever the cashier typed, so that name stays theirs.
+    - ⚠ **The book's name only stands while its match does.** `state.nameFromBook` /
+      `nameBeforeBook` remember that the box was filled from a contact and what it replaced, and
+      `onPhoneInput` - which already clears the match - puts the old name back, unless the
+      cashier has since typed over it. Without that, correcting onto a customer and then away
+      from them again would create the next contact under *their* name.
+
+## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
+What the contact on an order must hold depends on the service type. ONE table says so -
+**`CONTACT_REQUIREMENTS`** in `static/src/utils/contact_requirements.js`, fed by
+`PHONE_OPTIONAL_SERVICE_TYPES` and `TAGS_REQUIRED_SERVICE_TYPES`:
+
+| | Drop-off | Drop-off & Delivery | Pickup & Delivery | Locker | Self-service |
+|---|---|---|---|---|---|
+| Phone number | - | yes | yes | yes | - |
+| Tag | - | - | - | yes | - |
+| Address line 1 **and** 2 | yes | yes | yes | yes | yes |
+
+- **The CONTACT FORM is where it is enforced, at Save** (v1.5.22 - the owner's call; v1.5.21 asked
+  at the New Order modal's Continue and refused nothing on the form). A gap in a contact is a gap
+  in a *field*, and the field is on the form - so the refusal happens there, in Odoo's own
+  required UI: the box turns pink, the save is refused, and core's "Invalid fields" notice names
+  it. A message at Continue could only *describe* the gap, a screen away from the box that holds
+  it.
+- **Required BY CONTEXT, so the back office still requires nothing** -
+  `views/res_partner_views.xml` (`view_partner_form_laundry_required`) hangs
+  `required="context.get('laundry_require_phone')"` and its three siblings on `phone`,
+  `category_id`, `street` and `street2` in `base.view_partner_form`.
+  - **A view modifier may read `context`** - core evaluates it with `getBasicEvalContext()`
+    (`web/.../relational_model/utils.js`), which puts `context` in scope, and core's own
+    `account` views already do it. Verified against 19.0 - re-check on upgrade.
+  - So the fields are required **only** when the form was opened FOR an order that needs them.
+    Opened from Contacts, from a child contact, from an import - no keys, nothing required. That
+    keeps the owner's "no required fields in Contacts" and still refuses the save where it counts.
+  - ⚠ the **first** xpath match wins, which is the MAIN contact's field; the second copy of
+    each (further down `base.view_partner_form`) belongs to the nested child-contact form, where a
+    parent's address is legitimately inherited. Don't make those xpaths more specific.
+  - ⚠ that view carries **`priority` 999, so it is the LAST inherit applied**. Unticking
+    Required in Studio writes an inherited view that sets `required="False"` on the very same
+    fields, and inherited views are applied in `priority` order (`ir.ui.view._order`) - at the
+    default priority Studio's won and the form asked for nothing at all. The symptom was the
+    field's debug tooltip reading `Required: False` instead of our expression, which is the
+    cheapest way to check this: hover the `?` on the field with developer mode on. Don't lower
+    the priority; if these fields ever stop being asked for, look for a view ranked above it.
+- **ONE wrapper puts the keys in and takes them out** - `PosStore.withLaundryContactNeeds(serviceType,
+  action)` (`overrides/pos_store.js`), which `editPartnerContext()` spreads into the action's
+  context. ⚠ it clears in a `finally` - a key left behind would make **the next contact
+  anybody edited, anywhere in Odoo** refuse to save. Three paths open that form while an order is
+  being set up and all three go through it: the modal's `addCustomerDetails()` (the picker), its
+  `editSelectedPartner()` (straight into the chosen customer's form), and
+  `product_screen_patch`'s re-open after the modal hands back `editPartner`.
+- **The required boxes are marked BLUE before anything is wrong** -
+  `static/src/contact_form/laundry_required_fields.scss`, a blue border and tint on an empty
+  required `name` / `phone` / `street` / `street2` / `category_id`. Core only ever paints a field
+  pink *after* a refused save, and its own mark for a required field is an asterisk on the
+  LABEL - which says nothing on this form, where the three address boxes share one "Address"
+  label, the tags box sits under another and the name box has no label at all. The tint drops
+  away as soon as the box has something in it (`:not(:placeholder-shown)`), and core's pink wins
+  over it (`:not(.o_field_invalid)`).
+  - **NAME is marked too** (v1.5.24, the owner's call) even though it is CORE that requires it,
+    not us - a cashier reading the form cannot tell whose rule a box belongs to, and a box that
+    will refuse the save is a box that should be marked.
+  - **Switched on by a class on the form, not by field name** - `LaundryPartnerFormController`'s
+    `className` getter adds **`laundry-contact-needs`** when the action context carries any
+    truthy `laundry_require_*` key, and the whole stylesheet is scoped under it. So the blue
+    appears only on a form opened FOR an order, and the back-office Contacts form stays unmarked.
+    That gate is what makes marking `name` possible at all: scoping by field name alone would
+    paint every required Name box in Odoo. One table (`contact_requirements.js`) drives the blue
+    and core's pink alike, so they cannot disagree about which boxes are being asked for.
+  - The name box is a **`textarea`** (core gives it `widget="text"`), so the selectors spell out
+    `input`, `textarea` and `.o_input`.
+  - ⚠ the folder must stay loaded by **both** bundles (the POS glob picks it up; the
+    manifest adds it to `web.assets_backend` by hand) - the register's customer form IS the
+    back-office form.
+- **Continue hands over the FIELDS, not a complaint.** With a customer chosen who is short of
+  something, `confirm()` opens their contact form (`editSelectedPartner`) instead of only marking
+  the card red, and does not confirm for them - the cashier presses Continue again. The card still
+  names the gaps (`missingContactLabels`), and a *new* customer with no contact yet is told what
+  the form is about to ask for (`requiredContactLabels`) before the picker opens.
+- **NOTHING is required on the contact form by the DATABASE.** `phone` was flagged Required on
+  `res.partner` in Studio, pre-dating the module, which is why clearing one of the seven filler
+  numbers was refused before the request ever reached the server. The owner unticked it. If a
+  contact ever refuses to save with no message from our rules and no context keys in play, look
+  there first - nothing in `laundry_pos` makes a partner field required unconditionally.
+- **An address is required on ALL FIVE types, so every order needs a selected contact** - there is
+  no anonymous walk-in order any more. The address is what a bag is delivered, collected and
+  re-booked to, and the line that tells two customers of the same name apart everywhere this
+  module prints a contact (`_laundry_contact_block`, the Orders list, the duplicate dialog).
+  **Both lines**, because this shop writes the kind of place on the first (`RESIDENCE`, `OFFICE`)
+  and the address itself on the second - one without the other is half an address.
+- **A tag on Locker only.** A tag is how this shop classifies a customer and the one
+  classification that reaches the receipt (`res.partner.pos_tag_names`). A locker bag is handed
+  to a machine rather than to a cashier, so on that service type it is the only thing on the
+  order that says what kind of customer left it.
+- **The reasoning for the phone column:** a number is how the shop gets back in touch, so it is
+  required wherever the laundry leaves the counter or the bag is not handed over in person. A
+  Drop-off or Self-service customer is standing right there and collects in person. Asking for a
+  number anyway is what filled the book with `00000000000` contacts - and a dummy number is
+  **worse than a blank one, because a dummy number matches** (see the one-customer-per-number rule
+  above). A faked number is refused on either kind of order by `is_placeholder_phone()`; the two
+  halves have to be read together - this rule stops a number being *demanded* where the shop has
+  no use for it, that one stops a demand being *satisfied* with digits that ring nowhere.
+- **A customer created at the REGISTER defaults to Person** - `editPartnerContext` forces
+  `default_is_company: false`. Core passes an empty context, so whatever `is_company` defaults to
+  in this database was what the form opened on; a laundry customer is a person, and one filed as a
+  company has no first or last name and reads wrongly everywhere the module prints a contact.
+- **The modal still asks too**, in `canConfirm` via `contactOk` - the form's `required` covers a
+  contact being *saved*, and this covers one that was already in the book half finished. Both read
+  the one table, so they cannot disagree.
+- **`addCustomerDetails()` opens the CORE customer picker on top of the modal**, so details can be
+  added without losing the service type and schedule already keyed in (the same nesting the locker
+  picker uses). Create and Edit both live in that picker, which is why ONE method serves a new
+  customer and a returning one whose record is short of something. The partner is read back off
+  the **order**, not from the return value - the picker is what sets it there.
+  - ⚠ it sets **`order._laundryPartnerPickAllowed`** for the duration, because
+    `PosStore.selectPartner` otherwise blocks the picker on an order with no chosen purpose.
+    Without the flag the button is dead on a *skipped* order being completed
+    (`_needsLaundrySetup === false` + no `laundry_service_type` yet).
+- **Skip for now still skips** - it saves a partial setup by design and is not gated.
 
 ## Important Files NOT to Break
 - `models/pos_order.py` — do NOT add `_load_pos_data_fields`; keep order fields computed (not related).

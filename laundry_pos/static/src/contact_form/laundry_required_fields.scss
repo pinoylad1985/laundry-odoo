@@ -1,0 +1,52 @@
+// Which boxes this order needs, said BEFORE the cashier tries to save.
+//
+// Core marks a required field with an asterisk on its LABEL - which says
+// nothing here: the three address boxes share one "Address" label, the tags
+// box sits under another, and the name box has no label at all. So the box
+// itself is tinted blue, and a cashier taking a Pickup & Delivery order can
+// see at a glance that the name, the phone and both address lines are being
+// asked for, instead of learning it one refused save at a time.
+//
+// Blue, not red: nothing is wrong yet. Red is left to core, which paints the
+// box when a save is actually refused (.o_field_invalid below keeps out of its
+// way).
+//
+// Scoped to `.laundry-contact-needs`, which the form controller
+// (phone_twin/partner_form_controller.js) puts on the form ONLY when it was
+// opened for an order that asks for something. That gate is what keeps the
+// blue out of the back-office Contacts form, where this module demands
+// nothing, and it is what lets NAME be marked at all: name is required by
+// CORE, on every res.partner form in Odoo, so tinting it by field name alone
+// would paint a box no order ever asked about.
+$laundry-required-border: #0d6efd; // bootstrap primary
+$laundry-required-tint: #e7f1ff;
+
+.laundry-contact-needs {
+    .o_field_widget[name="name"],
+    .o_field_widget[name="phone"],
+    .o_field_widget[name="street"],
+    .o_field_widget[name="street2"],
+    .o_field_widget[name="category_id"] {
+        &.o_required_modifier:not(.o_field_invalid) {
+            input,
+            textarea,
+            .o_input {
+                border: 1px solid $laundry-required-border !important;
+                border-radius: 3px;
+                background-color: $laundry-required-tint;
+            }
+
+            // Once there is something in it the tint goes and only the outline
+            // stays, so "still needed" and "done" are told apart at a glance.
+            // The name box is a textarea (core gives it widget="text"), hence
+            // both spellings. The tags box keeps its tint while its own input
+            // is empty, which is the honest reading: a tag is chosen in that
+            // input.
+            input:not(:placeholder-shown),
+            textarea:not(:placeholder-shown),
+            .o_input:not(:placeholder-shown) {
+                background-color: transparent;
+            }
+        }
+    }
+}

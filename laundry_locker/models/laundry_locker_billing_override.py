@@ -13,7 +13,7 @@ from .laundry_locker_sync import FEED_TIMEZONE
 # one to reach for - it is the whole point that this reads like a date.
 CUTOFF_FORMATS = ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M', '%Y-%m-%d')
 
-# The date before which every locker drop-off was already sold at the till.
+# The date before which every locker drop-off was already sold at the register.
 #
 # Deliberately a system parameter and not a screen: it states one historical
 # fact - when this shop started billing lockers through Odoo - and it is set
@@ -37,7 +37,7 @@ class LaundryLockerBillingOverride(models.Model):
     `laundry_locker_ref` for life (see _laundry_adopt_billed_orders).
 
     What has no order to be asked about is a drop-off sold OUTSIDE Odoo:
-    everything from before the till was doing lockers at all, and the
+    everything from before the register was doing lockers at all, and the
     occasional one settled some other way since. Stating that as a one-off
     write lasted exactly until the next rebuild, and then the counter had
     hundreds of long-collected bags back in its queue.

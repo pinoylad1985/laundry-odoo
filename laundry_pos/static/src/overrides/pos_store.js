@@ -15,6 +15,7 @@ import { ReprintCopiesPopup } from "@laundry_pos/reprint_picker/reprint_copies_p
 import { allowWdfQty } from "@laundry_pos/overrides/pos_order_line_patch";
 import { consumeWdfWeight, consumeLaundryNote } from "@laundry_pos/overrides/product_configurator_popup_patch";
 import { RiderSignoffPopup } from "@laundry_pos/rider_signoff/rider_signoff_popup";
+import { contactNeedsContext } from "@laundry_pos/utils/contact_requirements";
 
 patch(PosStore.prototype, {
     /**
@@ -65,13 +66,136 @@ patch(PosStore.prototype, {
     },
 
     /**
+     * A customer created at the register is a PERSON.
+     *
+     * The register's "new customer" is the back-office contact form, which
+     * opens on whatever `is_company` defaults to in this database - and a
+     * default set years ago, or by Studio, is invisible from here. A laundry
+     * customer is a person; a cashier who does not notice the toggle files
+     * one as a company, and a company has no first or last name and reads
+     * wrongly everywhere the module prints a contact.
+     *
+     * Forced rather than assumed, because core passes an EMPTY context
+     * (pos_store.editPartnerContext returns {}), so there is nothing else
+     * holding this. Defaults only apply to a contact being CREATED - editing
+     * an existing company is untouched.
+     */
+    editPartnerContext() {
+        return {
+            ...super.editPartnerContext(...arguments),
+            default_is_company: false,
+            default_company_type: "person",
+            // What the ORDER needs from this contact, as the keys the contact
+            // form's own `required` modifiers read (views/res_partner_views.xml).
+            ...this.laundryContactNeeds(),
+        };
+    },
+
+    /**
+     * The required-field keys for the order on screen.
+     *
+     * TWO sources, because the service type lives in two places depending on
+     * when the form is opened: while the New Order modal is still up, the
+     * chosen type exists only inside the modal, and the wrapper below carries
+     * it; once the setup is submitted it is on the order itself. Reading both
+     * means the requirements hold on EVERY way into the contact form from the
+     * register - the modal's buttons, the Customer control button, the
+     * customer picker's Create - and not only the three the modal uses.
+     */
+    laundryContactNeeds() {
+        const fromModal = this._laundryContactNeeds;
+        if (fromModal && Object.keys(fromModal).length) {
+            return fromModal;
+        }
+        return contactNeedsContext(this.getOrder()?.laundry_service_type);
+    },
+
+    /**
+     * Open the customer picker or the contact form WITH an order's
+     * requirements in force, and take them back off again afterwards.
+     *
+     * Three places open that form while a service type is being chosen - the
+     * New Order modal's Edit Details, its Add customer details, and the
+     * product screen re-opening the picker after the modal handed it an "edit
+     * this customer" answer - and all three have to leave the form in the
+     * same state. One wrapper, so none of them can forget to clear it: a key
+     * left behind would make the next contact anybody edited, anywhere,
+     * refuse to save.
+     *
+     * It is only needed BEFORE the setup is submitted; after that the order
+     * carries the service type and laundryContactNeeds() reads it there.
+     */
+    async withLaundryContactNeeds(serviceType, action) {
+        this._laundryContactNeeds = contactNeedsContext(serviceType);
+        try {
+            return await action();
+        } finally {
+            this._laundryContactNeeds = null;
+        }
+    },
+
+    /**
+     * Hand back the customer the cashier CHOSE at the duplicate-number
+     * dialog, instead of the one they were typing.
+     *
+     * The register's "edit customer" is the back-office contact form opened
+     * through an action (core editPartner), so our form controller
+     * (static/src/phone_twin/) is what asks "this number is already used by
+     * ... use that customer?". Answering yes stops the save - there is nothing
+     * to save, that customer already exists - and leaves core here reading
+     * back whatever record the form held. On a NEW contact that is nothing, so
+     * the choice would simply be dropped; on an EXISTING one being re-numbered
+     * it is the contact that was being EDITED, which would then be put on the
+     * order in place of the twin the cashier picked.
+     *
+     * So the controller leaves the chosen id here and this returns that
+     * customer, which puts the answer back on core's own path: the customer
+     * list selects it exactly as if it had been tapped in the list.
+     */
+    async editPartner(partner) {
+        this._laundryPhoneTwinPick = null;
+        let result;
+        try {
+            result = await super.editPartner(...arguments);
+        } catch (error) {
+            // A save that never happened can leave core reading an id that is
+            // not there. Only swallowed when the dialog was closed BY the
+            // choice - any other failure is still a real one.
+            if (!this._laundryPhoneTwinPick) {
+                throw error;
+            }
+        }
+        const twinId = this._laundryPhoneTwinPick;
+        this._laundryPhoneTwinPick = null;
+        if (!twinId) {
+            return result;
+        }
+        // Fetched from the server, like the locker picker's matched customer:
+        // the twin need not be one of the customers this session pre-loaded.
+        await this.data.callRelated("res.partner", "get_new_partner", [
+            this.config.id,
+            [["id", "=", twinId]],
+            0,
+        ]);
+        return (this.models["res.partner"]?.getAll() ?? []).find((p) => p.id === twinId)
+            || result;
+    },
+
+    /**
      * Block the Customer button when laundry setup was skipped.
      * Fires a DOM event so ProductScreen can flash the banner.
      * _needsLaundrySetup is explicitly set to false (not undefined) only after
      * the modal is shown, so existing orders without a service type are unaffected.
      */
     selectPartner(currentOrder = this.getOrder()) {
-        if (currentOrder?._needsLaundrySetup === false && !currentOrder?.laundry_service_type) {
+        // _laundryPartnerPickAllowed: the New Order modal opening the picker to
+        // take a phone number it is about to require. That is the setup being
+        // done, not a cashier reaching past it, so the guard below stands aside.
+        if (
+            !currentOrder?._laundryPartnerPickAllowed &&
+            currentOrder?._needsLaundrySetup === false &&
+            !currentOrder?.laundry_service_type
+        ) {
             document.dispatchEvent(new CustomEvent("laundry-flash-needed"));
             return false;
         }

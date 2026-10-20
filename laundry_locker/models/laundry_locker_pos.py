@@ -1,10 +1,13 @@
 import logging
+import re
 
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
 from .laundry_locker_sync import CLEARED_STATUS
-from .laundry_locker_transaction import ph_local_phone, phone_last10
+from .laundry_locker_transaction import (
+    corrected_name, corrected_phone, ph_local_phone, phone_last10,
+)
 from .pos_order import VALIDATED_STATES
 
 _logger = logging.getLogger(__name__)
@@ -20,7 +23,7 @@ class LaundryLockerTransaction(models.Model):
     # what the POS picker reads
     # ------------------------------------------------------------------
     def _pos_datetime(self, value):
-        """A datetime as the till should read it: local time, 12-hour.
+        """A datetime as the register should read it: local time, 12-hour.
 
         Datetimes are stored UTC-naive, and the POS shows PH time - printing
         the stored value would be 8 hours out.
@@ -54,16 +57,33 @@ class LaundryLockerTransaction(models.Model):
         return {'date': f'{local:%Y-%m-%d}', 'hour': f'{local:%H}:{minutes}'}
 
     def _pos_row(self):
-        """One transaction as the till's picker shows it."""
+        """One transaction as the register's picker shows it."""
         self.ensure_one()
         return {
             'id': self.id,
             'ref': self.ref or '',
             'location_name': self.location_name or '',
+            # FOUR keys, named exactly as the four fields behind them, so
+            # the register and the Lockers list cannot call one fact two
+            # things. Each is a PAIR: what the customer keyed in at the
+            # locker - which is what is printed on their drop-off and what
+            # they quote when they ring up about it - and the shop's
+            # correction, BESIDE it and never over it.
+            #
+            # A correction is blank unless something was really changed (the
+            # server blanks a no-op on write), which is what lets the picker
+            # print an em-dash there: repeating the number in both columns
+            # would read as a correction that changed nothing. The value in
+            # force is the correction or, failing that, the locker's own -
+            # utils/locker_rows.js on the register, _laundry_name_in_force /
+            # _laundry_phone_in_force here.
+            #
+            # Both numbers are normalised on the way out as well as on the way
+            # in, so a row that predates the trunk-0 rule still reads right.
             'customer_name': self.customer_name or '',
-            # Normalised on the way out as well as on the way in, so a row
-            # that predates the trunk-0 rule still reads right in the picker.
+            'customer_name_corrected': self.customer_name_corrected or '',
             'phone': ph_local_phone(self.phone) or '',
+            'phone_corrected': ph_local_phone(self.phone_corrected) or '',
             'service': self.service or '',
             'turnaround': self.turnaround or '',
             'dirty_door': self.dirty_door or '',
@@ -71,6 +91,35 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': self.customer_match or 'new',
             'partner_id': self.partner_id.id or False,
             'partner_name': self.partner_id.name or '',
+            # The matched customer as labelled facts - name, phone, the two
+            # address lines, tags. The picker printed the name alone until
+            # v1.1.17, which does not say WHICH customer the number landed
+            # on: the book holds several people called MARY, and a bag put on
+            # the wrong one is not noticed again until somebody comes to
+            # claim it. Built by laundry_pos so the register, the contact form
+            # and the Orders list cannot describe one customer three ways.
+            # The tag is in there because it is the one thing a Locker order
+            # asks of a contact that this screen can still do something
+            # about - read here rather than found out when the modal refuses
+            # to continue.
+            'partner_parts': (
+                self.partner_id._laundry_contact_parts()
+                if self.partner_id else {}
+            ),
+            # Why this row's number cannot become a contact, if it cannot -
+            # the feed sends whatever was keyed in at the locker, and a number
+            # with letters in it or missing digits arrives here like any other.
+            # Carried on the row so the picker can open the correction fields
+            # the moment the row is chosen, instead of letting the cashier
+            # call an unusable number, answer that it rang, and be refused by
+            # res.partner.create at Confirm. Empty on a matched row, where the
+            # contact already exists and nothing is about to be created.
+            'phone_problem': (
+                '' if self.partner_id
+                else self.env['res.partner'].laundry_phone_problem_message(
+                    self._laundry_phone_in_force()
+                )
+            ),
             'phone_verified': self.phone_verified,
             'new_laundry_at': self._pos_datetime(self.new_laundry_at),
             'created_at': self._pos_datetime(self.created_at),
@@ -143,7 +192,29 @@ class LaundryLockerTransaction(models.Model):
 
     @api.model
     def pos_check_phone(self, phone):
-        """Re-run the Returning/New lookup for a number typed at the till."""
+        """Re-run the Returning/New lookup for a number typed at the register.
+
+        A number the shop's own rules refuse - letters in it, too few digits,
+        a filler - is answered with WHY and no lookup at all. Looking it up
+        anyway would report "New", which is true and leads straight into a
+        trap: the cashier would call it, answer that it rang, press Confirm,
+        and only then be refused by res.partner.create - having by then lost
+        the one thing Confirm was going to do. The message is the server's own
+        (res.partner.laundry_phone_problem_message), so the counter and the
+        contact form state the rule in the same words.
+        """
+        message = self.env['res.partner'].laundry_phone_problem_message(phone)
+        if message:
+            return {
+                'problem': message,
+                'last10': '',
+                # Not 'new'. No match either way, which is also what keeps
+                # Confirm disabled while the number is unusable.
+                'customer_match': False,
+                'partner_id': False,
+                'partner_name': '',
+                'partner_parts': {},
+            }
         key = phone_last10(phone)
         partner = self.env['res.partner']
         if key:
@@ -155,28 +226,165 @@ class LaundryLockerTransaction(models.Model):
             'customer_match': 'returning' if partner else 'new',
             'partner_id': partner.id or False,
             'partner_name': partner.name or '',
+            # The same parts as the row above, for the same reason: the
+            # cashier is about to hand a bag to whoever this is - the tag
+            # included, since Locker is the service type that requires one.
+            'partner_parts': (
+                partner._laundry_contact_parts() if partner else {}
+            ),
         }
 
     # ------------------------------------------------------------------
-    # taking one at the till
+    # taking one at the register
     # ------------------------------------------------------------------
-    def pos_claim(self, phone=None, customer_name=None, phone_verified=False):
-        """Put this transaction on the order being built at the till.
+    def _laundry_own_contact(self):
+        """The contact this drop-off created, if it is still ours to correct.
+
+        A contact made from a locker number exists on one cashier's word that
+        the number rang. When that word was wrong, the correction has to reach
+        back to the record it caused - otherwise the first contact stays in the
+        book holding a number nobody answers, and under the
+        one-customer-per-number rule it SQUATS on it: the real owner of that
+        number can never be added, and the only sign anything is wrong is two
+        contacts with the same name.
+
+        "Ours" is narrow on purpose. The moment anything else has used the
+        contact it has stopped being this drop-off's mistake and become
+        somebody's customer record, and editing it from here would be a
+        different and worse bug than the one being fixed. So: created here,
+        still the match, and used by nothing else.
+        """
+        self.ensure_one()
+        partner = self.created_partner_id
+        if not partner or partner != self.partner_id:
+            return self.env['res.partner'].browse()
+        # Another drop-off has since matched this contact - it is a returning
+        # customer now, whatever it started as.
+        others = self.search_count([
+            ('partner_id', '=', partner.id), ('id', '!=', self.id),
+        ])
+        if others:
+            return self.env['res.partner'].browse()
+        # Sales, invoices or sub-contacts: all of them make it somebody's
+        # record.
+        #
+        # VALIDATED sales only. The order this drop-off is being built onto may
+        # already have been pushed to the server as a draft, carrying this very
+        # contact - counting that would block the correction in exactly the
+        # case it exists for. A draft is an order still being built, and
+        # correcting its customer is what the cashier is in the middle of
+        # doing; a validated sale is the point where the contact stops being
+        # this drop-off's mistake.
+        if self.env['pos.order'].sudo().search_count([
+            ('partner_id', '=', partner.id), ('state', 'in', VALIDATED_STATES),
+        ]):
+            return self.env['res.partner'].browse()
+        if self.env['account.move'].sudo().search_count([('partner_id', '=', partner.id)]):
+            return self.env['res.partner'].browse()
+        if partner.child_ids or partner.parent_id:
+            return self.env['res.partner'].browse()
+        return partner
+
+    def _laundry_absorb_correction(self, new_phone, verified=False):
+        """Carry a number correction onto the contact this drop-off created.
+
+        Runs BEFORE the transaction's own phone is written, which is what makes
+        it tidy rather than clever: once the contact already holds the corrected
+        number, the match recomputes onto that same contact by itself and
+        nothing downstream has to know a correction happened.
+
+        Two endings, and both leave exactly one contact:
+          - the corrected number belongs to NOBODY - the contact we made is
+            simply re-numbered, keeping the name, the locker address and the id;
+          - the corrected number belongs to a contact already in the book (the
+            cashier mistyped a returning customer) - ours is deleted, because
+            there is nothing left for it to be. Archiving would not do: an
+            archived contact still holds its number against the duplicate rule,
+            so the wrong number would go on squatting, invisibly.
+        """
+        self.ensure_one()
+        own = self._laundry_own_contact()
+        if not own:
+            return
+        key = phone_last10(new_phone)
+        if not key:
+            return
+        twin = self.env['res.partner'].with_context(active_test=False).search(
+            [('laundry_phone_last10', '=', key), ('id', '!=', own.id),
+             ('parent_id', '=', False)],
+            limit=1, order='id',
+        )
+        if not twin:
+            if not verified:
+                # Re-numbering our contact onto a number nobody has called
+                # would rebuild the very thing the gate exists to stop: a
+                # contact standing on a number that rings nowhere. Left alone,
+                # the match below finds nothing and the claim is refused with
+                # "call it first", which is the right answer. The twin branch
+                # needs no call - matching a customer already in the book is
+                # not a claim about the number.
+                return
+            own.phone = ph_local_phone(new_phone)
+            return
+        self.created_partner_id = False
+        self.partner_id = twin
+        # The draft the register pushed still points at it (see above), and a
+        # delete would tear the customer off an order that is on screen. The
+        # register re-points that order at the twin a moment from now, but not
+        # from in here, so the stray contact is left for the cleanup it is.
+        if self.env['pos.order'].sudo().search_count([('partner_id', '=', own.id)]):
+            return
+        try:
+            own.unlink()
+        except Exception:
+            # Something references it after all. Leaving it is the safe
+            # ending - the correction itself has already landed on the
+            # transaction, and a stray contact is a cleanup job, not a
+            # wrong order.
+            _logger.warning(
+                'Locker %s: could not remove the contact it created (%s).',
+                self.ref, own.display_name,
+            )
+
+    @api.model
+    def pos_customer_tags(self):
+        """The tags the picker offers on a contact it is about to create.
+
+        Fetched rather than read off the session: res.partner.category is NOT
+        loaded into the POS - res.partner.pos_tag_names exists precisely
+        because the relation is not there to read.
+
+        `name`, not `display_name`, so a tag reads here exactly as it reads on
+        the receipt (pos_tag_names joins the same field).
+        """
+        return self.env['res.partner.category'].search_read(
+            [], ['name'], order='name',
+        )
+
+    def pos_claim(self, phone=None, customer_name=None, phone_verified=False,
+                  tag_ids=None):
+        """Put this transaction on the order being built at the register.
 
         This RESERVES NOTHING. A drop-off stays unbilled and stays in every
-        till's picker until an order is actually validated, so the same bag can
-        be picked at two tills and the sale that is rung up first is the one
+        register's picker until an order is actually validated, so the same bag can
+        be picked at two registers and the sale that is rung up first is the one
         that takes it (see pos.order._sync_laundry_locker). The cost of that is
-        one till occasionally losing a basket it was building; the cost of
+        one register occasionally losing a basket it was building; the cost of
         reserving it at the pick was worse - an order abandoned mid-build
         stranded the drop-off, billed against nothing and gone from the queue.
 
         What this DOES settle is the customer: a number that matched nobody
         becomes a contact here, on the cashier's word that it rang.
+
+        `tag_ids` is used ONLY on a contact this creates. A Locker order needs
+        a tag on its contact and a drop-off cannot supply one, so the picker
+        asks for it at the one moment the contact is being made. A RETURNING
+        customer's own tags are left alone - they are the book's answer, not
+        this screen's.
         """
         self.ensure_one()
         # The only claim still refused: a validated order already took it, and
-        # that is not something a second till can undo from the picker.
+        # that is not something a second register can undo from the picker.
         if self.billed:
             order_ref = self.pos_order_id.pos_reference
             if order_ref:
@@ -187,18 +395,36 @@ class LaundryLockerTransaction(models.Model):
             raise UserError(_('Ref %s has already been billed.') % self.ref)
 
         corrections = {}
-        # A number typed at the till gets the same trunk 0 the feed's does, so
-        # a correction cannot be the one contact spelled without it.
-        phone = ph_local_phone(phone) if phone is not None else None
-        if phone is not None and (phone or '').strip() != (ph_local_phone(self.phone) or ''):
-            corrections['phone'] = (phone or '').strip() or False
-        if customer_name is not None and (customer_name or '').strip() != (self.customer_name or ''):
-            corrections['customer_name'] = (customer_name or '').strip() or False
+        # The register sends back whatever is in its two boxes, touched or
+        # not, so each is turned into a CORRECTION of the locker's own value -
+        # and False where it corrects nothing, which is also how a cashier
+        # retyping the original clears a correction made earlier.
+        #
+        # A number typed at the register gets the same trunk 0 the feed's
+        # does (corrected_phone normalises it), so a correction cannot be the
+        # same number spelled without it.
+        if phone is not None:
+            new_phone = corrected_phone(phone, self.phone)
+            if (new_phone or '') != (self.phone_corrected or ''):
+                corrections['phone_corrected'] = new_phone
+        if customer_name is not None:
+            new_name = corrected_name(customer_name, self.customer_name)
+            if (new_name or '') != (self.customer_name_corrected or ''):
+                corrections['customer_name_corrected'] = new_name
         if phone_verified:
             corrections['phone_verified'] = True
+        if 'phone_corrected' in corrections:
+            # Before the write, not after: see _laundry_absorb_correction. It
+            # is handed the number about to be IN FORCE - the correction, or
+            # the locker's own where a correction is being cleared.
+            self._laundry_absorb_correction(
+                corrections['phone_corrected'] or self.phone,
+                verified=bool(phone_verified),
+            )
         if corrections:
-            # Writing the phone re-runs the match, so partner_id below is
-            # already the answer for the CORRECTED number.
+            # Writing the correction re-runs the match - phone_last10 is keyed
+            # on the number in force - so partner_id below is already the
+            # answer for the CORRECTED number.
             self.write(corrections)
 
         partner = self.partner_id
@@ -210,13 +436,22 @@ class LaundryLockerTransaction(models.Model):
                     'mistyped their number would otherwise be saved under it '
                     'permanently.'
                 ))
-            if not self.phone:
+            # The name and number IN FORCE: a contact is created from what
+            # the register corrected them to, not from what the locker sent.
+            in_force_phone = self._laundry_phone_in_force()
+            if not in_force_phone:
                 raise UserError(_('A phone number is needed to create the customer.'))
-            partner = self.env['res.partner'].create({
-                'name': self.customer_name or self.ref,
-                'phone': ph_local_phone(self.phone),
-            })
+            partner_vals = {
+                'name': self._laundry_name_in_force() or self.ref,
+                'phone': in_force_phone,
+            }
+            if tag_ids:
+                partner_vals['category_id'] = [(6, 0, list(tag_ids))]
+            partner = self.env['res.partner'].create(partner_vals)
             self.partner_id = partner
+            # Recorded so a later correction can reach back to THIS record
+            # rather than leaving it behind - see _laundry_own_contact.
+            self.created_partner_id = partner
 
         self._apply_locker_address(partner)
         # The same shape a picker row has, so the modal reads one thing whether
@@ -260,9 +495,9 @@ class LaundryLockerTransaction(models.Model):
         The locker list is disposable: it is rebuilt from the feed, and rows
         are deleted and resynced whenever the mapping changes. What is NOT
         disposable is the order - `pos.order.laundry_locker_ref` is written at
-        the till, stored, and stays there for the life of the sale. So a row
+        the register, stored, and stays there for the life of the sale. So a row
         arriving from the feed asks the orders about itself, instead of
-        reappearing in every till's picker for a bag that was collected weeks
+        reappearing in every register's picker for a bag that was collected weeks
         ago.
 
         An order is the best answer but not the only one, because not every
@@ -365,7 +600,7 @@ class LaundryLockerTransaction(models.Model):
     def _laundry_take(self, pos_order):
         """Bill this drop-off on a validated order. First one there wins.
 
-        Two tills can both have this drop-off on an order they are building;
+        Two registers can both have this drop-off on an order they are building;
         only one of them can have sold it. Returns whether `pos_order` is the
         one that got it.
         """

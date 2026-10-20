@@ -1,7 +1,117 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
+    <!-- A contact as FOUR LABELLED FACTS - name, phone, the two address
+         lines, tags - with the labels down one column and the values down the
+         other.
+
+         Written ONCE and called twice (v1.1.38, the owner's call): for the
+         customer the number MATCHED, and for the contact Confirm is about to
+         CREATE. The cashier reads the same block whether the customer is new
+         or known, so there is one layout to learn and never a question about
+         which fact is which. The four are the four a Locker order asks of a
+         contact (CONTACT_REQUIREMENTS in laundry_pos) - the block IS that
+         list, answered.
+
+         A fact the contact does not carry PRINTS what is missing instead of
+         leaving a gap, the same reasoning as the em-dash in the table cells:
+         a line that is simply absent cannot be told apart from one nobody
+         printed. The rows come from the component (`facts`), which is where
+         the two fillings differ - see returningFacts / newContactFacts.
+
+         The matched customer's values are built server-side
+         (res.partner._laundry_contact_parts in laundry_pos), so the register,
+         the contact form and the Orders list cannot describe one customer
+         three ways. -->
+    <t t-name="laundry_locker.ContactFacts">
+        <div class="laundry-contact-facts mt-1 text-body">
+            <t t-foreach="facts" t-as="fact" t-key="fact.label">
+                <div class="laundry-contact-facts-label"><t t-esc="fact.label"/></div>
+                <div t-if="fact.lines.length">
+                    <div t-foreach="fact.lines" t-as="line" t-key="line_index">
+                        <t t-esc="line"/>
+                    </div>
+                </div>
+                <div t-else="" t-att-class="fact.muted ? 'text-muted' : 'text-danger'">
+                    <t t-esc="fact.missing"/>
+                </div>
+            </t>
+        </div>
+    </t>
+
+    <!-- The twelve columns, written ONCE.
+
+         Step 2 shows the chosen drop-off as a row of the same table rather
+         than as a strip of labelled values (v1.1.20): a cashier matching
+         paper to a bag has just read the queue ACROSS, and the detail should
+         be that same reading - same columns, same order, same widths - or
+         every value has to be found again in a shape they have not seen. It
+         also stops the two from drifting apart as columns are added. -->
+    <t t-name="laundry_locker.RowHeadings">
+        <thead>
+            <tr>
+                <th>Location</th>
+                <th>Ref #</th>
+                <th>New Laundry</th>
+                <!-- The customer's two details are each a PAIR of columns:
+                     what they keyed in at the locker, then the shop's note
+                     against it. Neither left-hand column is ever overwritten
+                     here - those are what is printed on their drop-off and
+                     what they will quote when they ring up about it. A
+                     correction is only readable next to what it corrected;
+                     one column holding "whichever is current" cannot say that
+                     anything was changed at all.
+
+                     The two `(Corrected)` columns belong to the CHOSEN
+                     drop-off only (`withCorrected`). A correction is made on
+                     one drop-off, so in the queue those columns are an
+                     em-dash on nearly every row - two columns' width spent
+                     saying nothing, pushing the columns the cashier is
+                     scanning further off the screen. The queue is read to
+                     FIND a bag; the correction is read once it is found. -->
+                <th>Customer</th>
+                <th t-if="withCorrected">Customer (Corrected)</th>
+                <th>Phone</th>
+                <th t-if="withCorrected">Phone (Corrected)</th>
+                <th>Service</th>
+                <th>Turnaround</th>
+                <th>Pickup</th>
+                <th>Delivery</th>
+                <th>Dirty Door</th>
+                <th>Status</th>
+                <th>Customer Match</th>
+            </tr>
+        </thead>
+    </t>
+
     <t t-name="laundry_locker.LockerPickerPopup">
-        <Dialog title="'Locker Drop-offs'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
+        <Dialog title="'Lockers'" size="'xl'" contentClass="'laundry-touch laundry-locker-picker'">
+            <!-- Where in the job the cashier is, in the shape Odoo uses
+                 for a record's stages, at the top left under the title.
+                 The picker is one screen that does three things in a fixed
+                 order, and until now the only sign of which one was in hand
+                 was which half of the dialog was on screen.
+
+                 The keys are the four steps of the job, and the lit one is
+                 read off the state the screen itself branches on
+                 (`currentStep`), so the strip cannot say one thing while the
+                 screen shows another. Not every order walks all four: a
+                 returning customer goes from the queue straight to Confirm,
+                 and a number that checks out skips the correction. The two
+                 skipped keys stay on the strip - it is the route, and a
+                 route with pieces missing could not be learned.
+
+                 Only the CURRENT key is coloured - the steps behind are the
+                 same grey as the ones ahead, as they are in Odoo's own
+                 statusbar and in the New Order modal: colour means where you
+                 are, and nothing else. -->
+            <div class="laundry-steps">
+                <div t-foreach="steps" t-as="step" t-key="step.key"
+                     class="laundry-step"
+                     t-att-class="{ 'laundry-step-current': step.current }">
+                    <span class="laundry-step-label"><t t-esc="step.label"/></span>
+                </div>
+            </div>
+
             <!-- Step 1: pick the drop-off -->
             <div t-if="!selectedRow">
                 <input type="text" class="form-control form-control-lg mb-2"
@@ -13,22 +123,9 @@
                 </div>
                 <div t-else="" class="laundry-locker-rows">
                     <table class="table table-sm align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>Location</th>
-                                <th>Ref #</th>
-                                <th>New Laundry</th>
-                                <th>Customer</th>
-                                <th>Phone</th>
-                                <th>Service</th>
-                                <th>Turnaround</th>
-                                <th>Pickup</th>
-                                <th>Delivery</th>
-                                <th>Dirty Door</th>
-                                <th>Status</th>
-                                <th>Customer Match</th>
-                            </tr>
-                        </thead>
+                        <t t-call="laundry_locker.RowHeadings">
+                            <t t-set="withCorrected" t-value="false"/>
+                        </t>
                         <tbody>
                             <tr t-foreach="filteredRows" t-as="row" t-key="row.id"
                                 class="laundry-locker-row"
@@ -45,8 +142,8 @@
                                 <td><t t-esc="row.dirty_door"/></td>
                                 <td><t t-esc="row.status_label"/></td>
                                 <td>
-                                    <span class="badge" t-att-class="matchClass(row)">
-                                        <t t-esc="matchLabel(row)"/>
+                                    <span class="badge" t-att-class="matchClass(row.customer_match)">
+                                        <t t-esc="matchLabel(row.customer_match)"/>
                                     </span>
                                 </td>
                             </tr>
@@ -60,32 +157,75 @@
 
             <!-- Step 2: confirm the customer on the chosen drop-off -->
             <div t-else="" class="laundry-locker-detail">
-                <div class="d-flex flex-wrap gap-3 mb-3">
-                    <div><small class="text-muted d-block">Ref #</small>
-                         <b><t t-esc="selectedRow.ref"/></b></div>
-                    <div><small class="text-muted d-block">New Laundry</small>
-                         <t t-esc="selectedRow.new_laundry_at"/></div>
-                    <div><small class="text-muted d-block">Location</small>
-                         <t t-esc="selectedRow.location_name"/></div>
-                    <div><small class="text-muted d-block">Service</small>
-                         <t t-esc="selectedRow.service"/></div>
-                    <div><small class="text-muted d-block">Turnaround</small>
-                         <t t-esc="selectedRow.turnaround"/></div>
-                    <div><small class="text-muted d-block">Pickup</small>
-                         <t t-esc="selectedRow.pickup_datetime"/></div>
-                    <div><small class="text-muted d-block">Delivery</small>
-                         <t t-esc="selectedRow.delivery_datetime"/></div>
-                    <div><small class="text-muted d-block">Dirty Door</small>
-                         <t t-esc="selectedRow.dirty_door"/></div>
-                    <div><small class="text-muted d-block">Status</small>
-                         <t t-esc="selectedRow.status_label"/></div>
+                <!-- The two correction columns and Customer Match come
+                     off the STATE, not the row: those are what a correction
+                     changes, and this row is the only place they are shown,
+                     so it has to follow the correction as it is made. The
+                     rest is the drop-off as the feed sent it. This table is
+                     also the ONLY one that carries the correction columns -
+                     they are the answer to a drop-off that has been chosen
+                     and looked at, not something the queue is scanned for. -->
+                <div class="laundry-locker-rows mb-3">
+                    <table class="table table-sm align-middle mb-0">
+                        <t t-call="laundry_locker.RowHeadings">
+                            <t t-set="withCorrected" t-value="true"/>
+                        </t>
+                        <tbody>
+                            <tr class="laundry-locker-chosen">
+                                <td><t t-esc="selectedRow.location_name"/></td>
+                                <td class="fw-bold"><t t-esc="selectedRow.ref"/></td>
+                                <td class="text-nowrap"><t t-esc="selectedRow.new_laundry_at"/></td>
+                                <!-- The locker's own name and number, off
+                                     the ROW: correcting either does not change
+                                     what the customer typed, and these two
+                                     columns are the only place that still says
+                                     it. The corrected cells beside them read
+                                     the STATE, so they fill in as the
+                                     correction is typed rather than after it
+                                     is saved. -->
+                                <td><t t-esc="selectedRow.customer_name"/></td>
+                                <td>
+                                    <t t-if="correctedCustomer">
+                                        <t t-esc="correctedCustomer"/>
+                                    </t>
+                                    <span t-else="" class="text-muted">&#8212;</span>
+                                </td>
+                                <td><t t-esc="selectedRow.phone"/></td>
+                                <td>
+                                    <t t-if="correctedPhone">
+                                        <t t-esc="correctedPhone"/>
+                                    </t>
+                                    <span t-else="" class="text-muted">&#8212;</span>
+                                </td>
+                                <td><t t-esc="selectedRow.service"/></td>
+                                <td><t t-esc="selectedRow.turnaround"/></td>
+                                <td class="text-nowrap"><t t-esc="selectedRow.pickup_datetime"/></td>
+                                <td class="text-nowrap"><t t-esc="selectedRow.delivery_datetime"/></td>
+                                <td><t t-esc="selectedRow.dirty_door"/></td>
+                                <td><t t-esc="selectedRow.status_label"/></td>
+                                <td>
+                                    <!-- An em-dash while the number is being
+                                         corrected: there is no lookup result
+                                         to report, and the badge earned by the
+                                         number BEFORE the correction would be
+                                         an answer about a different number. -->
+                                    <span t-if="state.match" class="badge"
+                                          t-att-class="matchClass(state.match)">
+                                        <t t-esc="matchLabel(state.match)"/>
+                                    </span>
+                                    <span t-else="" class="text-muted">&#8212;</span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
 
                 <!-- One block, three states: correcting, matched, unmatched.
                      The fields exist only in the first, which is reachable only
-                     by declaring the number wrong. -->
+                     by answering that the number did not ring. -->
                 <div class="p-3 border rounded-3 laundry-locker-customer">
                     <t t-if="canEditCustomer">
+                        <div class="fw-bold mb-2">Correct the customer's details</div>
                         <div class="mb-2">
                             <label class="form-label mb-1">Customer name</label>
                             <input type="text" class="form-control form-control-lg"
@@ -102,36 +242,60 @@
                                 <button class="btn btn-primary" t-on-click="checkPhone"
                                         t-att-disabled="state.checking">Check</button>
                             </div>
-                            <small class="text-muted">
-                                Put in the number the customer actually answers on,
-                                then press Check.
+                            <small class="text-muted d-block mt-1">
+                                Ask the customer for the number they actually answer
+                                on, put it in and press Check.
                             </small>
                         </div>
                     </t>
 
                     <t t-elif="isReturning">
-                        <span class="badge text-bg-success">Returning</span>
-                        <div class="fs-4 fw-bold mt-1"><t t-esc="state.partnerName"/></div>
-                        <div class="text-muted"><t t-esc="state.phone"/></div>
+                        <!-- The Returning badge was here until v1.1.20 and is
+                             now the Customer Match column. What stays is the
+                             record itself: the columns say the number is
+                             known, not WHOSE it is. -->
+                        <div class="fw-bold mb-1">The customer in the book</div>
+                        <t t-set="facts" t-value="returningFacts"/>
+                        <t t-call="laundry_locker.ContactFacts"/>
                         <small class="text-muted d-block mt-1">
                             Matched on the last 10 digits — the drop-off was keyed in
-                            as “<t t-esc="state.customerName"/>”.
+                            as “<t t-esc="selectedRow.customer_name"/>”.
                         </small>
                     </t>
 
                     <t t-else="">
-                        <span class="badge text-bg-warning">New</span>
-                        <div class="fs-4 fw-bold mt-1"><t t-esc="state.customerName"/></div>
-                        <div class="text-muted"><t t-esc="state.phone"/></div>
-                        <small class="text-muted d-block mt-1">
+                        <small class="text-muted d-block">
                             No customer has this number yet — a contact will be created.
                         </small>
 
                         <!-- The gate on creating a contact: a number nobody
                              answered would be saved against the customer
-                             permanently. Buttons, not a tickbox, because the
-                             second outcome is what opens the fields. -->
-                        <div class="d-flex gap-2 mt-3">
+                             permanently.
+
+                             The two buttons are the two ANSWERS to one question
+                             - did it ring? - and not an answer beside an action.
+                             "Wrong number - correct it" was the second one until
+                             v1.1.15, and it read as a different kind of choice
+                             from "I called it and it rang": one reports what
+                             happened, the other announces a repair. A cashier
+                             who had just dialed a dead number had to work out
+                             for themselves that "wrong number" was where that
+                             belonged. Phrased as a pair, the step is to press
+                             what happened, and the correction is what the "did
+                             not ring" answer LEADS TO rather than something to
+                             be chosen instead. -->
+                        <!-- The call is not only a ring test. The cashier has
+                             the bag and the customer does not, so this is the
+                             one moment the drop-off and what to do with it can
+                             be agreed out loud - and the number proves itself
+                             by being answered by the person who left it. Said
+                             here because it is the only instruction the
+                             cashier gets before they dial. -->
+                        <div class="fw-bold mt-3">
+                            Step 1 - Call <t t-esc="state.phone"/>: confirm the transaction and instructions.
+                        </div>
+                        <div class="fw-bold mt-1 mb-2">Step 2 - Press what happened:</div>
+                        <div class="d-flex gap-2">
                             <button class="btn flex-fill"
                                     t-att-class="state.verified ? 'btn-success' : 'btn-outline-success'"
                                     t-on-click="onPhoneRang">
@@ -139,8 +303,138 @@
                             </button>
                             <button class="btn btn-outline-danger flex-fill"
                                     t-on-click="onPhoneWrong">
-                                Wrong number — correct it
+                                <i class="fa fa-ban me-1"/>I called it and it did NOT ring
                             </button>
+                        </div>
+                        <!-- Said once the answer is in, because the button
+                             turning solid is a color change on a screen the
+                             cashier has stopped reading - it does not say what
+                             to do next.
+
+                             It names what Confirm is about to DO, because what
+                             it does is not undoable from here: a contact gets
+                             created, and it is the mis-tap on the button above
+                             that this sentence is meant to catch, at the one
+                             moment the cashier is still looking. -->
+                        <div t-if="state.verified" class="text-success mt-2">
+                            <i class="fa fa-check me-1"/>Number confirmed. Confirm will
+                            create this new contact:
+                            <!-- EVERY detail Confirm is about to write, not
+                                 just the address (v1.1.37). The cashier is
+                                 about to create a customer out of a bag and a
+                                 phone call, and this is the last screen before
+                                 it happens; a summary that showed two of the
+                                 four facts left the other two to be checked on
+                                 the contact form afterwards, which is where a
+                                 mis-keyed name or a missing tag then has to be
+                                 chased.
+
+                                 The same block as the matched customer above
+                                 (v1.1.38) - one layout for a contact, whether
+                                 it is in the book already or about to be. The
+                                 Tags row fills in from the box below as tags
+                                 are picked. -->
+                            <t t-set="facts" t-value="newContactFacts"/>
+                            <t t-call="laundry_locker.ContactFacts"/>
+
+                            <!-- A tag on the contact, chosen here, because a
+                                 locker bag is handed to a machine rather than
+                                 to a cashier: the tag is the only thing on the
+                                 order that says what kind of customer left it,
+                                 and it is the one thing a Locker order asks of
+                                 a contact that the drop-off itself cannot
+                                 supply (contact_requirements.js in
+                                 laundry_pos). Asked at the moment the contact
+                                 is created, which is the only moment the
+                                 picker has. -->
+                            <!-- The tags box is the one from the contact
+                                 form: chips inside a field, a caret, and a
+                                 list that narrows as you type. A row of
+                                 buttons was the first shape (v1.1.20) and it
+                                 is not what a tag looks like anywhere else in
+                                 Odoo - the cashier should be picking the same
+                                 control here as on the contact itself. -->
+                            <div t-if="state.tags.length" class="mt-3 text-body laundry-locker-tags">
+                                <label class="form-label fw-bold mb-1">Tags</label>
+                                <!-- Two marks, and the order matters. BLUE
+                                     while the box is empty: the same mark the
+                                     contact form puts on a box this order
+                                     needs (laundry_required_fields.scss in
+                                     laundry_pos), said before anything is
+                                     wrong. RED once a Confirm has actually
+                                     been refused for want of a tag, which is
+                                     core's own behaviour on a refused save -
+                                     the sentence it prints sits under the
+                                     whole screen, so without this the cashier
+                                     has to work out which box it means. Both
+                                     go as soon as a tag is in the box. -->
+                                <div class="laundry-tag-box form-control"
+                                     t-att-class="{
+                                        'laundry-tag-invalid': state.tagRefused and !selectedTags.length,
+                                        'laundry-tag-needed': !state.tagRefused and !selectedTags.length,
+                                     }"
+                                     t-on-click="focusTagInput">
+                                    <span t-foreach="selectedTags" t-as="tag" t-key="tag.id"
+                                          class="laundry-tag">
+                                        <t t-esc="tag.name"/>
+                                        <i class="fa fa-times ms-2"
+                                           t-on-click.stop="() => this.removeTag(tag.id)"/>
+                                    </span>
+                                    <input type="text" class="laundry-tag-input"
+                                           t-ref="tagInput"
+                                           placeholder="e.g. &quot;B2B&quot;, &quot;VIP&quot;, …"
+                                           t-att-value="state.tagQuery"
+                                           t-on-input="onTagInput"
+                                           t-on-keydown="onTagKeydown"
+                                           t-on-focus="() => this.state.tagOpen = true"
+                                           t-on-blur="onTagBlur"/>
+                                    <i class="fa fa-caret-down laundry-tag-caret"/>
+                                </div>
+                                <!-- Cut into the blocks the shop thinks in -
+                                     how it is washed, how it is dried, the
+                                     rest - because the tags here are standing
+                                     instructions and the cashier is answering
+                                     those questions in turn. A heading is
+                                     drawn only where there is more than one
+                                     block to tell apart (see tagGroups). -->
+                                <div t-if="state.tagOpen" class="laundry-tag-menu">
+                                    <t t-foreach="tagGroups" t-as="group" t-key="group_index">
+                                        <div t-if="group.label" class="laundry-tag-group">
+                                            <t t-esc="group.label"/>
+                                        </div>
+                                        <div t-foreach="group.tags" t-as="tag" t-key="tag.id"
+                                             class="laundry-tag-option"
+                                             t-on-mousedown.prevent="() => this.pickTag(tag.id)">
+                                            <t t-esc="tag.name"/>
+                                        </div>
+                                    </t>
+                                    <div t-if="!tagChoices.length" class="laundry-tag-option text-muted">
+                                        No tag matches that.
+                                    </div>
+                                </div>
+                                <small class="text-muted d-block mt-1">
+                                    Pick at least one.
+                                </small>
+                                <!-- The WASH and DRY tags, out in the open
+                                     as a key apiece (wash first). The box
+                                     above can pick the same tags, but only
+                                     once the cashier has thought to open its
+                                     list; these are on the screen with a bag
+                                     in hand and a customer waiting. Picking
+                                     one moves it into the box, so a key
+                                     leaving the row is the tag arriving as a
+                                     chip. The book's other tags are NOT keys
+                                     here - see tagKeys. -->
+                                <div t-if="tagKeys.length" class="laundry-tag-pills">
+                                    <t t-foreach="tagKeys" t-as="key" t-key="key.tag.id">
+                                        <span t-if="key.divider" class="laundry-tag-divider"/>
+                                        <button class="btn btn-secondary laundry-tag-pill"
+                                                t-on-click="() => this.pickTag(key.tag.id)">
+                                            <t t-esc="key.tag.name"/>
+                                        </button>
+                                    </t>
+                                </div>
+                            </div>
                         </div>
                     </t>
                 </div>

@@ -13,7 +13,7 @@
 .laundry-locker-picker {
     // No X on the queue. The drop-off IS the order - its ref, its door, its
     // customer and the slot the customer was promised all come off the row,
-    // and none of that can be keyed in at the till from memory - so closing
+    // and none of that can be keyed in at the register from memory - so closing
     // the picker must never be a way INTO a Locker order without one. The way
     // out is the footer button, which says where it lands you and puts the
     // service type back (see new_order_modal_patch).
@@ -44,13 +44,21 @@
         }
     }
 
-    .laundry-locker-row {
-        cursor: pointer;
-
+    // The queue's rows and the chosen drop-off's single row: the same cells,
+    // because step 2 IS the row the cashier just read, shown again in the
+    // columns they read it in.
+    .laundry-locker-row,
+    .laundry-locker-chosen {
         td {
             padding-block: 0.6rem;
             white-space: nowrap;
         }
+    }
+
+    // Only the queue's rows are tap targets. The chosen one is not: tapping
+    // it would be a tap with nothing to do.
+    .laundry-locker-row {
+        cursor: pointer;
 
         &:hover {
             background-color: var(--bs-secondary-bg, #e9ecef);
@@ -61,5 +69,246 @@
     // floor keeps the dialog from jumping as it changes shape.
     .laundry-locker-customer {
         min-height: 9.5rem;
+    }
+
+    // A contact as four labelled facts: labels down one column, values down
+    // the other, so they line up and the block can be read down rather than
+    // hunted through. `auto` on the labels keeps the values hard against the
+    // longest one.
+    //
+    // One block for BOTH the contact Confirm is about to create and the
+    // customer the number matched (v1.1.38), so the cashier reads the same
+    // shape either way.
+    .laundry-contact-facts {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.15rem 1rem;
+    }
+
+    .laundry-contact-facts-label {
+        color: var(--bs-secondary-color, #6c757d);
+        font-weight: 600;
+    }
+
+    // The tags field, shaped like the contact form's: chips sitting INSIDE
+    // the box with the caret on the right, and the list hanging under it.
+    // Written out rather than borrowed because the web client's
+    // Many2ManyTagsField needs a record and a field, and a POS dialog has
+    // neither.
+    .laundry-locker-tags {
+        // The list is absolutely placed against this, not against the modal.
+        position: relative;
+
+        .laundry-tag-box {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.35rem;
+            // The 44px tap-target floor the rest of our dialogs keep: the box
+            // itself is the target that opens the list.
+            min-height: 44px;
+            height: auto;
+            cursor: text;
+        }
+
+        // Empty, and a Locker order needs one: the box says so before
+        // Confirm is pressed, the same blue the contact form uses for a box
+        // this order is asking for (laundry_required_fields.scss in
+        // laundry_pos - same two colours, kept in step on purpose). Red is
+        // left to the line under the box, which answers a Confirm pressed
+        // without a tag; blue here means "still to do", not "wrong".
+        .laundry-tag-box.laundry-tag-needed {
+            border-color: #0d6efd; // bootstrap primary
+            background-color: #e7f1ff;
+        }
+
+        // Confirm has been pressed and refused for want of a tag. Core paints
+        // a refused field this way on the contact form (.o_field_invalid), so
+        // the two screens answer a refusal with the same colour. It replaces
+        // the blue rather than sitting beside it: one box cannot be both
+        // "still to do" and "just refused".
+        .laundry-tag-box.laundry-tag-invalid {
+            border-color: #dc3545; // bootstrap danger
+            background-color: #fbeaea;
+        }
+
+        // A chip: rounded, muted, with its own × that is a target in its own
+        // right rather than a 10px hit area in the corner of a word.
+        .laundry-tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.2rem 0.6rem;
+            border-radius: 1rem;
+            background-color: var(--bs-secondary-bg, #e9ecef);
+            color: var(--bs-body-color, #212529);
+            white-space: nowrap;
+
+            .fa-times {
+                cursor: pointer;
+                opacity: 0.6;
+
+                &:hover {
+                    opacity: 1;
+                }
+            }
+        }
+
+        // The typing area is the rest of the row, so the caret lands where
+        // the cashier last tapped instead of on a fixed-width stub.
+        .laundry-tag-input {
+            flex: 1 1 6rem;
+            min-width: 6rem;
+            border: 0;
+            outline: 0;
+            background: transparent;
+            padding: 0;
+        }
+
+        .laundry-tag-caret {
+            margin-left: auto;
+            opacity: 0.5;
+        }
+
+        // The same choices as the box's list, but standing open under it.
+        // Keys wrap rather than scroll: a tag that needs scrolling to is a
+        // tag the cashier does not know is there.
+        .laundry-tag-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        // Plain grey, like every unselected key in the module - a picked tag
+        // shows as a chip INSIDE the box, so colour out here would be a
+        // second answer to a question the box has already answered.
+        .laundry-tag-pill {
+            // The module's tap-target floor.
+            min-height: 44px;
+            white-space: nowrap;
+        }
+
+        // Between the wash keys and the dry keys: the row is two questions,
+        // not one run of six names. `align-self: stretch` takes its height
+        // from the keys beside it, so it cannot fall out of step with them.
+        // Not a target - it sits in the gap and has nothing to do.
+        .laundry-tag-divider {
+            align-self: stretch;
+            width: 4px;
+            border-radius: 2px;
+            background-color: var(--bs-body-color, #212529);
+        }
+
+        .laundry-tag-menu {
+            position: absolute;
+            z-index: 1060; // over the modal body, which Bootstrap puts at 1055
+            left: 0;
+            right: 0;
+            max-height: 16rem;
+            overflow-y: auto;
+            background-color: var(--bs-body-bg, #fff);
+            border: 1px solid var(--bs-border-color, #dee2e6);
+            border-radius: 0.375rem;
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+        }
+
+        // A block heading, not a choice: smaller, muted and upper-case so it
+        // cannot be mistaken for a tag, and deliberately SHORTER than the
+        // 44px rows under it - a target-sized heading invites a tap that
+        // does nothing.
+        .laundry-tag-group {
+            padding: 0.5rem 0.75rem 0.15rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--bs-secondary-color, #6c757d);
+        }
+
+        .laundry-tag-option {
+            // Same 44px floor: these are list rows on a touchscreen.
+            display: flex;
+            align-items: center;
+            min-height: 44px;
+            padding: 0 0.75rem;
+            cursor: pointer;
+
+            &:hover {
+                background-color: var(--bs-secondary-bg, #e9ecef);
+            }
+        }
+    }
+
+    // The three steps, drawn as the pointed keys Odoo uses for a record's
+    // stages. Each one is a single shape cut with `clip-path`: a point on the
+    // right, a notch of the same depth on the left, so the keys read as one
+    // run even with the gap between them.
+    //
+    // The CURRENT key is white inside a coloured outline, the way the current
+    // stage reads in the backend. That outline cannot be a `border` - the
+    // clip-path cuts the box's own border off with the corners it removes -
+    // so the key is filled with the outline colour and a second, inset shape
+    // is laid over it for the fill. `clip-path: inherit` gives that inner
+    // shape the same cut, resolved against its own smaller box, which is what
+    // keeps the outline an even width all the way round the point.
+    .laundry-steps {
+        display: flex;
+        align-items: stretch;
+        // Small enough to read as one run, wide enough that the white shows
+        // between the point and the next notch.
+        gap: 3px;
+        margin-bottom: 0.75rem;
+    }
+
+    .laundry-step {
+        position: relative;
+        display: flex;
+        align-items: center;
+        min-height: 36px;
+        // The left padding carries the notch; the first key has none.
+        padding: 0 1.25rem 0 2rem;
+        font-weight: 500;
+        color: var(--bs-secondary-color, #6c757d);
+        background-color: var(--bs-secondary-bg, #e9ecef);
+        clip-path: polygon(
+            0 0,
+            calc(100% - 12px) 0,
+            100% 50%,
+            calc(100% - 12px) 100%,
+            0 100%,
+            12px 50%
+        );
+
+        // Nothing to its left to notch into.
+        &:first-child {
+            padding-left: 1.25rem;
+            clip-path: polygon(
+                0 0,
+                calc(100% - 12px) 0,
+                100% 50%,
+                calc(100% - 12px) 100%,
+                0 100%
+            );
+        }
+    }
+
+    .laundry-step-current {
+        // Read as the OUTLINE: the fill is the inset shape below.
+        background-color: var(--bs-primary, #017e84);
+        color: var(--bs-body-color, #111);
+        font-weight: 600;
+
+        &::before {
+            content: "";
+            position: absolute;
+            inset: 2px;
+            background-color: var(--bs-body-bg, #fff);
+            clip-path: inherit;
+        }
+    }
+
+    // Over the fill, which is painted after the key's own background.
+    .laundry-step-label {
+        position: relative;
     }
 }

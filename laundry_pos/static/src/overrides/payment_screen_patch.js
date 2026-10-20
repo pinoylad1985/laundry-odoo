@@ -35,7 +35,7 @@ const ACCOUNT_GATED_LABELS = {
 const ACCOUNT_GATED_LABEL_LIST = ACCOUNT_GATED_SERVICE_TYPES.map((t) => ACCOUNT_GATED_LABELS[t]);
 
 // Service types that are ALWAYS on account, with no choice of tender. A Locker
-// customer put the bag in a door and walked away - there is nobody at the till
+// customer put the bag in a door and walked away - there is nobody at the register
 // to hand over cash, and the sale is settled later (Settle Order). So the
 // on-account line is put on for the cashier and held there: any other method
 // would be recording money the shop never took.

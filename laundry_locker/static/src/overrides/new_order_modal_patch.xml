@@ -13,7 +13,7 @@
                         <span t-if="lockerState.claim.partner_name">
                             <t t-esc="lockerState.claim.partner_name"/>
                         </span>
-                        <span class="text-muted" t-esc="lockerState.claim.phone"/>
+                        <span class="text-muted" t-esc="lockerClaimPhone"/>
                         <span t-if="lockerState.claim.dirty_door" class="text-muted">
                             door <t t-esc="lockerState.claim.dirty_door"/>
                         </span>
@@ -22,7 +22,7 @@
                              number, which exists on a cashier's word that it
                              rang. A number that matched an existing customer
                              has nothing to correct, and re-opening the picker
-                             on it would only invite the till to retype a known
+                             on it would only invite the register to retype a known
                              customer. -->
                         <button t-if="lockerState.claim.phone_verified"
                                 type="button" class="btn btn-secondary"

@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <!-- The contact form asks about a duplicate number instead of refusing it.
+         See static/src/phone_twin/ for the why; this only hangs our form
+         controller on the view.
+
+         Nothing else in Odoo 19 puts a js_class on a res.partner form (checked
+         against the container), so there is none to displace - but a module
+         installed later could, and the last inherit to load would win. Check
+         here first if contact forms ever stop behaving. -->
+    <record id="view_partner_form_laundry_phone" model="ir.ui.view">
+        <field name="name">res.partner.form.laundry.phone.twin</field>
+        <field name="model">res.partner</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//form" position="attributes">
+                <attribute name="js_class">laundry_partner_form</attribute>
+            </xpath>
+        </field>
+    </record>
+
+    <!-- What the ORDER needs from this contact, marked the way Studio's
+         Required marks a field: pink box, refused save, "Invalid fields"
+         notice. Core's own mechanism, so there is nothing new for a cashier
+         to learn and the empty box itself is what gets pointed at.
+
+         Driven by CONTEXT, never by the field: the demand belongs to the
+         order, not to res.partner. The keys are set only while the form was
+         opened FOR an order that needs them (PosStore.editPartnerContext,
+         from utils/contact_requirements.js) - so the back-office Contacts
+         form and the register's own Customer button ask for nothing, and a
+         half-finished contact still saves. A form that always refuses is what
+         makes a cashier invent a value to get past it.
+
+         ⚠ Each xpath hits the FIRST field of that name in the form, which is
+         the main contact's own. The later copies belong to the nested
+         child-contact form on the Contacts tab, where a parent's address is
+         legitimately inherited and must not be demanded.
+
+         ⚠ priority 999, so this is the LAST inherit applied. Unticking
+         Required in Studio writes an inherited view that sets
+         required="False" on the very same fields, and whichever view is
+         applied last wins - with the default priority that was Studio's, and
+         the form asked for nothing (the field's debug tooltip read
+         "Required: False" instead of our expression). Inherited views are
+         applied in priority order, so ours has to outrank anything Studio
+         writes. Don't lower it; and if these fields ever stop being asked
+         for again, look for a view with a priority above this one. -->
+    <record id="view_partner_form_laundry_required" model="ir.ui.view">
+        <field name="name">res.partner.form.laundry.required</field>
+        <field name="model">res.partner</field>
+        <field name="priority">999</field>
+        <field name="inherit_id" ref="base.view_partner_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//field[@name='phone']" position="attributes">
+                <attribute name="required">context.get('laundry_require_phone')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='category_id']" position="attributes">
+                <attribute name="required">context.get('laundry_require_tags')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='street']" position="attributes">
+                <attribute name="required">context.get('laundry_require_street')</attribute>
+            </xpath>
+            <xpath expr="//field[@name='street2']" position="attributes">
+                <attribute name="required">context.get('laundry_require_street2')</attribute>
+            </xpath>
+        </field>
+    </record>
+</odoo>
