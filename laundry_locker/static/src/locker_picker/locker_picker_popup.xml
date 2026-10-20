@@ -257,6 +257,15 @@
                         <div class="fw-bold mb-1">The customer in the book</div>
                         <t t-set="facts" t-value="returningFacts"/>
                         <t t-call="laundry_locker.ContactFacts"/>
+                        <!-- An archived contact is SAID, never hidden: it is
+                             invisible to the cashier's search, which is how a
+                             second record for somebody already in the book
+                             gets made. The same words the contact form's
+                             duplicate dialog uses. -->
+                        <div t-if="isArchivedMatch" class="text-danger mt-1">
+                            That contact is archived. "Restore and use" puts it
+                            back in the book and takes this drop-off on it.
+                        </div>
                         <small class="text-muted d-block mt-1">
                             Matched on the last 10 digits — the drop-off was keyed in
                             as “<t t-esc="selectedRow.customer_name"/>”.
@@ -444,8 +453,12 @@
 
             <t t-set-slot="footer">
                 <button t-if="selectedRow" class="btn btn-primary"
-                        t-att-disabled="confirmDisabled" t-on-click="confirm">Confirm</button>
-                <button t-if="selectedRow" class="btn btn-secondary" t-on-click="back">Back</button>
+                        t-att-disabled="confirmDisabled" t-on-click="confirm">
+                    <t t-esc="confirmLabel"/>
+                </button>
+                <button t-if="selectedRow" class="btn btn-secondary" t-on-click="back">
+                    <t t-esc="backLabel"/>
+                </button>
                 <!-- The only way out of the queue, and it is not a way past
                      it: leaving without a drop-off puts the service type back
                      to what it was, so a Locker order is always one that came

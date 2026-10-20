@@ -106,6 +106,15 @@ class LaundryLockerTransaction(models.Model):
                 self.partner_id._laundry_contact_parts()
                 if self.partner_id else {}
             ),
+            # Whether that contact has been taken OUT of the book. Carried so
+            # the picker can say so and offer to put it back, rather than let
+            # the cashier work the whole drop-off and be refused at Confirm:
+            # an archived contact is invisible to the register's customer
+            # list, but the one-customer-per-number rule counts it, so its
+            # number can never become a new contact either.
+            'partner_archived': (
+                bool(self.partner_id) and not self.partner_id.active
+            ),
             # Why this row's number cannot become a contact, if it cannot -
             # the feed sends whatever was keyed in at the locker, and a number
             # with letters in it or missing digits arrives here like any other.
@@ -214,12 +223,18 @@ class LaundryLockerTransaction(models.Model):
                 'partner_id': False,
                 'partner_name': '',
                 'partner_parts': {},
+                'partner_archived': False,
             }
         key = phone_last10(phone)
         partner = self.env['res.partner']
         if key:
-            partner = partner.search(
-                [('laundry_phone_last10', '=', key)], limit=1, order='id'
+            # ARCHIVED contacts count here too - the same reasoning as
+            # _compute_partner_id. A lookup that could not see one would
+            # answer "New" about a number that can never become a new
+            # contact, and the cashier would find that out at Confirm.
+            partner = partner.with_context(active_test=False).search(
+                [('laundry_phone_last10', '=', key)], limit=1,
+                order='active desc, id',
             )
         return {
             'last10': key,
@@ -232,6 +247,7 @@ class LaundryLockerTransaction(models.Model):
             'partner_parts': (
                 partner._laundry_contact_parts() if partner else {}
             ),
+            'partner_archived': bool(partner) and not partner.active,
         }
 
     # ------------------------------------------------------------------
@@ -362,7 +378,7 @@ class LaundryLockerTransaction(models.Model):
         )
 
     def pos_claim(self, phone=None, customer_name=None, phone_verified=False,
-                  tag_ids=None):
+                  tag_ids=None, restore_partner=False):
         """Put this transaction on the order being built at the register.
 
         This RESERVES NOTHING. A drop-off stays unbilled and stays in every
@@ -381,6 +397,11 @@ class LaundryLockerTransaction(models.Model):
         asks for it at the one moment the contact is being made. A RETURNING
         customer's own tags are left alone - they are the book's answer, not
         this screen's.
+
+        `restore_partner` is the cashier's answer about an ARCHIVED match. The
+        picker names its button after what it does ("Restore and use"), the
+        same way the contact form's duplicate dialog does, and nothing goes
+        back into the book without it.
         """
         self.ensure_one()
         # The only claim still refused: a validated order already took it, and
@@ -452,6 +473,26 @@ class LaundryLockerTransaction(models.Model):
             # Recorded so a later correction can reach back to THIS record
             # rather than leaving it behind - see _laundry_own_contact.
             self.created_partner_id = partner
+
+        if not partner.active:
+            # The number belongs to a contact somebody took out of the book.
+            # It is OFFERED rather than refused, and restored rather than
+            # worked around, for the same reason the contact form offers it
+            # (laundry_pos.laundry_restore_phone_twin): the number cannot
+            # become a second contact, so refusing here would leave the
+            # cashier with a customer in front of them, a bag in hand and
+            # nowhere to go - and the way out of a dead end is the duplicate
+            # this whole rule exists to prevent.
+            #
+            # Restored BEFORE it is used. An archived contact is invisible to
+            # get_new_partner, to the customer list and to an ordinary read,
+            # so the order would quietly end up with no customer on it.
+            if not restore_partner:
+                raise UserError(_(
+                    'That number belongs to %s, whose contact is archived. '
+                    'Press "Restore and use" to put it back in the book.'
+                ) % partner.sudo().name)
+            self.env['res.partner'].laundry_restore_phone_twin(partner.id)
 
         self._apply_locker_address(partner)
         # The same shape a picker row has, so the modal reads one thing whether
