@@ -333,8 +333,21 @@ class LaundryLockerTransaction(models.Model):
             if not key:
                 tx.partner_id = False
                 continue
-            tx.partner_id = self.env['res.partner'].search(
-                [('laundry_phone_last10', '=', key)], limit=1, order='id'
+            # ARCHIVED contacts count. The one-customer-per-number rule
+            # in laundry_pos counts them, so a number an archived contact
+            # holds can never become a second contact - and a match that
+            # could not see it would read "New", send the cashier off to call
+            # the number, and only then be refused at Confirm. Seen here, the
+            # row reads Returning and the picker offers to restore them.
+            #
+            # An ACTIVE contact still wins: the book holds legacy duplicates
+            # on one number, and a live record must not lose to an archived
+            # one just because it was created first.
+            tx.partner_id = self.env['res.partner'].with_context(
+                active_test=False
+            ).search(
+                [('laundry_phone_last10', '=', key)], limit=1,
+                order='active desc, id',
             )
 
     @api.depends('pos_order_id.tracking_number', 'pos_order_id.pos_reference')
@@ -473,6 +486,29 @@ class LaundryLockerTransaction(models.Model):
                       'to free the drop-off.'),
                 )))
 
+    def _laundry_check_corrected_phone(self, vals):
+        """A number the SHOP writes has to BE a number.
+
+        The feed's own value is never refused: it arrives exactly as somebody
+        keyed it at the locker, and putting it right is what the correction is
+        FOR. The correction is the shop's own writing, so it is held to the
+        same rule as every other number this module records - digits only,
+        enough of them, and not a filler
+        (res.partner.laundry_phone_problem_message, laundry_pos).
+
+        Without this an unusable number could be typed into the Lockers list,
+        and the register would then open that drop-off straight into its
+        correction fields and refuse to go on - the cashier undoing at the
+        counter, with a customer waiting, what the back office had just typed.
+        """
+        if not vals.get('phone_corrected'):
+            return
+        message = self.env['res.partner'].laundry_phone_problem_message(
+            vals['phone_corrected']
+        )
+        if message:
+            raise UserError(message)
+
     def _laundry_new_phone_key(self, vals):
         """The last-10 key this write would leave the row standing on."""
         self.ensure_one()
@@ -485,9 +521,12 @@ class LaundryLockerTransaction(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list):
-        return super().create([
+        cleaned = [
             self._laundry_clean_corrections(vals, vals) for vals in vals_list
-        ])
+        ]
+        for vals in cleaned:
+            self._laundry_check_corrected_phone(vals)
+        return super().create(cleaned)
 
     def write(self, vals):
         """A number that CHANGES is a number nobody has called.
@@ -523,6 +562,7 @@ class LaundryLockerTransaction(models.Model):
         # After the cleaning, so a correction that corrects nothing is judged
         # as the blank it is about to be stored as rather than as a change.
         self._laundry_check_corrections_unlocked(vals)
+        self._laundry_check_corrected_phone(vals)
         changed = self.browse()
         if 'phone_verified' not in vals and (
             'phone' in vals or 'phone_corrected' in vals

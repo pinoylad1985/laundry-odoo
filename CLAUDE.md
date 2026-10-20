@@ -868,12 +868,40 @@ so both places a number gets typed now **ASK** first and offer that customer.
     what was actually done.
   - **`_applyStep` touches only the flags the step is read off** - never the typed name and
     number, because the reason to go back to the correction is to fix what is in those boxes.
-  - ⚠ **A step can stop holding while it is behind you**, so `back()` keeps walking until
-    `currentStep` is the step it popped: correcting a number onto a customer already in the
-    book settles it, and there is no longer a call gate to go back to.
+  - ⚠ **A step can stop holding while it is behind you**, so what `back()` checks is that
+    the screen MOVED - not that it landed on the step the trail named (v1.1.41). Correcting a
+    number onto a customer already in the book settles it, and there is no longer a call gate
+    to go back to. It used to keep walking until `currentStep` matched the popped step, which
+    on that very case unwound past every step and **threw the whole drop-off away** - the one
+    thing Back exists to avoid. Only a step that landed nowhere keeps the walk going.
+  - **Back SAYS where it lands when that is not one step back** - `backLabel` (v1.1.41):
+    "Back to the queue", or "Back to the order" on a recheck. A drop-off can open straight on
+    the correction (a recheck, or a number the rules refuse - the feed's own or one corrected
+    in the Lockers app), and then there is no step behind it. The strip shows the ROUTE, not
+    what this drop-off has walked, so a button reading "Back" looked like one step along the
+    strip and dropped the bag instead.
   - **A recheck still LEAVES at the queue step** (`isRecheck` + a popped `"pick"` closes the
     dialog). It was opened on one drop-off from the New Order modal, so the queue is not
     where it came from - but inside it, Back now walks the correction like anywhere else.
+- **An ARCHIVED contact is OFFERED here too, under `Restore and use`** (v1.1.41) - the same
+  answer the contact form gives (the phone-twin dialog in `laundry_pos`), for the same reason.
+  - **Both lookups now see archived contacts** - `_compute_partner_id` and `pos_check_phone`,
+    with `active_test=False`. They saw only ACTIVE ones, while the one-customer-per-number rule
+    in `res.partner.create` COUNTS archived - so a number an archived contact held read **New**,
+    the cashier called it and keyed a name, and Confirm was then refused flat by the server.
+    That mismatch was the one way the picker could still hit that refusal.
+  - **An ACTIVE contact still wins** (`order='active desc, id'`): the book holds legacy
+    duplicates on one number, and a live record must not lose to an archived one.
+  - **The row carries `partner_archived`** (`_pos_row` and `pos_check_phone`); the picker prints
+    "That contact is archived." under the matched-customer facts, and Confirm is renamed
+    **`Restore and use`** - named for what it does, so a contact never goes back into the book
+    behind a tap labelled Confirm.
+  - **Restored SERVER-side, BEFORE the partner is used** - `pos_claim(restore_partner=True)`
+    calls `res.partner.laundry_restore_phone_twin` (not sudo - the cashier's own action, written
+    in their own history). It has to happen before the register reads the partner back:
+    `get_new_partner`, the customer list and an ordinary read cannot see an archived contact, so
+    the order would quietly end up with no customer on it. `pos_claim` **refuses** an archived
+    match without that flag, so nothing is restored quietly.
 - **Step 2 is the chosen drop-off as a ROW of the same table, in the same columns** (v1.1.20) -
   12, plus the two `(Corrected)` columns this table alone carries. It was a strip of labelled
   values plus a name/phone summary until then; a cashier matching paper to a bag has just read the
@@ -918,6 +946,15 @@ so both places a number gets typed now **ASK** first and offer that customer.
     server creates the contact under the name it reads in Python. The in-force number is what
     `phone_last10` is keyed on, what the match runs on, and what the New Order modal's claim line
     prints (`lockerClaimPhone`).
+  - **A corrected number has to BE a number** - `_laundry_check_corrected_phone`, run from
+    `create` and `write` (v1.1.41), raising the server's own two-line message
+    (`res.partner.laundry_phone_problem_message`). The FEED's number is never refused: it
+    arrives as somebody keyed it at the locker, and putting it right is what the correction is
+    for. The correction is the shop's own writing, and an unusable one typed into the Lockers
+    list made the register open that drop-off straight into its correction fields and refuse to
+    go on - the cashier undoing at the counter, customer waiting, what the back office had just
+    typed. Only the value being WRITTEN is judged, so rows already carrying one can still be
+    edited.
   - **A correction that corrects NOTHING is blanked on save** - `_laundry_clean_corrections`, run
     from `create` and `write`. The register sends both boxes back on **every** claim, touched or
     not, so without this every row would read as corrected and the em-dash would never appear.

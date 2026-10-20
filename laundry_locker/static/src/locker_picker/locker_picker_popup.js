@@ -94,6 +94,13 @@ export class LockerPickerPopup extends Component {
             // the register, the contact form and the Orders list cannot
             // describe one customer three ways.
             partnerParts: {},
+            // Whether that contact has been taken OUT of the book. An
+            // archived contact is invisible to the register's customer list,
+            // but the one-customer-per-number rule counts it - so its number
+            // can never become a second contact, and the only way forward is
+            // to put it back. Said on screen, and offered: the same answer
+            // the contact form's duplicate dialog gives.
+            partnerArchived: false,
             // The tags the shop keeps, and the ones picked for a contact
             // about to be created. res.partner.category is NOT loaded into
             // the POS (pos_tag_names exists precisely because the relation
@@ -252,6 +259,7 @@ export class LockerPickerPopup extends Component {
         this.state.match = row.customer_match || "new";
         this.state.partnerName = row.partner_name || "";
         this.state.partnerParts = row.partner_parts || {};
+        this.state.partnerArchived = !!row.partner_archived;
         this.state.verified = !!row.phone_verified;
         // Picked per drop-off, so backing out of one row and into another
         // cannot tag the second customer with the first one's answer.
@@ -317,6 +325,7 @@ export class LockerPickerPopup extends Component {
     // correction used to drop the whole drop-off, so a number keyed in wrong
     // could only be fixed by finding the row again and starting over.
     back() {
+        const from = this.currentStep;
         let target = this.state.trail.pop() || "pick";
         while (true) {
             // A recheck was opened ON a drop-off, from the New Order modal -
@@ -327,10 +336,15 @@ export class LockerPickerPopup extends Component {
                 return;
             }
             this._applyStep(target);
-            // A step can stop holding while it is behind you: correcting a
-            // number onto a customer already in the book settles it, and
-            // there is no longer a call to go back to. Keep walking.
-            if (this.currentStep === target || !this.state.trail.length) {
+            // MOVED is enough. A step can stop holding while it is behind
+            // you - correcting a number onto a customer already in the book
+            // settles it, and there is no longer a call to go back to - so
+            // the screen may land somewhere other than the step the trail
+            // named. That is still one step back, and walking further to
+            // find the named step would throw the whole drop-off away, which
+            // is the one thing Back exists to avoid. Only a step that landed
+            // nowhere keeps the walk going.
+            if (this.currentStep !== from || !this.state.trail.length) {
                 break;
             }
             target = this.state.trail.pop();
@@ -345,6 +359,7 @@ export class LockerPickerPopup extends Component {
         this.state.match = null;
         this.state.partnerName = "";
         this.state.partnerParts = {};
+        this.state.partnerArchived = false;
         // The name came out of the book with the match, so it goes back when
         // the match does - unless the cashier has since typed over it, which
         // makes it theirs again.
@@ -382,6 +397,7 @@ export class LockerPickerPopup extends Component {
             this.state.match = null;
             this.state.partnerName = "";
             this.state.partnerParts = {};
+            this.state.partnerArchived = false;
             return;
         }
         // The Check button lives only in the correction, so a lookup that
@@ -391,6 +407,7 @@ export class LockerPickerPopup extends Component {
         this.state.match = result.customer_match;
         this.state.partnerName = result.partner_name || "";
         this.state.partnerParts = result.partner_parts || {};
+        this.state.partnerArchived = !!result.partner_archived;
         // A corrected number that lands on somebody already in the book
         // brings their NAME with it. The name in the box was typed against
         // the old number, so once that number turns out to belong to a known
@@ -439,6 +456,39 @@ export class LockerPickerPopup extends Component {
 
     get canEditCustomer() {
         return this.state.editing;
+    }
+
+    // The number is held by a contact somebody archived.
+    //
+    // It is OFFERED, not refused - the same call the contact form makes. The
+    // number cannot become a second contact (the one-customer-per-number rule
+    // counts archived contacts), so refusing here would leave the cashier
+    // with the customer in front of them, a bag in hand and nowhere to go but
+    // a duplicate under some other number. Putting the contact back is the
+    // one way on, so it is offered where the work is.
+    get isArchivedMatch() {
+        return this.isReturning && this.state.partnerArchived;
+    }
+
+    // The button is NAMED for what it does, so a contact never goes back into
+    // the book behind a tap labelled Confirm.
+    get confirmLabel() {
+        return this.isArchivedMatch ? "Restore and use" : "Confirm";
+    }
+
+    // Back says where it LANDS whenever that is not one step back.
+    //
+    // A drop-off can open straight on the correction - a recheck, or a number
+    // the shop's rules refuse (the feed's own, or one corrected in the
+    // Lockers app) - and then there is no step behind it: the strip shows the
+    // route, but this drop-off has walked one step of it. Back drops it and
+    // returns to the queue, which is right and was invisible - the button
+    // said "Back" and the cashier read that as one step along the strip.
+    get backLabel() {
+        if (this.state.trail[this.state.trail.length - 1] !== "pick") {
+            return "Back";
+        }
+        return this.isRecheck ? "Back to the order" : "Back to the queue";
     }
 
     // THE FOUR FACTS, twice over.
@@ -791,6 +841,10 @@ export class LockerPickerPopup extends Component {
                     // pos_claim. A returning customer's own tags are not
                     // this screen's business.
                     tag_ids: this.state.tagIds,
+                    // The cashier's answer about an archived contact, and the
+                    // only thing that puts one back in the book. The server
+                    // refuses the claim without it.
+                    restore_partner: this.isArchivedMatch,
                 }
             );
             this.props.getPayload(result);
