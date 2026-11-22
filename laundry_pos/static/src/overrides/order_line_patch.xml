@@ -15,7 +15,7 @@
         <xpath expr="//ul[hasclass('info-list')]" position="after">
             <div t-if="vals.laundryActualWeight" class="laundry-attrs ms-2">
                 <div class="attribute-line"><b>Actual Weight:</b> <t t-esc="vals.laundryActualWeight"/></div>
-                <div t-if="vals.isReceipt" class="attribute-line fst-italic">Note: 0.4 kg and below rounds down, above rounds up. Minimum 6 kg for 1 load, 4 kg each for 2 or more loads.</div>
+                <div t-if="vals.isReceipt" class="attribute-line fst-italic laundry-wdf-note">Note: 0.4 kg and below rounds down, above rounds up. Minimum 6 kg for 1 load, 4 kg each for 2 or more loads.</div>
             </div>
             <div t-if="vals.isReceipt and (vals.laundryWdf or vals.laundryPress)" class="laundry-attrs ms-2">
                 <div class="attribute-line"><b>Sorted pcs:</b> _____</div>

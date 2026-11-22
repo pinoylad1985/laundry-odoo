@@ -116,6 +116,21 @@
     font-size: 24px;
 }
 
+// The Wash-Dry-Fold rounding note is the one attribute line that is explanation
+// rather than fact, so it is set two points down from the 20pt the rest of the
+// line runs at (18pt x 1.2 = 21.6px). It has to out-specify the print block
+// above, which pins every .attribute-line to 24px !important - hence the class
+// in the chain rather than a plain override.
+.pos-receipt .laundry-attrs .attribute-line.laundry-wdf-note {
+    font-size: 21.6px;
+}
+@media print {
+    .render-container-parent .render-container .pos-receipt
+        .laundry-attrs .attribute-line.laundry-wdf-note {
+        font-size: 21.6px !important;
+    }
+}
+
 // Dashed separator at the TOP of each product line except the first, running
 // to the half-way point of the receipt. The orderline is position-relative, so
 // an absolute ::before keeps it out of the line's flex layout.
