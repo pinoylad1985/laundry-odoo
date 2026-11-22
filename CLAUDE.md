@@ -317,6 +317,15 @@ list and a read-only field on the order form).
   - ⚠ **An unmapped code yields `False`, NEVER a fallback to Makati**, and the register then
     leaves the order's area alone. A guess here would quietly bill a BGC bag at Makati rates.
     **A new locker's code must be added to `LOCATION_AREAS` before that locker goes live.**
+  - The three sites: **`LX-0001`** THE RISE (Makati) · **`LX-002`** AIR (Makati) ·
+    **`LX-003`** TURF (BGC — Avida Towers Turf BGC).
+  - ⚠ **The digits are NOT a fixed width**, and the keys are the FEED's own spelling:
+    Rise is `lx_0001` at the source while Air and Turf are `LX-002` / `LX-003`.
+    `_location_code` settles only the separator and the case. It used to zero-pad every
+    code to four digits, which looked canonical and was really Odoo inventing a code no
+    other system used — PudoPro, Firebase and the dashboard all say `LX-002`, so Odoo was
+    the one place Air had a different name. `laundry_locker/migrations/1.1.42` un-pads the
+    rows it already wrote. **Add a new locker EXACTLY as the feed sends it.**
 - **Printed on EVERY receipt** (`Area:`, `receipt_header_patch` + `receipt_header.xml`),
   Makati included: the line is there to settle a price query, and a line that is only there
   sometimes cannot do that — a receipt with nothing on it would mean "Makati" to the shop and
