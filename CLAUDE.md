@@ -1094,6 +1094,50 @@ so both places a number gets typed now **ASK** first and offer that customer.
       cashier has since typed over it. Without that, correcting onto a customer and then away
       from them again would create the next contact under *their* name.
 
+## The TURF launch promotion - half off Wash-Dry-Fold - locker v1.1.43
+A bag left at the BGC locker gets **50% off every Wash-Dry-Fold line**, up to and including
+**31 December 2026**. All three facts live in ONE object - **`TURF_PROMO`** in
+`laundry_locker/static/src/utils/turf_promo.js` (`code` / `percent` / `lastDay`). Extend it by
+moving `lastDay`; end it early by moving `lastDay` into the past. Nothing else is touched.
+- **It is a DISCOUNT on the line, not a lower price** - the owner's call. Core's own orderline
+  template already prints `50% discount off on 480.00` beside the line, so the customer sees what
+  they saved and the Odoo reports can say afterwards what the promotion cost. A quietly halved
+  price would appear nowhere except in the takings.
+- **Keyed on the site's CODE (`LX-003`), never its display name.** The name is a label - TURF
+  today, AVIDA TOWERS TURF BGC if anyone spells it out - and a rule keyed on it stops matching the
+  day somebody retypes it, with nothing on screen saying so. Same reasoning as `LOCATION_AREAS`,
+  which keys the price book on the code too. The code reaches the order through a new
+  **`pos.order.laundry_locker_code`** (stored, beside `laundry_locker_location`), written at claim
+  and cleared in `releaseLockerClaim`, and carried on `_pos_row()` as `location_code`.
+  - It is therefore **TURF only**, not "all BGC" - a BGC pickup & delivery order carries no locker
+    code, and a second BGC locker would need its code adding here deliberately.
+- ⚠ **It SWEEPS the order's lines; it does not set the discount once when a line is made.** A
+  laundry line is never edited - it is REBUILT (remove + re-add) by the cart-tap re-configure, by
+  a schedule change and by the configurator's Add, and a rebuild starts from product + attributes
+  alone. A discount set at creation would be silently dropped, exactly as the WDF Actual Weight
+  was in v1.4.33. `laundryApplyTurfPromo(order)` re-derives it from the order every time.
+- **Two hooks cover every path** (`overrides/turf_promo_patch.js`):
+  1. **`PosStore.addLineToCurrentOrder`** - all three rebuild paths call it, so one hook catches
+     the grid add, the cart tap and the schedule change alike. The discount is a percentage, so it
+     does not matter that the WDF billed quantity is settled afterwards.
+  2. **`PosStore.pay`** - the last gate before money, and the only thing that catches a cashier who
+     claims TURF, rings up the wash, then presses Change and swaps to a Makati drop-off. Nothing is
+     rebuilt when the turnaround happens not to move, so without this the Makati bag would keep
+     BGC's half-price.
+  Claim and release sweep too, so the **cart** is right immediately - the cashier quotes the price
+  off the cart, not off the payment screen.
+- ⚠ **It clears ONLY a discount equal to `TURF_PROMO.percent`.** A cashier who hand-typed some
+  other discount on a WDF line meant it, and the sweep is not entitled to an opinion about it.
+- **Judged on the clock NOW, not on the order's date.** The discount is decided as the sale is rung
+  up and then lives on the line as a stored value, so a reprint or a refund months later reads back
+  what was actually charged instead of re-deciding it.
+- ⚠ `promoEndsAt()` builds the cut-off from the date's PARTS, not `new Date("2026-12-31")` - a bare
+  date string is parsed as UTC and would end the promotion at 8 in the morning of the 31st here.
+  Same trap as `fmtDateLabel` in the New Order modal.
+- `setLineDiscount` guards `line.setDiscount` with a direct assignment, the way this module guards
+  `removeOrderline`: the deployed build is not always the public 19.0 source, and a promotion must
+  not take the register down. Verified against 19.0 core `pos_order_line.js` - re-check on upgrade.
+
 ## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -
 **`CONTACT_REQUIREMENTS`** in `static/src/utils/contact_requirements.js`, fed by
