@@ -1094,7 +1094,7 @@ so both places a number gets typed now **ASK** first and offer that customer.
       cashier has since typed over it. Without that, correcting onto a customer and then away
       from them again would create the next contact under *their* name.
 
-## The TURF launch promotion - half off Wash-Dry-Fold - locker v1.1.43
+## The TURF launch promotion - half off Wash-Dry-Fold - locker v1.1.44
 A bag left at the BGC locker gets **50% off every Wash-Dry-Fold line**, up to and including
 **31 December 2026**. All three facts live in ONE object - **`TURF_PROMO`** in
 `laundry_locker/static/src/utils/turf_promo.js` (`code` / `percent` / `lastDay`). Extend it by
@@ -1126,8 +1126,23 @@ moving `lastDay`; end it early by moving `lastDay` into the past. Nothing else i
      BGC's half-price.
   Claim and release sweep too, so the **cart** is right immediately - the cashier quotes the price
   off the cart, not off the payment screen.
-- ⚠ **It clears ONLY a discount equal to `TURF_PROMO.percent`.** A cashier who hand-typed some
-  other discount on a WDF line meant it, and the sweep is not entitled to an opinion about it.
+- ⚠ **It touches ONLY a discount it wrote ITSELF** (v1.1.44), and it knows which those are
+  because it remembers the figure it wrote - **`_laundryTurfPromo`** on the line - and compares
+  the line's discount against it. A discount the cashier typed, or one the **Discount button** put
+  on every line at once, belongs to whoever decided it: the sweep leaves it alone when the order
+  qualifies AND when it stops qualifying.
+  - ⚠ **Judging it by the FIGURE alone is what broke it** (the v1.1.43 bug): a 50% applied by
+    hand is indistinguishable from the promotion's own 50%, so pressing Pay on an ordinary
+    Pickup & Delivery order **wiped the cashier's discount off the Wash-Dry-Fold line** and left
+    it on every other line - a half-applied discount, which is worse than either answer.
+  - **The mark is in memory only, and that is right rather than a shortcut.** A rebuilt line
+    arrives with no discount and no mark, which is exactly what it should be; a reloaded order is
+    still a TURF order (`laundry_locker_code` is stored), so the sweep writes the same figure
+    again. The mark never decides whether the promotion applies - the code and the date do - it
+    only says who the discount already on the line belongs to.
+  - A line whose discount is **0** is treated as unclaimed, so a cashier who zeroes a promotional
+    line gets the 50% back on the next sweep. Taking the promotion off a TURF bag means taking
+    the bag off TURF.
 - **Judged on the clock NOW, not on the order's date.** The discount is decided as the sale is rung
   up and then lives on the line as a stored value, so a reprint or a refund months later reads back
   what was actually charged instead of re-deciding it.
