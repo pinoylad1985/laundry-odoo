@@ -282,6 +282,7 @@ patch(ProductScreen.prototype, {
                 status:       "skipped",
                 serviceType:  result.serviceType  || null,
                 customerType: result.customerType || null,
+                area:         result.area         || null,
                 schedule:     result.schedule     || {},
                 turnaround:   result.turnaround   || null,
             });
@@ -308,6 +309,12 @@ patch(ProductScreen.prototype, {
 
         order.laundry_service_type  = result.serviceType;
         order.laundry_customer_type = result.customerType;
+        // Which price book this order is billed at. A null means the modal is
+        // leaving it alone - a Locker order's area comes from the locker SITE, set
+        // by laundry_locker on claim. Set BEFORE the lines are rebuilt below:
+        // buildConfiguredLineVals reads the area off the order, so re-pricing an
+        // area change depends on this line coming first.
+        if (result.area) order.laundry_area = result.area;
         order.laundry_schedule      = result.schedule   || {};
         order.laundry_turnaround    = result.turnaround || null;
 
@@ -331,6 +338,7 @@ patch(ProductScreen.prototype, {
             status:       "submitted",
             serviceType:  result.serviceType,
             customerType: result.customerType,
+            area:         result.area || null,
             schedule:     result.schedule   || {},
             turnaround:   result.turnaround || null,
         });

@@ -249,6 +249,80 @@ Express used to be a flat **+50** (the `price_extra` on the Turnaround "Express"
 - ⚠ `_load_pos_data_fields` on `product.template.attribute.value` is **extended with super()**, not
   replaced — dropping core's list would break the configurator entirely.
 
+## Two price books: Makati and BGC — v1.5.26
+The shop runs **two price sets** (its two customer estimators carry one each —
+makati.laundryx.app, bgc.laundryx.app) and the difference is **item by item, not a
+percentage**, so an order has to say which book it was rung up on:
+**`pos.order.laundry_area`** (`'makati'` / `'bgc'`, `default='makati'`, a column on the Orders
+list and a read-only field on the order form).
+- **It cannot be read off the register — ONE register serves both areas.** Makati is the shop
+  plus its two lockers; BGC is a locker **and pickup & delivery**, with no shop of its own. So a
+  BGC job arrives two ways and only one of them carries a locker. Hence a field, not a lookup:
+  - **Locker** → from the locker **SITE** (`laundry_locker`, below);
+  - **Pickup & Delivery** → asked of the cashier in the New Order modal;
+  - the other three → always `makati`; they only exist at the shop.
+- **Defaulted, not left blank**, and that default fills every existing row on upgrade: every
+  order ever taken was billed at Makati rates, so a blank would read as "no price book" on
+  orders that plainly had one.
+- **NO PRICELIST ANYWHERE.** An Odoo pricelist can only move a product's own Sales Price, and it
+  **cannot vary an attribute value's Extra Price** — which is where most of a laundry line's
+  price lives. The whole Makati→BGC difference is carried on the **attribute values** instead,
+  because every laundry product has at least one mandatory attribute each line must answer
+  (the configurator refuses to Add until it is), so there is always a value to hang the
+  difference on. WDF soil 0/5/10 → 15/20/25 against a 45 base = 60/65/70; Press SMALL/LARGE
+  0/20 → 10/30 against 30 = 40/60; and so on.
+- **Four prices per option, one per book × turnaround** —
+  `product.template.attribute.value`, edited side by side on the product's Attributes tab
+  (`models/product_attribute.py`, `views/product_attribute_views.xml`):
+
+  | | Regular | Express |
+  |---|---|---|
+  | Makati | Extra Price (`price_extra`, core) | Express Price (`laundry_express_price`) |
+  | BGC | BGC Price (`laundry_bgc_price`) | BGC Express Price (`laundry_bgc_express_price`) |
+
+  **The one that applies REPLACES the others, never adds to them**, and a box left at 0/unset
+  falls back to its Makati counterpart in **ONE step**: BGC express → BGC Express Price, else
+  the Makati express price (Express Price, else Extra Price); BGC regular → BGC Price, else
+  Extra Price. So an option nobody has given a BGC price is charged at the Makati price, and
+  every non-laundry product is untouched. One function decides it —
+  **`laundryEffectiveExtra(value, isExpress, isBgc)`** in `utils/laundry_products.js`, and
+  `laundryIsBgcOrder(order)` beside it is the only place that asks "is this BGC?".
+- **The same three paths as express pricing, priced independently** — cart-tap re-configure via
+  `buildConfiguredLineVals` (which reads the area off `pos.getOrder()`), the product-grid add
+  via the overridden `get priceExtra()`, and the configurator's own price pill via
+  `laundryValueExtra`. ⚠ `BaseProductAttribute` has **no `this.pos`** (unlike the popup), so
+  the pill reads the order off `this.env.services.pos`.
+- ⚠ **Both pricing paths SKIP values whose attribute is `create_variant === "always"`.** A BGC
+  price on such an attribute is silently ignored and that product would need a different
+  mechanism. The laundry item attributes must stay **`no_variant`**.
+- **A schedule or area change re-prices what is already in the cart for free** —
+  `_reapplyTatToLaundryLines` rebuilds each laundry line through `buildConfiguredLineVals`.
+  ⚠ `order.laundry_area` is therefore set **BEFORE** that call in `product_screen_patch`'s
+  submit block; set after it, the lines would keep the old book's prices.
+- **The modal asks on Pickup & Delivery ONLY** (`areaAsked`), as a sub-choice **inside** the
+  Service Type section rather than a numbered step — it is the one type that does not say where
+  it is. Nothing is pre-selected (the areas price item by item, so a default is a price nobody
+  looked at); `missingArea` marks it on a failed Continue like every other gap; and the area is
+  cleared with the schedule in `selectServiceType`, so a pick made under one type cannot ride
+  onto another.
+  - **`payloadArea` returns `null` for a Locker order**, meaning *leave the order's area alone* —
+    the site has already decided it. `product_screen_patch` writes the area only
+    `if (result.area)`, which is also what puts it back to `makati` when a cashier picks
+    Pickup & Delivery / BGC and then changes the type.
+- **The locker side is keyed by CODE, like the site name** — **`LOCATION_AREAS`** beside
+  `LOCATION_NAMES` in `laundry_locker/models/laundry_locker_sync.py`, read by
+  `_location_area(code)` and carried on **`_pos_row()`** as `area` (so the claim result carries
+  it too — a claim result IS a row). `new_order_modal_patch` sets `order.laundry_area` on claim
+  and puts it back to `makati` in `releaseLockerClaim`.
+  - ⚠ **An unmapped code yields `False`, NEVER a fallback to Makati**, and the register then
+    leaves the order's area alone. A guess here would quietly bill a BGC bag at Makati rates.
+    **A new locker's code must be added to `LOCATION_AREAS` before that locker goes live.**
+- **Printed on EVERY receipt** (`Area:`, `receipt_header_patch` + `receipt_header.xml`),
+  Makati included: the line is there to settle a price query, and a line that is only there
+  sometimes cannot do that — a receipt with nothing on it would mean "Makati" to the shop and
+  nothing at all to the customer holding it. Read straight off `laundry_area`, a **stored**
+  field, so unlike the schedule it is still right on a reprint from another device.
+
 ## Reprint copy picker — v1.4.16
 Reprinting used to always print the FULL set of copies. Now `PosStore.printReceipt` opens
 **`ReprintCopiesPopup`** (`static/src/reprint_picker/`) so the cashier picks which copies to print.

@@ -11,6 +11,7 @@ import {
     wdfRoundedKg,
     laundryIsExpressSelection,
     laundryEffectiveExtra,
+    laundryIsBgcOrder,
 } from "@laundry_pos/utils/laundry_products";
 
 function isTurnaround(attrLine) {
@@ -234,16 +235,17 @@ patch(ProductConfiguratorPopup.prototype, {
         }
     },
 
-    // Express pricing: a value with an Express Price charges THAT instead of its
-    // Extra Price when the turnaround is EXPRESS. Overriding core's getter covers
-    // BOTH the modal's header total and computePayload().price_extra — the latter is
-    // what the product-grid add-flow bills. (The cart-tap path prices itself through
-    // buildConfiguredLineVals, which applies the same rule.)
+    // Express and BGC pricing: a value charges the one price that applies to this
+    // order's area and turnaround, instead of its Extra Price. Overriding core's
+    // getter covers BOTH the modal's header total and computePayload().price_extra
+    // — the latter is what the product-grid add-flow bills. (The cart-tap path
+    // prices itself through buildConfiguredLineVals, which applies the same rule.)
     get priceExtra() {
         const isExpress = laundryIsExpressSelection(this.selectedValues);
+        const isBgc = laundryIsBgcOrder(this.pos?.getOrder?.());
         return this.selectedValues
             .filter((value) => value.attribute_id.create_variant === "no_variant")
-            .reduce((acc, val) => acc + laundryEffectiveExtra(val, isExpress), 0);
+            .reduce((acc, val) => acc + laundryEffectiveExtra(val, isExpress, isBgc), 0);
     },
 
     // Used by the template to grey out / lock the turnaround attribute.
@@ -258,13 +260,16 @@ patch(ProductConfiguratorPopup.prototype, {
 });
 
 // The price pill next to each option shows the price that will actually be charged:
-// on an express order that's the value's Express Price. `allSelectedValues` carries
-// the whole current selection, so each option can see the chosen turnaround.
+// on an express order that's the value's Express Price, on a BGC order its BGC one.
+// `allSelectedValues` carries the whole current selection, so each option can see
+// the chosen turnaround. ⚠ this component has no `this.pos` of its own (unlike the
+// popup above), so the order is read off the service.
 patch(BaseProductAttribute.prototype, {
     laundryValueExtra(value) {
         return laundryEffectiveExtra(
             value,
-            laundryIsExpressSelection(this.props.allSelectedValues || [])
+            laundryIsExpressSelection(this.props.allSelectedValues || []),
+            laundryIsBgcOrder(this.env?.services?.pos?.getOrder?.())
         );
     },
 });

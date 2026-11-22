@@ -146,6 +146,10 @@ patch(NewOrderModal.prototype, {
             order.laundry_locker_ref = false;
             order.laundry_locker_door = false;
             order.laundry_locker_location = false;
+            // Back to the field's own default. The site decided the price book
+            // and the site has just been given up, so leaving BGC on the order
+            // would bill the next thing rung up on it at BGC rates.
+            order.laundry_area = "makati";
         }
     },
 
@@ -226,6 +230,13 @@ patch(NewOrderModal.prototype, {
             // from order history runs on registers that never loaded the queue.
             order.laundry_locker_door = result.dirty_door || false;
             order.laundry_locker_location = result.location_name || false;
+            // Which price book. A locker cannot be asked, so its SITE answers -
+            // which is why the New Order modal does not ask on a Locker order
+            // (its payload carries no area, so this is not overwritten at
+            // submit). A site nobody has mapped yet sends False and the order
+            // keeps whatever it had, rather than being quietly called Makati:
+            // see LOCATION_AREAS in laundry_locker_sync.py.
+            if (result.area) order.laundry_area = result.area;
         }
         // Always "returning" in the modal's terms: a claim always ends with a
         // real contact (created there and then for a new number), so the

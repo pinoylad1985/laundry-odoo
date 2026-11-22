@@ -35,6 +35,31 @@ class PosOrder(models.Model):
         ],
         string='Service Type',
     )
+    # Which AREA's rates this order is billed at. Makati and BGC run different
+    # price books (the shop's two customer estimators, makati.laundryx.app and
+    # bgc.laundryx.app, carry one each), and the difference is item by item -
+    # not a percentage - so an order has to say which book it was rung up on.
+    #
+    # It cannot be read off the register: ONE register serves both. Makati is a
+    # shop plus two lockers; BGC is a locker plus pickup & delivery, with no
+    # shop of its own. So a BGC job arrives two ways and only one of them
+    # carries a locker, which is why this is a field and not a lookup:
+    #   - Locker            -> set from the locker SITE (laundry_locker)
+    #   - Pickup & Delivery -> chosen by the cashier in the New Order modal
+    #   - the other three   -> always Makati; they only exist at the shop
+    #
+    # DEFAULTED rather than left blank, and that default fills every existing
+    # row on upgrade: every order ever taken was billed at Makati rates, so a
+    # blank here would read as "no price book" on orders that plainly had one.
+    laundry_area = fields.Selection(
+        selection=[
+            ('makati', 'Makati'),
+            ('bgc', 'BGC'),
+        ],
+        string='Area',
+        default='makati',
+        help="Which area's price book this order is billed at.",
+    )
     # Coarse classification for reporting: Order (a real service sale) /
     # Payment (created via Settle Order) / Refund (a refund or a refunded order).
     # Refund wins over Order, so a service order that gets refunded flips to Refund.

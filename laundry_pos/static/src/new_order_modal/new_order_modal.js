@@ -57,6 +57,20 @@ const SERVICE_TYPES = [
     { code: "locker",            label: "Locker" },
 ];
 
+// The two price books. Makati is the shop plus its lockers; BGC is a locker and
+// pickup & delivery, with no shop of its own - so a BGC job arrives two ways and
+// only one of them carries a locker. That is why the cashier is asked here at all:
+// ONE register serves both areas, so nothing about the session can answer it.
+//
+// It is asked on PICKUP & DELIVERY ONLY (areaAsked). The other four types answer
+// themselves - a Locker order takes its area from the locker SITE (laundry_locker
+// sets it on claim, which is why this modal leaves that one alone), and drop-off,
+// drop-off & delivery and self-service only exist at the Makati shop.
+const AREAS = [
+    { code: "makati", label: "Makati" },
+    { code: "bgc",    label: "BGC" },
+];
+
 
 export class NewOrderModal extends Component {
     static template = "laundry_pos.NewOrderModal";
@@ -83,6 +97,10 @@ export class NewOrderModal extends Component {
             rev: 0,
             // Step 3 — Service Type
             serviceType: null,
+            // Which price book. Nothing is pre-selected, like every other choice
+            // in this modal: the areas price item by item, so a default here is a
+            // price the cashier never looked at. See AREAS.
+            area: null,
             // Step 4 — Schedule (flat keys to keep OWL reactivity simple).
             // No date is pre-selected: the strip OPENS on today, but picking is the
             // cashier's act, so a schedule can't be confirmed without being looked at.
@@ -93,6 +111,7 @@ export class NewOrderModal extends Component {
         });
         this.customerTypes = CUSTOMER_TYPES;
         this.serviceTypes = SERVICE_TYPES;
+        this.areas = AREAS;
         this.services = LAUNDRY_MENU; // { code, label } pills
 
         // Hour pills: all 24 in order. The template lays them out as 4 columns of 6
@@ -126,6 +145,7 @@ export class NewOrderModal extends Component {
         const s = this.state;
         s.customerType = data.customerType || null;
         s.serviceType  = data.serviceType  || null;
+        s.area         = data.area         || null;
 
         // Schedule — note storage uses deliveryDate/deliveryHour even for
         // pickup_delivery, which map to pdDelDate/pdDelHour in state.
@@ -200,6 +220,7 @@ export class NewOrderModal extends Component {
         this.props.getPayload({
             customerType: this.state.customerType,
             serviceType: this.state.serviceType,
+            area: this.payloadArea,
             partner: null,
             editPartner: partner,
             schedule: this._getSchedule(),
@@ -415,6 +436,10 @@ export class NewOrderModal extends Component {
             this._clearLaundryServiceLines();
         }
         this.state.serviceType = code;
+        // The area goes with the type, like the schedule does: four of the five
+        // types answer it themselves, so a pick made under one type must not ride
+        // onto another.
+        this.state.area = null;
         this._resetSchedule();
     }
 
@@ -632,6 +657,32 @@ export class NewOrderModal extends Component {
         return this.state.showErrors && !this.state.serviceType;
     }
 
+    // ── The area ──────────────────────────────────────────────────────────
+
+    // Pickup & Delivery is the one service type that does not say where it is.
+    get areaAsked() {
+        return this.state.serviceType === "pickup_delivery";
+    }
+
+    selectArea(code) {
+        this.state.area = code;
+    }
+
+    get missingArea() {
+        return this.state.showErrors && this.areaAsked && !this.state.area;
+    }
+
+    // What the payload carries. `null` means "leave the order's area alone" - that
+    // is the Locker case, where the locker SITE decides and laundry_locker has
+    // already set it. The other three types are Makati shop services, and saying
+    // so explicitly is what puts the area back when a cashier picks Pickup &
+    // Delivery / BGC and then changes the type.
+    get payloadArea() {
+        if (this.areaAsked) return this.state.area || null;
+        if (this.state.serviceType === "locker") return null;
+        return "makati";
+    }
+
     get missingServices() {
         return (
             this.state.showErrors &&
@@ -665,6 +716,8 @@ export class NewOrderModal extends Component {
             this.contactOk &&
             (isSelfService || this.hasAnyService) &&
             this.state.serviceType &&
+            // Pickup & Delivery has to say which price book it is billed at.
+            (!this.areaAsked || !!this.state.area) &&
             this.scheduleComplete &&
             !this.turnaroundError
         );
@@ -707,6 +760,7 @@ export class NewOrderModal extends Component {
         this.props.getPayload({
             customerType: this.state.customerType,
             serviceType:  this.state.serviceType,
+            area:         this.payloadArea,
             partner:      this.state.selectedPartner || null,
             editPartner:  null,
             schedule:     this._getSchedule(),
@@ -721,6 +775,7 @@ export class NewOrderModal extends Component {
             skipped:      true,
             customerType: this.state.customerType,
             serviceType:  this.state.serviceType,
+            area:         this.payloadArea,
             partner:      this.state.selectedPartner || null,
             schedule:     this._getSchedule(),
             turnaround:   this.turnaroundType,

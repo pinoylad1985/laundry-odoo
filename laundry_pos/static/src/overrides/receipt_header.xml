@@ -53,6 +53,7 @@
                     <!-- Carries a class so a module that has something to add
                          beside the service type can xpath onto this one line. -->
                     <div class="laundry-service-type"><b>Service Type:</b> <t t-esc="laundryServiceType"/></div>
+                    <div><b>Area:</b> <t t-esc="laundryArea"/></div>
                     <div t-if="laundryPickup"><b>Pickup:</b> <t t-esc="laundryPickup"/></div>
                     <div t-if="laundryDelivery"><b><t t-esc="laundryDeliveryLabel"/>:</b> <t t-esc="laundryDelivery"/></div>
                     <div><b>TAT:</b> <t t-esc="laundryTAT"/></div>

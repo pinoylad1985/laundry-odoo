@@ -18,6 +18,13 @@ const SERVICE_LABELS = {
     self_service: "Self-service",
 };
 
+// The two price books. Falls back to Makati on a blank, which is what every order
+// taken before laundry_area existed was billed at.
+const AREA_LABELS = {
+    makati: "Makati",
+    bgc: "BGC",
+};
+
 patch(ReceiptHeader.prototype, {
     // Resolve laundry meta from the order (JS fields) or localStorage (reprints).
     _laundryData() {
@@ -80,6 +87,18 @@ patch(ReceiptHeader.prototype, {
     get laundryServiceType() {
         const d = this._laundryData();
         return d ? (SERVICE_LABELS[d.svcType] || "") : "";
+    },
+
+    // Which price book the order was billed at. Read straight off the order -
+    // laundry_area is a STORED field, so unlike the schedule it is still there on
+    // a reprint, from another device, after a re-sync. Printed on EVERY receipt,
+    // Makati included: it is here to settle a price query, and a line that is only
+    // there sometimes cannot do that - a receipt with nothing on it would mean
+    // "Makati" to the shop and nothing at all to the customer holding it.
+    get laundryArea() {
+        const d = this._laundryData();
+        if (!d) return "";
+        return AREA_LABELS[d.order.laundry_area] || AREA_LABELS.makati;
     },
 
     // Customer tags are printed only for Locker orders.

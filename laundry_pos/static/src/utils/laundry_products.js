@@ -103,19 +103,42 @@ export function laundryIsExpressSelection(values) {
     );
 }
 
-// What one attribute value adds to the price. On an EXPRESS order a value with an
-// "Express Price" set (laundry_express_price, edited on the product's Attributes tab)
-// charges THAT INSTEAD OF its Extra Price — not on top of it. 0 / unset means the
-// normal Extra Price applies on express orders too, so non-laundry products and any
-// item without an express price behave exactly as core does.
-export function laundryEffectiveExtra(value, isExpress) {
-    const express = value?.laundry_express_price || 0;
-    return isExpress && express ? express : value?.price_extra || 0;
+// True when the order is billed at BGC rates. ONE register serves both areas, so
+// this is read off the ORDER's own laundry_area, never off the session or the
+// config. Anything other than "bgc" (including a missing order) is Makati, which
+// is the default on the field and what every order before this one was billed at.
+export function laundryIsBgcOrder(order) {
+    return order?.laundry_area === "bgc";
+}
+
+// What one attribute value adds to the price. Each option can carry up to four
+// numbers - one per price book and turnaround:
+//
+//            | Regular       | Express
+//   Makati   | Extra Price   | Express Price
+//   BGC      | BGC Price     | BGC Express Price
+//
+// The one that applies REPLACES the others, never adds to them, and a box left at
+// 0 / unset falls back to its Makati counterpart in ONE step: a BGC express order
+// takes BGC Express Price, else the Makati express price (Express Price, else Extra
+// Price); a BGC regular order takes BGC Price, else Extra Price. So an option nobody
+// has given a BGC price is charged at the Makati price, and non-laundry products and
+// anything without these prices behave exactly as core does.
+export function laundryEffectiveExtra(value, isExpress, isBgc) {
+    if (!value) return 0;
+    if (isBgc) {
+        const bgc = isExpress ? value.laundry_bgc_express_price : value.laundry_bgc_price;
+        if (bgc) return bgc;
+    }
+    const express = value.laundry_express_price || 0;
+    return isExpress && express ? express : value.price_extra || 0;
 }
 
 // Build addLineToCurrentOrder vals for a product configured with `selectedIds`:
 // resolve the create_variant="always" product.product, link all chosen values,
-// and sum the no_variant ones' price (express-aware, see laundryEffectiveExtra).
+// and sum the no_variant ones' price (express- and area-aware, see
+// laundryEffectiveExtra). The area comes from the CURRENT order, which is the order
+// being configured on every path that calls this.
 export function buildConfiguredLineVals(pos, productTemplate, selectedIds) {
     const ptavModel = pos.models["product.template.attribute.value"];
     const variants = productTemplate.product_variant_ids || [];
@@ -135,12 +158,15 @@ export function buildConfiguredLineVals(pos, productTemplate, selectedIds) {
         if (rec) selected.push(rec);
     }
     const isExpress = laundryIsExpressSelection(selected);
+    const isBgc = laundryIsBgcOrder(pos.getOrder?.());
 
     const links = [];
     let priceExtra = 0;
     for (const rec of selected) {
         links.push(["link", rec]);
-        if (!variantValueIds.has(rec.id)) priceExtra += laundryEffectiveExtra(rec, isExpress);
+        if (!variantValueIds.has(rec.id)) {
+            priceExtra += laundryEffectiveExtra(rec, isExpress, isBgc);
+        }
     }
     const vals = {
         product_tmpl_id: productTemplate,

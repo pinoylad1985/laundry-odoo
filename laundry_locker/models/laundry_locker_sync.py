@@ -100,6 +100,19 @@ LOCATION_ALIASES = {
     'AIR': 'AIR',
 }
 
+# Which PRICE BOOK each site is billed at. Makati and BGC price item by item, so
+# a locker drop-off has to say which one it was rung up on - and a locker cannot
+# be asked, so the SITE answers for it. Keyed by code like LOCATION_NAMES, for
+# the same reason: the feed's spelling of a site's name moves, the code does not.
+#
+# Every site listed here today is Makati. A BGC locker's code must be ADDED HERE
+# before that locker goes live, which is why an unlisted code yields NO area
+# rather than a guess: see _location_area.
+LOCATION_AREAS = {
+    'LX-0001': 'makati',
+    'LX-0002': 'makati',
+}
+
 
 def _clean(value):
     """A feed value as a stripped string, or False for an empty one."""
@@ -148,6 +161,18 @@ def _location_name(code, feed_name, building):
         if re.search(r'\b%s\b' % alias, str(building or ''), re.IGNORECASE):
             return site
     return _clean(building)
+
+
+def _location_area(code):
+    """The price book a locker site is billed at, or False if we cannot say.
+
+    False on a code nobody has mapped yet, NEVER a fallback to Makati. The
+    register leaves the order's area alone on a False, so an unmapped site
+    keeps the field's own default instead of the area being silently decided
+    by this function - and the price it is billed at is then a thing somebody
+    chose, not a thing this file assumed. Add the code to LOCATION_AREAS.
+    """
+    return LOCATION_AREAS.get(code or '', False)
 
 
 def _feed_datetime(date_text, hour_text):
