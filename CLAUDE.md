@@ -249,6 +249,89 @@ Express used to be a flat **+50** (the `price_extra` on the Turnaround "Express"
 - ⚠ `_load_pos_data_fields` on `product.template.attribute.value` is **extended with super()**, not
   replaced — dropping core's list would break the configurator entirely.
 
+## Two price books: Makati and BGC — v1.5.26
+The shop runs **two price sets** (its two customer estimators carry one each —
+makati.laundryx.app, bgc.laundryx.app) and the difference is **item by item, not a
+percentage**, so an order has to say which book it was rung up on:
+**`pos.order.laundry_area`** (`'makati'` / `'bgc'`, `default='makati'`, a column on the Orders
+list and a read-only field on the order form).
+- **It cannot be read off the register — ONE register serves both areas.** Makati is the shop
+  plus its two lockers; BGC is a locker **and pickup & delivery**, with no shop of its own. So a
+  BGC job arrives two ways and only one of them carries a locker. Hence a field, not a lookup:
+  - **Locker** → from the locker **SITE** (`laundry_locker`, below);
+  - **Pickup & Delivery** → asked of the cashier in the New Order modal;
+  - the other three → always `makati`; they only exist at the shop.
+- **Defaulted, not left blank**, and that default fills every existing row on upgrade: every
+  order ever taken was billed at Makati rates, so a blank would read as "no price book" on
+  orders that plainly had one.
+- **NO PRICELIST ANYWHERE.** An Odoo pricelist can only move a product's own Sales Price, and it
+  **cannot vary an attribute value's Extra Price** — which is where most of a laundry line's
+  price lives. The whole Makati→BGC difference is carried on the **attribute values** instead,
+  because every laundry product has at least one mandatory attribute each line must answer
+  (the configurator refuses to Add until it is), so there is always a value to hang the
+  difference on. WDF soil 0/5/10 → 15/20/25 against a 45 base = 60/65/70; Press SMALL/LARGE
+  0/20 → 10/30 against 30 = 40/60; and so on.
+- **Four prices per option, one per book × turnaround** —
+  `product.template.attribute.value`, edited side by side on the product's Attributes tab
+  (`models/product_attribute.py`, `views/product_attribute_views.xml`):
+
+  | | Regular | Express |
+  |---|---|---|
+  | Makati | Extra Price (`price_extra`, core) | Express Price (`laundry_express_price`) |
+  | BGC | BGC Price (`laundry_bgc_price`) | BGC Express Price (`laundry_bgc_express_price`) |
+
+  **The one that applies REPLACES the others, never adds to them**, and a box left at 0/unset
+  falls back to its Makati counterpart in **ONE step**: BGC express → BGC Express Price, else
+  the Makati express price (Express Price, else Extra Price); BGC regular → BGC Price, else
+  Extra Price. So an option nobody has given a BGC price is charged at the Makati price, and
+  every non-laundry product is untouched. One function decides it —
+  **`laundryEffectiveExtra(value, isExpress, isBgc)`** in `utils/laundry_products.js`, and
+  `laundryIsBgcOrder(order)` beside it is the only place that asks "is this BGC?".
+- **The same three paths as express pricing, priced independently** — cart-tap re-configure via
+  `buildConfiguredLineVals` (which reads the area off `pos.getOrder()`), the product-grid add
+  via the overridden `get priceExtra()`, and the configurator's own price pill via
+  `laundryValueExtra`. ⚠ `BaseProductAttribute` has **no `this.pos`** (unlike the popup), so
+  the pill reads the order off `this.env.services.pos`.
+- ⚠ **Both pricing paths SKIP values whose attribute is `create_variant === "always"`.** A BGC
+  price on such an attribute is silently ignored and that product would need a different
+  mechanism. The laundry item attributes must stay **`no_variant`**.
+- **A schedule or area change re-prices what is already in the cart for free** —
+  `_reapplyTatToLaundryLines` rebuilds each laundry line through `buildConfiguredLineVals`.
+  ⚠ `order.laundry_area` is therefore set **BEFORE** that call in `product_screen_patch`'s
+  submit block; set after it, the lines would keep the old book's prices.
+- **The modal asks on Pickup & Delivery ONLY** (`areaAsked`), as a sub-choice **inside** the
+  Service Type section rather than a numbered step — it is the one type that does not say where
+  it is. Nothing is pre-selected (the areas price item by item, so a default is a price nobody
+  looked at); `missingArea` marks it on a failed Continue like every other gap; and the area is
+  cleared with the schedule in `selectServiceType`, so a pick made under one type cannot ride
+  onto another.
+  - **`payloadArea` returns `null` for a Locker order**, meaning *leave the order's area alone* —
+    the site has already decided it. `product_screen_patch` writes the area only
+    `if (result.area)`, which is also what puts it back to `makati` when a cashier picks
+    Pickup & Delivery / BGC and then changes the type.
+- **The locker side is keyed by CODE, like the site name** — **`LOCATION_AREAS`** beside
+  `LOCATION_NAMES` in `laundry_locker/models/laundry_locker_sync.py`, read by
+  `_location_area(code)` and carried on **`_pos_row()`** as `area` (so the claim result carries
+  it too — a claim result IS a row). `new_order_modal_patch` sets `order.laundry_area` on claim
+  and puts it back to `makati` in `releaseLockerClaim`.
+  - ⚠ **An unmapped code yields `False`, NEVER a fallback to Makati**, and the register then
+    leaves the order's area alone. A guess here would quietly bill a BGC bag at Makati rates.
+    **A new locker's code must be added to `LOCATION_AREAS` before that locker goes live.**
+  - The three sites: **`LX-0001`** THE RISE (Makati) · **`LX-002`** AIR (Makati) ·
+    **`LX-003`** TURF (BGC — Avida Towers Turf BGC).
+  - ⚠ **The digits are NOT a fixed width**, and the keys are the FEED's own spelling:
+    Rise is `lx_0001` at the source while Air and Turf are `LX-002` / `LX-003`.
+    `_location_code` settles only the separator and the case. It used to zero-pad every
+    code to four digits, which looked canonical and was really Odoo inventing a code no
+    other system used — PudoPro, Firebase and the dashboard all say `LX-002`, so Odoo was
+    the one place Air had a different name. `laundry_locker/migrations/1.1.42` un-pads the
+    rows it already wrote. **Add a new locker EXACTLY as the feed sends it.**
+- **Printed on EVERY receipt** (`Area:`, `receipt_header_patch` + `receipt_header.xml`),
+  Makati included: the line is there to settle a price query, and a line that is only there
+  sometimes cannot do that — a receipt with nothing on it would mean "Makati" to the shop and
+  nothing at all to the customer holding it. Read straight off `laundry_area`, a **stored**
+  field, so unlike the schedule it is still right on a reprint from another device.
+
 ## Reprint copy picker — v1.4.16
 Reprinting used to always print the FULL set of copies. Now `PosStore.printReceipt` opens
 **`ReprintCopiesPopup`** (`static/src/reprint_picker/`) so the cashier picks which copies to print.
@@ -1010,6 +1093,65 @@ so both places a number gets typed now **ASK** first and offer that customer.
       `onPhoneInput` - which already clears the match - puts the old name back, unless the
       cashier has since typed over it. Without that, correcting onto a customer and then away
       from them again would create the next contact under *their* name.
+
+## The TURF launch promotion - half off Wash-Dry-Fold - locker v1.1.44
+A bag left at the BGC locker gets **50% off every Wash-Dry-Fold line**, up to and including
+**31 December 2026**. All three facts live in ONE object - **`TURF_PROMO`** in
+`laundry_locker/static/src/utils/turf_promo.js` (`code` / `percent` / `lastDay`). Extend it by
+moving `lastDay`; end it early by moving `lastDay` into the past. Nothing else is touched.
+- **It is a DISCOUNT on the line, not a lower price** - the owner's call. Core's own orderline
+  template already prints `50% discount off on 480.00` beside the line, so the customer sees what
+  they saved and the Odoo reports can say afterwards what the promotion cost. A quietly halved
+  price would appear nowhere except in the takings.
+- **Keyed on the site's CODE (`LX-003`), never its display name.** The name is a label - TURF
+  today, AVIDA TOWERS TURF BGC if anyone spells it out - and a rule keyed on it stops matching the
+  day somebody retypes it, with nothing on screen saying so. Same reasoning as `LOCATION_AREAS`,
+  which keys the price book on the code too. The code reaches the order through a new
+  **`pos.order.laundry_locker_code`** (stored, beside `laundry_locker_location`), written at claim
+  and cleared in `releaseLockerClaim`, and carried on `_pos_row()` as `location_code`.
+  - It is therefore **TURF only**, not "all BGC" - a BGC pickup & delivery order carries no locker
+    code, and a second BGC locker would need its code adding here deliberately.
+- ⚠ **It SWEEPS the order's lines; it does not set the discount once when a line is made.** A
+  laundry line is never edited - it is REBUILT (remove + re-add) by the cart-tap re-configure, by
+  a schedule change and by the configurator's Add, and a rebuild starts from product + attributes
+  alone. A discount set at creation would be silently dropped, exactly as the WDF Actual Weight
+  was in v1.4.33. `laundryApplyTurfPromo(order)` re-derives it from the order every time.
+- **Two hooks cover every path** (`overrides/turf_promo_patch.js`):
+  1. **`PosStore.addLineToCurrentOrder`** - all three rebuild paths call it, so one hook catches
+     the grid add, the cart tap and the schedule change alike. The discount is a percentage, so it
+     does not matter that the WDF billed quantity is settled afterwards.
+  2. **`PosStore.pay`** - the last gate before money, and the only thing that catches a cashier who
+     claims TURF, rings up the wash, then presses Change and swaps to a Makati drop-off. Nothing is
+     rebuilt when the turnaround happens not to move, so without this the Makati bag would keep
+     BGC's half-price.
+  Claim and release sweep too, so the **cart** is right immediately - the cashier quotes the price
+  off the cart, not off the payment screen.
+- ⚠ **It touches ONLY a discount it wrote ITSELF** (v1.1.44), and it knows which those are
+  because it remembers the figure it wrote - **`_laundryTurfPromo`** on the line - and compares
+  the line's discount against it. A discount the cashier typed, or one the **Discount button** put
+  on every line at once, belongs to whoever decided it: the sweep leaves it alone when the order
+  qualifies AND when it stops qualifying.
+  - ⚠ **Judging it by the FIGURE alone is what broke it** (the v1.1.43 bug): a 50% applied by
+    hand is indistinguishable from the promotion's own 50%, so pressing Pay on an ordinary
+    Pickup & Delivery order **wiped the cashier's discount off the Wash-Dry-Fold line** and left
+    it on every other line - a half-applied discount, which is worse than either answer.
+  - **The mark is in memory only, and that is right rather than a shortcut.** A rebuilt line
+    arrives with no discount and no mark, which is exactly what it should be; a reloaded order is
+    still a TURF order (`laundry_locker_code` is stored), so the sweep writes the same figure
+    again. The mark never decides whether the promotion applies - the code and the date do - it
+    only says who the discount already on the line belongs to.
+  - A line whose discount is **0** is treated as unclaimed, so a cashier who zeroes a promotional
+    line gets the 50% back on the next sweep. Taking the promotion off a TURF bag means taking
+    the bag off TURF.
+- **Judged on the clock NOW, not on the order's date.** The discount is decided as the sale is rung
+  up and then lives on the line as a stored value, so a reprint or a refund months later reads back
+  what was actually charged instead of re-deciding it.
+- ⚠ `promoEndsAt()` builds the cut-off from the date's PARTS, not `new Date("2026-12-31")` - a bare
+  date string is parsed as UTC and would end the promotion at 8 in the morning of the 31st here.
+  Same trap as `fmtDateLabel` in the New Order modal.
+- `setLineDiscount` guards `line.setDiscount` with a direct assignment, the way this module guards
+  `removeOrderline`: the deployed build is not always the public 19.0 source, and a promotion must
+  not take the register down. Verified against 19.0 core `pos_order_line.js` - re-check on upgrade.
 
 ## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -

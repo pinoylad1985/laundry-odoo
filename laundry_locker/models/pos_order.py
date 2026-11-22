@@ -34,6 +34,14 @@ class PosOrder(models.Model):
         string='Locker Site', copy=False,
         help="Locker site the laundry was dropped off at.",
     )
+    # The site's CODE, carried beside its name for the same reason the row
+    # sends both: a promotion or a price rule has to be keyed on something
+    # that does not change when somebody respells the site. The name is what
+    # the receipt and the Orders list print; this is what the rules read.
+    laundry_locker_code = fields.Char(
+        string='Locker Code', copy=False, index=True,
+        help="PudoPro code of the locker site (e.g. LX-003), as the feed spells it.",
+    )
 
     # The three above, stacked into one column on the POS Orders list (rendered
     # by the `laundry_locker_block` OWL widget): ref, then site, then door. Three

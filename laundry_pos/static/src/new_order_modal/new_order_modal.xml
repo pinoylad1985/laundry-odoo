@@ -23,6 +23,29 @@
                         <t t-esc="st.label"/>
                     </button>
                 </div>
+
+                <!-- The area, INSIDE this section rather than a numbered step of
+                     its own: it is a sub-choice of the service type, asked only
+                     for Pickup & Delivery because that is the one type that does
+                     not say where it is. A Locker order takes its area from the
+                     locker site; the other three only exist at the Makati shop. -->
+                <div t-if="areaAsked" class="mt-3">
+                    <p class="fw-semibold mb-2"
+                       t-att-class="missingArea ? 'text-danger' : 'text-muted'">
+                        Which price book?
+                        <span t-if="missingArea" class="small fw-normal">— required</span>
+                    </p>
+                    <div class="laundry-grid laundry-grid-2"
+                         t-att-class="missingArea ? 'laundry-invalid' : ''">
+                        <button t-foreach="areas" t-as="ar" t-key="ar.code"
+                                type="button"
+                                class="btn numpad-button position-relative rounded-0 border-0 fs-5"
+                                t-att-class="state.area === ar.code ? 'btn-primary' : 'btn-secondary'"
+                                t-on-click="() => this.selectArea(ar.code)">
+                            <t t-esc="ar.label"/>
+                        </button>
+                    </div>
+                </div>
             </section>
 
             <!-- ② Who is this order for? (follows the service type: a

@@ -4,7 +4,7 @@ import re
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 
-from .laundry_locker_sync import CLEARED_STATUS
+from .laundry_locker_sync import CLEARED_STATUS, _location_area
 from .laundry_locker_transaction import (
     corrected_name, corrected_phone, ph_local_phone, phone_last10,
 )
@@ -63,6 +63,18 @@ class LaundryLockerTransaction(models.Model):
             'id': self.id,
             'ref': self.ref or '',
             'location_name': self.location_name or '',
+            # The site's CODE, beside its display name. The name is what the
+            # cashier reads; the code is what rules are keyed on, because the
+            # name can be respelled (TURF -> AVIDA TOWERS TURF BGC) without
+            # anything meaning to change, and a rule keyed on it would then
+            # stop matching without saying so. Same reasoning as LOCATION_AREAS.
+            'location_code': self.location_code or '',
+            # The price book this site is billed at. A locker cannot be asked
+            # which area it is in, so the SITE answers for it - and an
+            # unmapped site answers False, which the register reads as "leave
+            # the order's area alone" rather than as Makati. See
+            # LOCATION_AREAS in laundry_locker_sync.py.
+            'area': _location_area(self.location_code),
             # FOUR keys, named exactly as the four fields behind them, so
             # the register and the Lockers list cannot call one fact two
             # things. Each is a PAIR: what the customer keyed in at the

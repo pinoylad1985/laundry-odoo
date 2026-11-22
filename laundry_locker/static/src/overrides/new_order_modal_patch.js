@@ -7,6 +7,7 @@ import { makeAwaitable } from "@point_of_sale/app/utils/make_awaitable_dialog";
 import { NewOrderModal } from "@laundry_pos/new_order_modal/new_order_modal";
 import { LockerPickerPopup } from "@laundry_locker/locker_picker/locker_picker_popup";
 import { rowPhoneInForce } from "@laundry_locker/utils/locker_rows";
+import { laundryApplyTurfPromo } from "@laundry_locker/overrides/turf_promo_patch";
 
 // What the customer paid for at the locker, in the feed's own words
 // ("Wash, Dry & Fold", "Dry Clean, Press"), mapped onto the modal's own
@@ -146,6 +147,14 @@ patch(NewOrderModal.prototype, {
             order.laundry_locker_ref = false;
             order.laundry_locker_door = false;
             order.laundry_locker_location = false;
+            order.laundry_locker_code = false;
+            // Back to the field's own default. The site decided the price book
+            // and the site has just been given up, so leaving BGC on the order
+            // would bill the next thing rung up on it at BGC rates.
+            order.laundry_area = "makati";
+            // The site paid for the discount and the site has just been given
+            // up, so the discount goes back with it.
+            laundryApplyTurfPromo(order);
         }
     },
 
@@ -226,6 +235,21 @@ patch(NewOrderModal.prototype, {
             // from order history runs on registers that never loaded the queue.
             order.laundry_locker_door = result.dirty_door || false;
             order.laundry_locker_location = result.location_name || false;
+            // The code as well as the name - the name is printed, the code is
+            // what the TURF promotion and anything else site-specific is keyed
+            // on. See utils/turf_promo.js.
+            order.laundry_locker_code = result.location_code || false;
+            // Which price book. A locker cannot be asked, so its SITE answers -
+            // which is why the New Order modal does not ask on a Locker order
+            // (its payload carries no area, so this is not overwritten at
+            // submit). A site nobody has mapped yet sends False and the order
+            // keeps whatever it had, rather than being quietly called Makati:
+            // see LOCATION_AREAS in laundry_locker_sync.py.
+            if (result.area) order.laundry_area = result.area;
+            // Swapping to another drop-off can change which site the order is
+            // on, so what is already in the cart is re-judged now rather than
+            // at payment - the cashier quotes the price off the cart.
+            laundryApplyTurfPromo(order);
         }
         // Always "returning" in the modal's terms: a claim always ends with a
         // real contact (created there and then for a new number), so the

@@ -85,9 +85,18 @@ FEED_TIMEZONE = 'Asia/Manila'
 # all, and the building text they fall back on reads "The Rise Makati" where a
 # newer row for the SAME locker reads "RISE" - so the code decides, and the
 # Location column groups by site instead of by spelling.
+#
+# ⚠ THE DIGITS ARE NOT A FIXED WIDTH, and these keys are the feed's own
+# spelling rather than a tidied one - Rise is lx_0001 at the source while Air
+# and Turf are LX-002 and LX-003. _location_code used to pad them all to four
+# digits, which read as one consistent scheme and was really Odoo inventing
+# codes that no other system used; the register, the Lockers app and PudoPro
+# then disagreed about what a site was called. Add a new locker EXACTLY as the
+# feed sends it.
 LOCATION_NAMES = {
     'LX-0001': 'THE RISE',
-    'LX-0002': 'AIR',
+    'LX-002': 'AIR',
+    'LX-003': 'TURF',
 }
 
 # Last resort for a row with no code at all: a word in the building text of the
@@ -98,6 +107,20 @@ LOCATION_NAMES = {
 LOCATION_ALIASES = {
     'RISE': 'THE RISE',
     'AIR': 'AIR',
+    'TURF': 'TURF',
+}
+
+# Which PRICE BOOK each site is billed at. Makati and BGC price item by item, so
+# a locker drop-off has to say which one it was rung up on - and a locker cannot
+# be asked, so the SITE answers for it. Keyed by code like LOCATION_NAMES, for
+# the same reason: the feed's spelling of a site's name moves, the code does not.
+#
+# A locker's code must be ADDED HERE before that locker goes live, which is why
+# an unlisted code yields NO area rather than a guess: see _location_area.
+LOCATION_AREAS = {
+    'LX-0001': 'makati',
+    'LX-002': 'makati',
+    'LX-003': 'bgc',
 }
 
 
@@ -123,13 +146,21 @@ def _ms_to_datetime(value):
 def _location_code(value):
     """The feed's location code in the one shape we store.
 
-    It arrives as `lx_0001`; the codes are written LX-0001 everywhere else,
-    including in LOCATION_NAMES.
+    Only the SEPARATOR and the case are settled here - `lx_0001` arrives with
+    an underscore and is stored LX-0001, the way PudoPro and the dashboard
+    write it. The DIGITS are kept exactly as sent.
+
+    ⚠ It used to zero-pad them to four (LX-002 -> LX-0002). That looked like
+    a canonical form and was really a code no other system used: the feed,
+    PudoPro and the dashboard all say LX-002, so Odoo was the only place where
+    Air had a different name - which is a thing nobody can reconcile when a
+    site has to be looked up in two apps at once. The padding is gone and
+    migrations/1.1.42 rewrites the rows it already padded.
     """
     text = re.sub(r'[^A-Za-z0-9]+', '', str(value or '')).upper()
-    match = re.fullmatch(r'LX0*(\d+)', text)
+    match = re.fullmatch(r'LX(\d+)', text)
     if match:
-        return 'LX-%04d' % int(match.group(1))
+        return 'LX-' + match.group(1)
     return text or False
 
 
@@ -148,6 +179,18 @@ def _location_name(code, feed_name, building):
         if re.search(r'\b%s\b' % alias, str(building or ''), re.IGNORECASE):
             return site
     return _clean(building)
+
+
+def _location_area(code):
+    """The price book a locker site is billed at, or False if we cannot say.
+
+    False on a code nobody has mapped yet, NEVER a fallback to Makati. The
+    register leaves the order's area alone on a False, so an unmapped site
+    keeps the field's own default instead of the area being silently decided
+    by this function - and the price it is billed at is then a thing somebody
+    chose, not a thing this file assumed. Add the code to LOCATION_AREAS.
+    """
+    return LOCATION_AREAS.get(code or '', False)
 
 
 def _feed_datetime(date_text, hour_text):

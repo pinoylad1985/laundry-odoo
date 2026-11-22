@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 
-    <!-- "Express Price" sits right next to "Extra Price" everywhere an attribute
+    <!-- The four prices an option can carry sit together everywhere an attribute
          value's price is edited: the list opened from the product's Attributes tab
-         (the ⚙ / Configure button on an attribute line) and that value's form. -->
+         (the ⚙ / Configure button on an attribute line) and that value's form.
+
+                  | Regular       | Express
+         Makati   | Extra Price   | Express Price
+         BGC      | BGC Price     | BGC Express Price
+
+         Ordered Makati pair then BGC pair, so the row reads as the two price books
+         side by side rather than as four unrelated numbers. -->
 
     <record id="product_template_attribute_value_view_tree_express" model="ir.ui.view">
         <field name="name">product.template.attribute.value.list.laundry.express</field>
@@ -12,6 +19,8 @@
         <field name="arch" type="xml">
             <field name="price_extra" position="after">
                 <field name="laundry_express_price" widget="monetary" options="{'field_digits': True}"/>
+                <field name="laundry_bgc_price" widget="monetary" options="{'field_digits': True}"/>
+                <field name="laundry_bgc_express_price" widget="monetary" options="{'field_digits': True}"/>
             </field>
         </field>
     </record>
@@ -23,6 +32,8 @@
         <field name="arch" type="xml">
             <field name="price_extra" position="after">
                 <field name="laundry_express_price" widget="monetary" options="{'field_digits': True}"/>
+                <field name="laundry_bgc_price" widget="monetary" options="{'field_digits': True}"/>
+                <field name="laundry_bgc_express_price" widget="monetary" options="{'field_digits': True}"/>
             </field>
         </field>
     </record>
