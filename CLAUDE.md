@@ -1166,11 +1166,29 @@ getter plus `get turnaroundType() { return this.lockerTurnaround ?? super.turnar
   Regular or Express at the door, was quoted a price for it there, and then the SHOP schedules the
   collection and the return to suit its own van - so deriving the turnaround from those times
   charges the customer for the shop's routing.
-- ⚠ **The two genuinely disagree, which is the whole point.** Wash-Dry-Fold and Press go back
-  within 24 hours of the drop whether or not express was paid for, so the 24-hour rule read a
-  REGULAR bag as express: **LX-HfgJa / order 94094, 2026-11-24** - deposited 6:38 AM, delivery
-  11:00 PM the same day = 16 hours - billed at the BGC express rate (6kg x 90 x the TURF 50% =
-  270) when the Regular rate was 6kg x 70 x 50% = 210. **60 pesos over.**
+- ⚠ **The two genuinely disagree, which is the whole point - and at TURF they disagree BY
+  DESIGN.** A Wash-Dry-Fold or Press bag left at **TURF (`LX-003`)** is delivered within 24 hours
+  of the drop **whether or not express was paid for**. That is an operational exemption the owner
+  set deliberately: TURF has only **2** collection/delivery slots against **4** at THE RISE
+  (`LX-0001`) and AIR (`LX-002`), and volume there is still low, so the van goes back fast
+  regardless of what the customer bought. The 24-hour rule therefore read a REGULAR bag as
+  express: **LX-HfgJa / order 94094, 2026-11-24** - deposited 6:38 AM, delivery 11:00 PM the same
+  day = 16 hours - billed at the BGC express rate (6kg x 90 x the TURF 50% = 270) when the Regular
+  rate was 6kg x 70 x 50% = 210. **60 pesos over** (the owner settled that with the customer
+  directly).
+  - **The fast schedule was CORRECT and the price was wrong**, which is the whole case for reading
+    the turnaround off the feed. The bag was meant to come back in 16 hours.
+  - ⚠ **The exemption is TURF-only and temporary by its own terms** - it rests on 2 slots and
+    low volume. More slots, or more volume, and TURF's Wash-Dry-Fold/Press regulars stop coming
+    back inside 24 hours. Nothing in this module depends on that, because the register no longer
+    reads the schedule at all; it matters to whoever maintains the **dashboard's** scheduling
+    logic, which is what decides the pickup and delivery times (PudoPro sends neither).
+- **The SCHEDULE is the dashboard's job, and nothing cross-checks it any more.** The register used
+  to derive the turnaround from the dates, so a wrong schedule at least showed up as a wrong
+  price. It now trusts the feed and ignores the dates, so an express bag scheduled a week out is
+  billed express, delivered late, and complained about by nothing. The dashboard
+  (dashboard.laundryx.app) is the only place that can hold the schedule to the promised
+  turnaround.
 - **It wins on EVERY locker service**, not only the two with the 24-hour clash - the owner's call,
   confirmed 2026-11-24 when it was put to them explicitly. A turnaround the customer chose and paid
   for is the agreed fact on any of them; a second rule for Shoe Clean and Dry/Wet Clean would be a
