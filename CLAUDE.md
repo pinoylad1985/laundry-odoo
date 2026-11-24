@@ -1183,6 +1183,17 @@ getter plus `get turnaroundType() { return this.lockerTurnaround ?? super.turnar
     back inside 24 hours. Nothing in this module depends on that, because the register no longer
     reads the schedule at all; it matters to whoever maintains the **dashboard's** scheduling
     logic, which is what decides the pickup and delivery times (PudoPro sends neither).
+- **TWO overcharges were found, with TWO DIFFERENT causes** (dashboard audit of 81 express locker
+  orders, 2026-11-24 - those are the only two):
+  | Ref | Order | Date | Charged | Correct | Over | Cause |
+  |---|---|---|---|---|---|---|
+  | `LX-9Iaep` | 90486 | 2026-09-27 | 910 | 700 | 210 | the **pickup** anchor, fixed the same day by `e1d7dfd` |
+  | `LX-HfgJa` | 94094 | 2026-11-24 | 270 | 210 | 60 | the TURF exemption, fixed by this rule |
+  `e1d7dfd` ("Lockers: the turnaround counts from the deposit, not the pickup") moved `diffHours`
+  onto the deposit. Before it, a locker order measured **pickup -> delivery**, which is SHORTER
+  than the customer's actual wait and therefore read express far too readily - that is 90486, and
+  it is a bug that was already gone before this one was found. The owner settled both with the
+  customers directly.
 - **The SCHEDULE is the dashboard's job, and nothing cross-checks it any more.** The register used
   to derive the turnaround from the dates, so a wrong schedule at least showed up as a wrong
   price. It now trusts the feed and ignores the dates, so an express bag scheduled a week out is

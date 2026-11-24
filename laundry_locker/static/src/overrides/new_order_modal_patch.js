@@ -392,12 +392,24 @@ patch(NewOrderModal.prototype, {
     // the turnaround back out of that charges the customer for the shop's
     // routing.
     //
-    // ⚠ The two genuinely disagree, which is what this is for. Wash-Dry-Fold
-    // and Press are delivered within 24 hours of the drop whether the customer
-    // paid for Express or not, so a REGULAR bag read as Express by the old
-    // 24-hour rule - LX-HfgJa, 2026-11-24: deposited 6:38 AM, delivered 11:00
-    // PM the same day, 16 hours, billed express. The derivation is kept only as
-    // the fallback below, for a drop-off whose turnaround the feed never sent.
+    // ⚠ The two genuinely disagree, and at TURF they disagree BY DESIGN. TURF
+    // (LX-003) runs TWO van slots a day, 11:00 and 23:00, against FOUR at THE
+    // RISE and AIR, so the dashboard sends every 24-hour job there back on the
+    // run straight after collection whether Express was paid for or not - the
+    // alternative puts the dirty bag and the clean one on the same van. A TURF
+    // Regular Wash-Dry-Fold therefore lands in 12h00m-23h59m, inside the
+    // Express promise, and the old 24-hour rule read it as Express:
+    // LX-HfgJa, 2026-11-24 - deposited 6:38 AM, delivered 11:00 PM the same
+    // day, 16h22m, billed express. The SCHEDULE was correct; the price was not.
+    //
+    // The derivation is kept only as the fallback below, for a drop-off whose
+    // turnaround the feed never sent.
+    //
+    // ⚠ Do not re-derive this from the hours even "just for TURF". The
+    // dashboard decides both the pickup and the delivery (PudoPro sends
+    // NEITHER time), its Regular bands deliberately run early at every site,
+    // and a rider can drag either leg to any day with nothing checking it. The
+    // hours are the shop's routing, not the customer's purchase.
     get turnaroundType() {
         return this.lockerTurnaround ?? super.turnaroundType;
     },
