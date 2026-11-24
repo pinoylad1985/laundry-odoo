@@ -1,6 +1,6 @@
 {
     'name': 'Laundry Lockers',
-    'version': '1.1.44',
+    'version': '1.1.45',
     'author': 'laundryx',
     'summary': 'PudoPro locker transactions, and billing them through the POS',
     'description': """
