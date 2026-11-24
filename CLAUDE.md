@@ -1171,9 +1171,10 @@ getter plus `get turnaroundType() { return this.lockerTurnaround ?? super.turnar
   REGULAR bag as express: **LX-HfgJa / order 94094, 2026-11-24** - deposited 6:38 AM, delivery
   11:00 PM the same day = 16 hours - billed at the BGC express rate (6kg x 90 x the TURF 50% =
   270) when the Regular rate was 6kg x 70 x 50% = 210. **60 pesos over.**
-- **It wins on EVERY locker service**, not only the two with the 24-hour clash. A turnaround the
-  customer chose and paid for is the agreed fact on any of them; a second rule for Shoe Clean and
-  Dry/Wet Clean would be a second answer to one question.
+- **It wins on EVERY locker service**, not only the two with the 24-hour clash - the owner's call,
+  confirmed 2026-11-24 when it was put to them explicitly. A turnaround the customer chose and paid
+  for is the agreed fact on any of them; a second rule for Shoe Clean and Dry/Wet Clean would be a
+  second answer to one question.
 - **The derivation is kept as the FALLBACK** (`?? super.turnaroundType`), for a drop-off whose
   `turnaround` the feed never sent or spelled in words neither "regular" nor "express" appears in.
   `lockerTurnaround` returns `null` there, and the old reading stands rather than nothing.
