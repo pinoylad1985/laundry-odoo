@@ -17,6 +17,13 @@
                         <span t-if="lockerState.claim.dirty_door" class="text-muted">
                             door <t t-esc="lockerState.claim.dirty_door"/>
                         </span>
+                        <!-- The turnaround the CUSTOMER paid for at the locker.
+                             It decides the price now, so it is printed next to
+                             the ref rather than left to be inferred from the
+                             pills further down the modal. -->
+                        <span t-if="lockerState.claim.turnaround"
+                              class="badge text-bg-secondary"
+                              t-esc="lockerState.claim.turnaround"/>
                         <span class="flex-grow-1"/>
                         <!-- Only for a contact CREATED from this drop-off's
                              number, which exists on a cashier's word that it
@@ -41,6 +48,18 @@
                         Choose locker drop-off
                     </button>
                 </t>
+            </div>
+        </xpath>
+
+        <!-- Says WHERE the lit pill came from. The pills read as a reading off
+             the schedule on every other service type, so on a Locker order -
+             where a Regular bag is routinely delivered inside 24 hours and the
+             schedule would say Express - the cashier needs telling that the
+             schedule is not what decided it. -->
+        <xpath expr="//div[hasclass('laundry-locked-slots')]" position="after">
+            <div t-if="lockerTurnaround" class="mt-2 text-muted small fw-semibold">
+                Turnaround is the customer's own choice at the locker. The
+                collection and delivery times do not change it.
             </div>
         </xpath>
 

@@ -1153,6 +1153,43 @@ moving `lastDay`; end it early by moving `lastDay` into the past. Nothing else i
   `removeOrderline`: the deployed build is not always the public 19.0 source, and a promotion must
   not take the register down. Verified against 19.0 core `pos_order_line.js` - re-check on upgrade.
 
+## A Locker order's turnaround is the CUSTOMER'S OWN CHOICE - locker v1.1.45
+Every other service type DERIVES Regular/Express from the schedule - `turnaroundType` in
+`laundry_pos`'s New Order modal is `diffHours < turnaroundThreshold ? "express" : "regular"`
+(24 hours, or 72 when the order carries a long service). On a **Locker** order that derivation is
+**overruled by what the customer picked at the locker**, read off the feed's own `turnaround`
+string: `laundry_locker/static/src/overrides/new_order_modal_patch.js`'s `lockerTurnaround`
+getter plus `get turnaroundType() { return this.lockerTurnaround ?? super.turnaroundType; }`.
+- **Because at a locker nobody picks the schedule in front of the customer.** On a drop-off or a
+  pickup the cashier and the customer agree the times together, so the schedule IS the promise and
+  reading the turnaround out of it is reading back what was agreed. At a locker the customer chose
+  Regular or Express at the door, was quoted a price for it there, and then the SHOP schedules the
+  collection and the return to suit its own van - so deriving the turnaround from those times
+  charges the customer for the shop's routing.
+- ⚠ **The two genuinely disagree, which is the whole point.** Wash-Dry-Fold and Press go back
+  within 24 hours of the drop whether or not express was paid for, so the 24-hour rule read a
+  REGULAR bag as express: **LX-HfgJa / order 94094, 2026-11-24** - deposited 6:38 AM, delivery
+  11:00 PM the same day = 16 hours - billed at the BGC express rate (6kg x 90 x the TURF 50% =
+  270) when the Regular rate was 6kg x 70 x 50% = 210. **60 pesos over.**
+- **It wins on EVERY locker service**, not only the two with the 24-hour clash. A turnaround the
+  customer chose and paid for is the agreed fact on any of them; a second rule for Shoe Clean and
+  Dry/Wet Clean would be a second answer to one question.
+- **The derivation is kept as the FALLBACK** (`?? super.turnaroundType`), for a drop-off whose
+  `turnaround` the feed never sent or spelled in words neither "regular" nor "express" appears in.
+  `lockerTurnaround` returns `null` there, and the old reading stands rather than nothing.
+- **Matched on the word, loosely** - lowercased, `includes("express")` then `includes("regular")`.
+  The feed's spelling is not ours to fix.
+- `turnaroundType` was already the **single** source for both the display pills
+  (`new_order_modal.xml`) and all three payload sites, so overriding that one getter moves the
+  whole modal. Don't add a second place that decides this.
+- **The cashier is told where the answer came from** - the claim box prints the locker's own
+  Regular/Express as a badge next to the Ref, and a line under the locked slots says the
+  collection and delivery times do not change it. The pills read as a reading off the schedule
+  everywhere else, so on this one type they need explaining.
+- ⚠ **The schedule still has to be CONSISTENT with it operationally** - the register no longer
+  objects if the shop schedules a Regular bag back inside 24 hours, which is what it does for
+  Wash-Dry-Fold and Press as a matter of course.
+
 ## What the CUSTOMER has to carry, BY SERVICE TYPE - v1.5.24 (phone rule v1.5.10)
 What the contact on an order must hold depends on the service type. ONE table says so -
 **`CONTACT_REQUIREMENTS`** in `static/src/utils/contact_requirements.js`, fed by

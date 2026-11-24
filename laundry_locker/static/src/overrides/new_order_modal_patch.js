@@ -362,6 +362,46 @@ patch(NewOrderModal.prototype, {
         return back ? Math.round((back - from) / 3_600_000) : null;
     },
 
+    // What the CUSTOMER chose at the locker, in the feed's own words
+    // ("Regular" / "Express"), as one of the modal's two codes. null when the
+    // drop-off says nothing this recognises - a blank field, or a wording
+    // neither word appears in - and the derived reading then stands.
+    get lockerTurnaround() {
+        if (this.state.serviceType !== "locker") {
+            return null;
+        }
+        const word = String(this.lockerState.claim?.turnaround || "").toLowerCase();
+        if (word.includes("express")) {
+            return "express";
+        }
+        if (word.includes("regular")) {
+            return "regular";
+        }
+        return null;
+    },
+
+    // The CUSTOMER'S OWN CHOICE decides a Locker order's turnaround. They made
+    // it at the locker, before the shop had the bag, and they were quoted a
+    // price for it there - so it is the one fact about the turnaround that was
+    // agreed with anybody, and the register must not re-decide it.
+    //
+    // Every other service type still DERIVES it from the schedule, because
+    // there the cashier is picking the schedule in front of the customer and
+    // the schedule IS the promise. At a locker nobody picks it: the shop
+    // schedules the collection and the return to suit its own van, and reading
+    // the turnaround back out of that charges the customer for the shop's
+    // routing.
+    //
+    // ⚠ The two genuinely disagree, which is what this is for. Wash-Dry-Fold
+    // and Press are delivered within 24 hours of the drop whether the customer
+    // paid for Express or not, so a REGULAR bag read as Express by the old
+    // 24-hour rule - LX-HfgJa, 2026-11-24: deposited 6:38 AM, delivered 11:00
+    // PM the same day, 16 hours, billed express. The derivation is kept only as
+    // the fallback below, for a drop-off whose turnaround the feed never sent.
+    get turnaroundType() {
+        return this.lockerTurnaround ?? super.turnaroundType;
+    },
+
     _applyLockerSchedule(schedule) {
         if (!schedule) {
             return;
