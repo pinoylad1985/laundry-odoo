@@ -92,9 +92,17 @@ laundry_pos/
   products. **Turnaround is exempt** — the schedule sets it and it renders locked. The gate already
   existed: `confirm()` refuses to Add while `laundryAllAttributesSelected` is false, and the template
   prints "Please select all options before adding." Same reasoning as the New Order date strip.
-  ⚠ The deployed Odoo 19 build keys `state.attributes` by **`attribute_id.id`**; the public 19.0 source
-  has since moved to `attribute_line_id.id`. Verified against the container 2026-10-16 — re-check on
-  upgrade, as every pre-select in that file depends on it.
+  ⚠ **Core has CHANGED the key of `state.attributes` once already, and it broke this silently.**
+  Builds before `19.0-20261123` keyed it by the line's **`attribute_id.id`**; that build and later
+  key it by the attribute **LINE's own `id`**. Every pre-select, the TAT lock and the clear above
+  write into that object, so the wrong key writes nowhere: on the 2026-11-26 staging core update the
+  popup opened with core's first value ticked on all 5 services AND refused to Add
+  ("Please select all options before adding"), because the clear missed and the check read an empty
+  key. It is no longer assumed - `_laundryKeyMode()` **probes** the keys core's own `setup()` seeded
+  (one entry per line) and `_laundrySetSelected()` writes through it, so one file serves either core;
+  and `laundryAllAttributesSelected` asks core's own **`selectedValues`** instead of a state key, so
+  it cannot disagree with what is about to be submitted. Probe FIRST, before the crash guard adds any
+  entry - a stray key makes it lie.
 
 ## Navbar hub buttons (New Order / Settle Order / Order List)
 The navbar (`navbar_patch.*`) carries three buttons (desktop = text, mobile = icons). A blank order has no chosen

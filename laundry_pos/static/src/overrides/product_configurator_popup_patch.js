@@ -84,11 +84,15 @@ patch(ProductConfiguratorPopup.prototype, {
     },
 
     // Every attribute must have a selection before Add (laundry services only).
+    // Asked of core's OWN `selectedValues` - the very list it is about to submit -
+    // rather than of a `state.attributes` key, because core has changed that key
+    // between 19.0 builds (see _laundryKeyMode). A line counts as answered when one
+    // of its values is in that list, which is true however the state is keyed.
     get laundryAllAttributesSelected() {
+        const chosen = new Set((this.selectedValues || []).map((v) => v?.id));
         return (this.validAttributeLineIds || []).every((line) => {
             if (isTurnaround(line)) return true; // turnaround is auto-set + locked
-            const sel = this.state.attributes?.[line.attribute_id?.id]?.selected;
-            return sel && !(Array.isArray(sel) && sel.length === 0);
+            return (line.product_template_value_ids || []).some((v) => chosen.has(v.id));
         });
     },
 
@@ -154,21 +158,71 @@ patch(ProductConfiguratorPopup.prototype, {
     },
 
     /**
-     * Guard against a core crash: setup() seeds `state.attributes` keyed by each
-     * attribute LINE's attribute_id, but initAttributes() then sets `.selected`
-     * on `state.attributes[value.attribute_id.id]` — keyed by each VALUE's
-     * attribute_id. If a product has a value whose attribute_id isn't one of the
-     * line keys (a malformed/mismigrated product, e.g. after a DB restore), core
-     * throws "Cannot set properties of undefined (setting 'selected')". We
-     * pre-create a state entry for every value's attribute_id first, so the
-     * assignment always lands somewhere instead of crashing the whole popup.
+     * WHICH KEY does this core build use for `state.attributes`?
+     *
+     * Odoo 19.0-20261123 and later key it by the attribute LINE's own id; the
+     * 19.0 builds before that keyed it by the line's `attribute_id`. Every
+     * pre-select and every clear in this file writes into that object, so getting
+     * the key wrong silently does nothing - which is exactly how it failed: core's
+     * own first-value pre-selection was never cleared, AND the "all options
+     * selected" check read an empty key, so the popup showed every option ticked
+     * and still refused to Add.
+     *
+     * So it is PROBED, not assumed: core's setup() seeds exactly one entry per
+     * line, so whichever spelling of the line ids accounts for all the seeded keys
+     * is the one this build uses. Settled once, before anything of ours adds a key.
+     */
+    _laundryKeyMode() {
+        if (this._laundryKeyModeCache) {
+            return this._laundryKeyModeCache;
+        }
+        const lines = this.props.productTemplate?.attribute_line_ids || [];
+        const keys = new Set(Object.keys(this.state?.attributes || {}));
+        const seeded = (ids) => ids.length > 0 && ids.every((id) => id != null && keys.has(String(id)));
+        const byLine = seeded(lines.map((l) => l?.id));
+        const byAttr = seeded(lines.map((l) => l?.attribute_id?.id));
+        // Current core wins a tie, and is the fallback when neither matches.
+        this._laundryKeyModeCache = byAttr && !byLine ? "attr" : "line";
+        return this._laundryKeyModeCache;
+    },
+
+    _laundryStateKey(line) {
+        return this._laundryKeyMode() === "attr" ? line?.attribute_id?.id : line?.id;
+    },
+
+    // Set a line's selection whichever way this build keys the state.
+    _laundrySetSelected(line, selected) {
+        const key = this._laundryStateKey(line);
+        if (key == null) {
+            return;
+        }
+        if (!this.state.attributes[key]) {
+            this.state.attributes[key] = { selected: [], custom_value: "" };
+        }
+        this.state.attributes[key].selected = selected;
+    },
+
+    /**
+     * Guard against a core crash: setup() seeds `state.attributes` with one entry
+     * per attribute LINE, but initAttributes() then assigns `.selected` using a key
+     * read off each VALUE (its `attribute_line_id` on current core, its
+     * `attribute_id` on older builds). If a product has a value pointing at
+     * something that isn't one of the seeded lines - a malformed/mismigrated
+     * product, e.g. after a DB restore - core throws "Cannot set properties of
+     * undefined (setting 'selected')" and the whole popup dies. We pre-create an
+     * entry for BOTH spellings of every value's key first, so the assignment always
+     * lands somewhere instead of crashing.
      */
     initAttributes() {
+        // Settle the keying BEFORE the guard below adds any entries - the probe reads
+        // the keys core's own setup() seeded, and a stray key would make it lie.
+        this._laundryKeyMode();
         for (const line of this.props.productTemplate?.attribute_line_ids || []) {
             for (const value of line.product_template_value_ids || []) {
-                const attrId = value.attribute_id?.id;
-                if (attrId != null && !this.state.attributes[attrId]) {
-                    this.state.attributes[attrId] = { selected: [], custom_value: "" };
+                for (const key of [value.attribute_id?.id, value.attribute_line_id?.id]) {
+                    if (key != null && !this.state.attributes[key]) {
+                        this.state.attributes[key] = { selected: [], custom_value: "" };
+                    }
                 }
             }
         }
@@ -188,10 +242,7 @@ patch(ProductConfiguratorPopup.prototype, {
                 if (isTurnaround(line)) {
                     continue;
                 }
-                const entry = this.state.attributes?.[line.attribute_id?.id];
-                if (entry) {
-                    entry.selected = []; // the same empty shape core's setup() uses
-                }
+                this._laundrySetSelected(line, []); // the empty shape core's setup() uses
             }
         }
         return res;
@@ -204,12 +255,11 @@ patch(ProductConfiguratorPopup.prototype, {
             return;
         }
         for (const line of this.props.productTemplate?.attribute_line_ids || []) {
-            const attrId = line.attribute_id?.id;
             const match = (line.product_template_value_ids || []).find((v) =>
                 editSelectionIds.includes(v.id)
             );
-            if (match && this.state?.attributes?.[attrId]) {
-                this.state.attributes[attrId].selected = match;
+            if (match) {
+                this._laundrySetSelected(line, match);
             }
         }
     },
@@ -228,9 +278,8 @@ patch(ProductConfiguratorPopup.prototype, {
             const match = vals.find(
                 (v) => String(v.name || "").toLowerCase().includes("express") === (tat === "express")
             );
-            const attrId = line.attribute_id?.id;
-            if (match && this.state?.attributes?.[attrId]) {
-                this.state.attributes[attrId].selected = match;
+            if (match) {
+                this._laundrySetSelected(line, match);
             }
         }
     },
